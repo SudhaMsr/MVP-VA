@@ -69,8 +69,8 @@ export async function geocode(query, pos, fetchFn) {
   if (!res.ok) throw new Error('search');
   const j = await res.json();
   if (!j.length) return null;
-  // Big places (a university, a park) come back as one far-away centre point: take the match nearest the walker.
-  const best = pos ? j.reduce((a, b) => (haversine(pos, { lat: +b.lat, lon: +b.lon }) < haversine(pos, { lat: +a.lat, lon: +a.lon }) ? b : a)) : j[0];
+  // The search service's own ranking is better than distance: a nearer but unrelated street beat the real place in a field check.
+  const best = j[0];
   const bb = (best.boundingbox || []).map(Number); // [south, north, west, east]
   const large = bb.length === 4 && haversine({ lat: bb[0], lon: bb[2] }, { lat: bb[1], lon: bb[3] }) > 1500;
   return { large, lat: +best.lat, lon: +best.lon, name: (best.display_name || query).split(',').slice(0, 2).join(',') };

@@ -71,11 +71,11 @@ test('unknown place is reported', async () => {
   assert.match(said.at(-1), /could not find nowhere/);
 });
 
-test('geocode picks the match nearest the walker', async () => {
+test('geocode keeps the search ranking (nearest-match picked the wrong place for Cabot Circus)', async () => {
   const { geocode } = await import('../docs/js/nav.js');
-  const f = async () => ({ ok: true, json: async () => [{ lat: '51.49', lon: '-2.63', display_name: 'Far Estate, X' }, { lat: '51.456', lon: '-2.603', display_name: 'Near Building, Y' }] });
-  const g = await geocode('uni', { lat: 51.4545, lon: -2.5879 }, f);
-  assert.equal(g.name, 'Near Building, Y');
+  const f = async () => ({ ok: true, json: async () => [{ lat: '51.458', lon: '-2.582', display_name: 'Cabot Circus, George White Street' }, { lat: '51.4545', lon: '-2.5870', display_name: 'Narrow Weir, Finzels Reach' }] });
+  const g = await geocode('cabot circus', { lat: 51.4545, lon: -2.5879 }, f);
+  assert.equal(g.name, 'Cabot Circus, George White Street');
 });
 test('tiny consecutive steps are spoken together', async () => {
   const said = []; let cb;
