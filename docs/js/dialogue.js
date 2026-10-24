@@ -69,7 +69,7 @@ export class Dialogue {
     if (a.type === 'no') { this.say('Okay, cancelled.', 'status'); this._set('idle'); return true; }
     if (this.state === 'confirm' && a.type === 'yes') {
       const { pos, dest, route } = this.pending; this._set('idle');
-      this.nav.begin(pos, dest, route, true);
+      this.nav.begin(pos, dest, route, true, true);
       return true;
     }
     if (this.state === 'choose' && a.type === 'choice') {

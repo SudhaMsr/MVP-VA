@@ -224,7 +224,7 @@ export class Navigator {
     try { return await this.providers.route(pos, dest); } catch { this.say('I could not get walking directions. Check your internet connection.', 'status'); return null; }
   }
 
-  begin(pos, dest, route, first = true) { return this._begin(pos, dest, route, first); }
+  begin(pos, dest, route, first = true, brief = false) { this.brief = brief; return this._begin(pos, dest, route, first); }
 
   async _route(pos, dest, first) {
     let route;
@@ -237,7 +237,9 @@ export class Navigator {
     this.destination = dest; this.route = route; this.idx = 1; this.warned = -1; this.nowSaid = -1; this.offCount = 0;
     this.lastReroute = Date.now(); this.active = true; this.oriented = false; this.startFix = null; this.large = !!dest.large; this.source = route.source;
     const first0 = route.steps[0];
-    this.say(first
+    this.say(first && this.brief
+      ? `Starting. ${cap(instructionText(first0))} for ${roundMetres(first0.distance)}. I will tell you if you need to turn.`
+      : first
       ? `Going to ${dest.name}. ${roundMetres(route.distance)}, ${minutesText(route.duration)}.${this.large && first ? ' This is a large site, so I am heading for its middle. For a particular building, say its name.' : ''} Say cancel to stop. First, ${instructionText(first0)} for ${roundMetres(first0.distance)}. Start walking and I will tell you if you need to turn.`
       : `New route. ${instructionText(first0)} for ${roundMetres(first0.distance)}.`, 'status');
     this.watchId = this.watch((p) => this.onPosition(p), () => this.say('I lost your location signal.', 'status'));

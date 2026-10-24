@@ -80,7 +80,10 @@ const navigator_ = new Navigator({
   }),
   getPosition: () => new Promise((res, rej) => {
     if (!('geolocation' in navigator)) return rej(new Error('no geolocation'));
-    navigator.geolocation.getCurrentPosition((p) => res({ lat: p.coords.latitude, lon: p.coords.longitude }), rej,
+    const wait = setTimeout(() => say('Waiting for your location. If your phone asks, allow location.', 'status'), 4000);
+    navigator.geolocation.getCurrentPosition(
+      (p) => { clearTimeout(wait); res({ lat: p.coords.latitude, lon: p.coords.longitude }); },
+      (e) => { clearTimeout(wait); rej(e); },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
   }),
   watch: (ok, err) => navigator.geolocation.watchPosition(
@@ -139,6 +142,8 @@ async function readText() {
 }
 document.getElementById('readBtn').hidden = !READ_ON;
 document.getElementById('readBtn').addEventListener('click', () => readText());
+
+if (!speaker.supported) document.getElementById('status').setAttribute('aria-live', 'polite'); // no voice: let the screen reader announce
 
 function setStatus(text) {
   el.status.textContent = text;
@@ -366,6 +371,7 @@ async function start() {
   setStatus('Starting');
   say(state.firstRun ? FULL_DISCLAIMER : 'Starting.', 'status');
   startListening(); // inside the tap, so the browser allows the microphone prompt
+  try { navigator.geolocation.getCurrentPosition(() => {}, () => {}, { maximumAge: 60000, timeout: 10000 }); } catch (_) { /* ask for location now, so the prompt is not a surprise mid-walk */ }
   try {
     await openCamera();
   } catch (e) {

@@ -82,3 +82,15 @@ test('stairs on the route are mentioned', async () => {
   await s.d.navigateTo('x');
   assert.match(s.said.at(-1), /The route includes stairs\./);
 });
+
+test('after the walker says yes, the start message is short', async () => {
+  const { Navigator } = await import('../docs/js/nav.js');
+  const said = [];
+  const st = [
+    { distance: 400, text: 'walk along Mill Lane', maneuver: { type: 'depart', location: [0, 51] }, at: { lat: 51, lon: 0 }, path: [] },
+    { distance: 0, text: 'you have arrived', maneuver: { type: 'arrive', location: [0.004, 51] }, at: { lat: 51, lon: 0.004 }, path: [] },
+  ];
+  const nav = new Navigator({ say: (t) => said.push(t), providers: { route: async () => ({ distance: 400, duration: 300, steps: st, source: 'x' }) }, getPosition: async () => ({ lat: 51, lon: 0 }), watch: () => 1, unwatch: () => {} });
+  nav.begin({ lat: 51, lon: 0 }, { name: 'Cafe', lat: 51, lon: 0.004 }, { distance: 400, duration: 300, steps: st, source: 'x' }, true, true);
+  assert.equal(said.at(-1), 'Starting. Walk along Mill Lane for 400 metres. I will tell you if you need to turn.');
+});
