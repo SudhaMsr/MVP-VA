@@ -267,9 +267,9 @@ export class Navigator {
     if (!target) return;
     const diff = ((bearing(p, target) - bearing(this.startFix, p) + 540) % 360) - 180; // + = route is to the right
     const a = Math.abs(diff);
-    if (a < 45) this.say('You are going the right way.', 'status');
-    else if (a > 135) this.say('Wrong way. Turn around.', 'status');
-    else this.say(`The route is to your ${diff > 0 ? 'right' : 'left'}. Turn ${diff > 0 ? 'right' : 'left'} when you can.`, 'status');
+    if (a < 45) this.say('You are going the right way.', 'nav');
+    else if (a > 135) this.say('Wrong way. Turn around.', 'nav');
+    else this.say(`The route is to your ${diff > 0 ? 'right' : 'left'}. Turn ${diff > 0 ? 'right' : 'left'} when you can.`, 'nav');
   }
 
   onPosition(p) {
@@ -288,7 +288,7 @@ export class Navigator {
     if (this.minIdx !== this.idx) { this.minIdx = this.idx; this.minD = Infinity; }
     this.minD = Math.min(this.minD, d);
     if (step.maneuver.type === 'arrive' && d <= this.nowMetres + 8) {
-      this.say(`You have arrived at ${this.destination.name}.`, 'status');
+      this.say(`You have arrived at ${this.destination.name}.`, 'nav');
       return this.cancel(true);
     }
     // Reached the point, or came within 25 m and is now moving away from it (fixes were too far apart to land inside 12 m).
@@ -304,13 +304,13 @@ export class Navigator {
           text += `, then ${instructionText(this.route.steps[this.idx])}`;
           this.idx += 1;
         }
-        this.say(`${text}.`, 'status');
+        this.say(`${text}.`, 'nav');
       }
       return;
     }
     if (d <= this.warnMetres && this.warned !== this.idx) {
       this.warned = this.idx;
-      this.say(step.maneuver.type === 'arrive' ? `Your destination is in ${roundMetres(d)}.` : `In ${roundMetres(d)}, ${instructionText(step)}.`, 'status');
+      this.say(step.maneuver.type === 'arrive' ? `Your destination is in ${roundMetres(d)}.` : `In ${roundMetres(d)}, ${instructionText(step)}.`, 'nav');
       return;
     }
     // off-route check against the current and previous leg
@@ -319,7 +319,7 @@ export class Navigator {
       this.offCount += 1;
       if (this.offCount >= 2 && Date.now() - this.lastReroute > 15000) {
         this.lastReroute = Date.now(); this.offCount = 0;
-        this.say('Off route. Finding a new way.', 'status');
+        this.say('Off route. Finding a new way.', 'nav');
         this._route(p, this.destination, false);
       }
     } else this.offCount = 0;

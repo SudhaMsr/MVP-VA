@@ -1,6 +1,8 @@
 // Speech queue. Three kinds of message:
 //   urgent - interrupts whatever is playing; never dropped
-//   status - queued in order; never dropped (command feedback, errors, navigation)
+//   nav    - time-critical turn prompts: go ahead of queued status and routine messages, drop stale routine alerts,
+//            and cut off a routine alert in progress (a late "turn left now" is useless); never dropped themselves
+//   status - queued in order; never dropped (command feedback, errors, route summaries)
 //   normal - routine alerts; dropped if they have become stale or the queue is long
 // The old prototype silently dropped everything while it was already speaking. This does not.
 export class Speaker {
@@ -45,6 +47,12 @@ export class Speaker {
       this.queue = this.queue.filter((q) => q.kind !== 'normal');
       this.queue.unshift(item);
       if (this.current && this.current.kind !== 'urgent') this._cancelCurrent();
+    } else if (kind === 'nav') {
+      this.queue = this.queue.filter((q) => q.kind !== 'normal');
+      let i = 0;
+      while (i < this.queue.length && (this.queue[i].kind === 'urgent' || this.queue[i].kind === 'nav')) i++;
+      this.queue.splice(i, 0, item);
+      if (this.current && this.current.kind === 'normal') this._cancelCurrent();
     } else if (kind === 'normal') {
       const queuedNormal = this.queue.filter((q) => q.kind === 'normal').length;
       if (queuedNormal >= this.maxNormalQueued) {

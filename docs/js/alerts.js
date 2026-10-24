@@ -30,13 +30,15 @@ function metres(d) {
 export class AlertEngine {
   constructor(cfg = CONFIG) {
     this.cfg = cfg;
-    this.last = new Map(); // key -> time last spoken
+    this.last = new Map(); // key -> { t: time last spoken, d: distance then, n: repeats since it last got closer }
+    this.spokenAt = []; // times of recent non-urgent alerts, for the budget
   }
 
   candidates(tracks, frameW, frameH) {
     const c = this.cfg;
     const out = [];
     for (const tr of tracks) {
+      const start = out.length;
       const dir = directionOf((tr.box.x1 + tr.box.x2) / 2, frameW);
       const name = tr.name;
       const d = tr.dist; // number or null
@@ -53,7 +55,7 @@ export class AlertEngine {
           const text = approaching
             ? `Caution. ${LABEL[name]} approaching, ${dir}, ${metres(d)}.`
             : `Caution. ${LABEL[name]}, ${dir}, ${metres(d)}.`;
-          out.push({ key: `${name}:${dir}:u`, text, priority: 0 });
+          out.push({ key: `${name}:${dir}:u`, text, priority: 0, still: !approaching });
         } else if (d < maxD) {
           out.push({ key: `${name}:${dir}`, text: `${LABEL[name]}, ${dir}, ${metres(d)}.`, priority: 2 });
         }
@@ -90,24 +92,36 @@ export class AlertEngine {
         out.push({ key: `hydrant:${dir}`, text: `Hydrant, ${dir}, close.`, priority: 4 });
       }
       // 'sign', 'building' and 'road' are ignored on purpose: we cannot read it yet, so announcing it is just noise.
+      for (let i = start; i < out.length; i++) { out[i].d = d; out[i].dir = dir; }
     }
-    return out;
+    // Only things near or in the walker's path are worth speaking about: off to the side, wait until they are close.
+    // Urgent alerts and fall hazards (stairs, red lights) always stay.
+    return out.filter((a) => a.priority <= 1 || a.dir === 'ahead' || a.d == null || a.d < (c.sideAlertMetres ?? 2.5));
   }
 
   // Returns {text, priority, urgent, key} or null.
+  // A thing that is still there is not news: each repeat of the same alert waits longer (1x, 2x, 3x, 4x the cooldown)
+  // unless it has got clearly closer. At most budgetMax routine alerts are spoken per budgetWindowMs; urgent ones are exempt.
   next(tracks, frameW, frameH, tMs) {
+    const c = this.cfg;
     let cands = this.candidates(tracks, frameW, frameH);
     if (cands.some((x) => x.priority <= 2)) cands = cands.filter((x) => x.priority <= 2);
     cands.sort((a, b) => a.priority - b.priority);
+    this.spokenAt = this.spokenAt.filter((t) => tMs - t < (c.budgetWindowMs ?? 10000));
     for (const a of cands) {
-      const cd = this.cfg.cooldownMs[a.priority] ?? 10000;
-      const last = this.last.get(a.key);
-      if (last != null && tMs - last < cd) continue;
-      this.last.set(a.key, tMs);
+      const rec = this.last.get(a.key);
+      const closer = rec && a.d != null && rec.d != null && rec.d - a.d >= (c.repeatCloserMetres ?? 1.5);
+      let n = rec && !closer && tMs - rec.t < 30000 ? rec.n : 0;
+      const base = a.still ? Math.max(c.cooldownMs[a.priority] ?? 10000, 6000) : (c.cooldownMs[a.priority] ?? 10000); // a near vehicle that is not closing in is not news every 3 s
+      const cd = base * (1 + Math.min(n, 3));
+      if (rec && !closer && tMs - rec.t < cd) continue;
+      if (a.priority > 0 && this.spokenAt.length >= (c.budgetMax ?? 3)) continue;
+      this.last.set(a.key, { t: tMs, d: a.d, n: rec && !closer ? n + 1 : 0 });
+      if (a.priority > 0) this.spokenAt.push(tMs);
       return { ...a, urgent: a.priority === 0 };
     }
     return null;
   }
 
-  reset() { this.last.clear(); }
+  reset() { this.last.clear(); this.spokenAt = []; }
 }
