@@ -31,6 +31,12 @@ Open it in Chrome on the phone, tap **Start**, allow camera and microphone.
 - `?lane=off` turns the stairs/manhole lane off (for speed tests). `?model=rod` runs the ROD model alone.
 - The line "Speed check" on screen shows frame time on the phone. Send it to the developer.
 
+## Recording a test session (supervisor)
+Open `https://sudhamsr.github.io/MVP-VA/?debug&record`, tap **Start**, do the walk, say or tap **Stop**, then tap **Save recording**.
+Two files download: the raw camera video and a log of what the app saw, said and how fast it ran. Send both to the developer.
+Offline review: `python3 tools/analyze_session.py VIDEO LOG.json` replays the video through both models and writes `analysis/summary.txt` and `analysis/annotated.mp4`.
+(Recording adds some load on the phone, so leave it off for speed tests.)
+
 ## Tests
 `npm test` (Node 20+) runs 28 unit tests: model output decoding checked against a Python reference, tracker, alert wording and priority, speech queue, voice-command parser.
 

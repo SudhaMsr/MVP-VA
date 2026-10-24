@@ -13,13 +13,14 @@ const SIZE = params.get('size') === '416' ? 416 : CONFIG.inputSize;
 const MODEL_KEY = MODELS[params.get('model')] ? params.get('model') : DEFAULT_MODEL;
 const MODEL = MODELS[MODEL_KEY];
 const DEBUG = params.has('debug');
+const RECORD = params.has('record'); // supervisor option: record raw video + per-frame detections for review
 const EP = params.get('ep') || 'wasm';
 
 const $ = (id) => document.getElementById(id);
 const el = {
   start: $('startBtn'), stop: $('stopBtn'), repeat: $('repeatBtn'), mic: $('micBtn'),
   status: $('status'), last: $('lastAlert'), stats: $('stats'), video: $('video'), overlay: $('overlay'),
-  dl: $('logBtn'),
+  dl: $('logBtn'), saveRec: $('saveRecBtn'),
 };
 
 const FULL_DISCLAIMER =
@@ -46,6 +47,11 @@ const state = {
   lastWarnAt: 0,
 };
 const frameTimes = [];
+const frameLog = []; // per-frame detections, only filled when recording
+let recorder = null;
+let recChunks = [];
+let recBlob = null;
+let recMime = '';
 const spokenHistory = []; // for ignoring our own voice picked up by the microphone
 const session = { startedAt: new Date().toISOString(), events: [], size: SIZE, ep: EP, model: MODEL_KEY };
 
@@ -166,6 +172,7 @@ async function loop() {
     if (DEBUG) drawOverlay(tracks, width, height);
     const ms = performance.now() - t0;
     frameTimes.push(ms);
+    if (RECORD) logFrame(tracks, ms);
     if (frameTimes.length > 40) frameTimes.shift();
     state.lastFrameOk = t;
     state.errors = 0;
@@ -206,6 +213,65 @@ function drawOverlay(tracks, w, h) {
     const d = tr.dist != null ? ` ${tr.dist.toFixed(1)}m` : '';
     g.fillText(`${tr.name}${d}`, tr.box.x1 + 4, Math.max(20, tr.box.y1 + 20));
   }
+}
+
+// ---------- recording (supervisor option: ?record) ----------
+function logFrame(tracks, ms) {
+  frameLog.push({
+    t: Date.now(), ms: Math.round(ms),
+    d: tracks.map((tr) => [tr.name, Math.round(tr.box.x1), Math.round(tr.box.y1), Math.round(tr.box.x2),
+      Math.round(tr.box.y2), +tr.score.toFixed(2), tr.dist == null ? null : +tr.dist.toFixed(1)]),
+  });
+  if (frameLog.length > 20000) frameLog.shift();
+}
+
+function startRecording() {
+  if (!RECORD || !stream) return;
+  if (typeof MediaRecorder === 'undefined') {
+    logEvent('record-unsupported', '');
+    say('Recording is not supported in this browser.', 'status');
+    return;
+  }
+  recChunks = [];
+  recBlob = null;
+  frameLog.length = 0;
+  el.saveRec.disabled = true;
+  el.saveRec.textContent = 'Recording...';
+  const mimes = ['video/mp4;codecs=avc1.42E01E', 'video/mp4', 'video/webm;codecs=vp8', 'video/webm'];
+  recMime = mimes.find((m) => MediaRecorder.isTypeSupported(m)) || '';
+  try {
+    recorder = new MediaRecorder(stream, recMime ? { mimeType: recMime, videoBitsPerSecond: 1500000 } : {});
+  } catch (e) {
+    logEvent('record-error', e && e.message);
+    say('Recording could not start.', 'status');
+    return;
+  }
+  recorder.ondataavailable = (e) => { if (e.data && e.data.size) recChunks.push(e.data); };
+  recorder.onstart = () => { session.recStartedAt = Date.now(); session.recMime = recorder.mimeType; };
+  recorder.onstop = () => {
+    recBlob = new Blob(recChunks, { type: recorder.mimeType || 'video/webm' });
+    el.saveRec.disabled = recBlob.size === 0;
+    el.saveRec.textContent = `Save recording (${(recBlob.size / 1048576).toFixed(1)} MB)`;
+  };
+  recorder.start(1000);
+}
+
+function stopRecording() {
+  try { if (recorder && recorder.state !== 'inactive') recorder.stop(); } catch (_) { /* ignore */ }
+}
+
+function download(blob, name) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+
+function sessionBlob() {
+  return new Blob([JSON.stringify({ ...session, frameMs: frameTimes, speech: speaker.log, frames: frameLog }, null, 2)],
+    { type: 'application/json' });
 }
 
 // ---------- health checks ----------
@@ -254,8 +320,9 @@ async function start() {
   tracker.tracks = [];
   slow.dets = []; slow.t = null; frameCount = 0;
   engine.reset();
-  setStatus('Running');
-  say('Vision Assist active. Detecting obstacles.', 'status');
+  setStatus(RECORD ? 'Running, recording' : 'Running');
+  say(RECORD ? 'Vision Assist active, recording.' : 'Vision Assist active. Detecting obstacles.', 'status');
+  startRecording();
   lockScreen();
   loop();
 }
@@ -264,6 +331,7 @@ function stopInternal() {
   state.running = false;
   state.starting = false;
   if (state.timer) clearTimeout(state.timer);
+  stopRecording();
   stopCamera();
   releaseScreen();
   try { const c = el.overlay; c.getContext('2d').clearRect(0, 0, c.width, c.height); } catch (_) { /* ignore */ }
@@ -391,15 +459,20 @@ el.mic.addEventListener('click', () => {
   else { startListening(); say('Voice commands on. Say help for commands.', 'status'); }
 });
 el.dl.addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify({ ...session, frameMs: frameTimes, speech: speaker.log }, null, 2)],
-    { type: 'application/json' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `vision-assist-log-${Date.now()}.json`;
-  a.click();
+  download(sessionBlob(), `vision-assist-log-${Date.now()}.json`);
   say('Session log saved.', 'status');
 });
+el.saveRec.addEventListener('click', () => {
+  if (!recBlob || !recBlob.size) return;
+  const ext = (recBlob.type || '').includes('mp4') ? 'mp4' : 'webm';
+  const stamp = Date.now();
+  download(recBlob, `vision-assist-video-${stamp}.${ext}`);
+  setTimeout(() => download(sessionBlob(), `vision-assist-log-${stamp}.json`), 1000);
+  say('Saving the video and the log.', 'status');
+});
+el.saveRec.hidden = !RECORD;
 
 if (DEBUG) document.body.classList.add('debug');
 updateMic();
-window.__va = { state, speaker, session, tracker, engine, start, stop };
+window.__va = { state, speaker, session, tracker, engine, start, stop,
+  rec: () => ({ size: recBlob ? recBlob.size : null, mime: recMime, frames: frameLog.length }) };
