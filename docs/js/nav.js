@@ -63,13 +63,17 @@ export function minutesText(seconds) {
 
 export async function geocode(query, pos, fetchFn) {
   const dv = 0.15; // bias to roughly 15 km around the walker
-  const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=' + encodeURIComponent(query) +
+  const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&q=' + encodeURIComponent(query) +
     (pos ? `&viewbox=${pos.lon - dv},${pos.lat + dv},${pos.lon + dv},${pos.lat - dv}` : '');
   const res = await fetchFn(url, { headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error('search');
   const j = await res.json();
   if (!j.length) return null;
-  return { lat: +j[0].lat, lon: +j[0].lon, name: (j[0].display_name || query).split(',').slice(0, 2).join(',') };
+  // Big places (a university, a park) come back as one far-away centre point: take the match nearest the walker.
+  const best = pos ? j.reduce((a, b) => (haversine(pos, { lat: +b.lat, lon: +b.lon }) < haversine(pos, { lat: +a.lat, lon: +a.lon }) ? b : a)) : j[0];
+  const bb = (best.boundingbox || []).map(Number); // [south, north, west, east]
+  const large = bb.length === 4 && haversine({ lat: bb[0], lon: bb[2] }, { lat: bb[1], lon: bb[3] }) > 1500;
+  return { large, lat: +best.lat, lon: +best.lon, name: (best.display_name || query).split(',').slice(0, 2).join(',') };
 }
 
 export async function fetchRoute(from, to, fetchFn) {
@@ -110,10 +114,10 @@ export class Navigator {
     try { route = await fetchRoute(pos, dest, this.fetchFn); } catch { this.say('I could not get walking directions. Check your internet connection.', 'status'); return false; }
     if (!route) { this.say('I could not find a walking route there.', 'status'); return false; }
     this.destination = dest; this.route = route; this.idx = 1; this.warned = -1; this.nowSaid = -1; this.offCount = 0;
-    this.lastReroute = Date.now(); this.active = true;
+    this.lastReroute = Date.now(); this.active = true; this.large = !!dest.large;
     const first0 = route.steps[0];
     this.say(first
-      ? `Going to ${dest.name}. ${roundMetres(route.distance)}, ${minutesText(route.duration)}. Say cancel to stop. First, ${instructionText(first0)} for ${roundMetres(first0.distance)}.`
+      ? `Going to ${dest.name}. ${roundMetres(route.distance)}, ${minutesText(route.duration)}.${this.large && first ? ' This is a large site, so I am heading for its middle. For a particular building, say its name.' : ''} Say cancel to stop. First, ${instructionText(first0)} for ${roundMetres(first0.distance)}.`
       : `New route. ${instructionText(first0)} for ${roundMetres(first0.distance)}.`, 'status');
     this.watchId = this.watch((p) => this.onPosition(p), () => this.say('I lost your location signal.', 'status'));
     return true;
@@ -132,10 +136,14 @@ export class Navigator {
       if (this.nowSaid !== this.idx && step.maneuver.type !== 'arrive') {
         this.nowSaid = this.idx;
         const next = this.route.steps[this.idx];
-        this.say(`${cap(instructionText(next))} now.`, 'status');
+        let text = `${cap(instructionText(next))} now`;
         this.idx += 1;
-        const after = this.route.steps[this.idx];
-        if (after && after.maneuver.type !== 'arrive' && after.distance > 0) { /* distance announced at warn point */ }
+        // Several turns within a few metres (OSM junction detail): say them together, not as separate alerts.
+        while (this.route.steps[this.idx - 1].distance < 15 && this.route.steps[this.idx] && this.route.steps[this.idx].maneuver.type !== 'arrive') {
+          text += `, then ${instructionText(this.route.steps[this.idx])}`;
+          this.idx += 1;
+        }
+        this.say(`${text}.`, 'status');
       }
       return;
     }

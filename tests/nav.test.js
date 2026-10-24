@@ -70,3 +70,24 @@ test('unknown place is reported', async () => {
   assert.equal(await nav.start('nowhere'), false);
   assert.match(said.at(-1), /could not find nowhere/);
 });
+
+test('geocode picks the match nearest the walker', async () => {
+  const { geocode } = await import('../docs/js/nav.js');
+  const f = async () => ({ ok: true, json: async () => [{ lat: '51.49', lon: '-2.63', display_name: 'Far Estate, X' }, { lat: '51.456', lon: '-2.603', display_name: 'Near Building, Y' }] });
+  const g = await geocode('uni', { lat: 51.4545, lon: -2.5879 }, f);
+  assert.equal(g.name, 'Near Building, Y');
+});
+test('tiny consecutive steps are spoken together', async () => {
+  const said = []; let cb;
+  const st = [
+    { distance: 50, name: 'A', maneuver: { type: 'depart', bearing_after: 90, location: [0, 51] }, geometry: { coordinates: [[0, 51], [0.0007, 51]] } },
+    { distance: 5, name: 'B', maneuver: { type: 'turn', modifier: 'left', location: [0.0007, 51] }, geometry: { coordinates: [[0.0007, 51], [0.0007, 51.00004]] } },
+    { distance: 80, name: 'C', maneuver: { type: 'turn', modifier: 'right', location: [0.0007, 51.00004] }, geometry: { coordinates: [[0.0007, 51.00004], [0.0007, 51.0008]] } },
+    { distance: 0, name: '', maneuver: { type: 'arrive', location: [0.0007, 51.0008] }, geometry: { coordinates: [[0.0007, 51.0008]] } },
+  ];
+  const nav = new Navigator({ say: (t) => said.push(t), fetchFn: fakeNet(st), getPosition: async () => ({ lat: 51, lon: 0 }), watch: (f) => { cb = f; return 1; }, unwatch: () => {} });
+  await nav.start('x');
+  cb({ lat: 51, lon: 0.00069, accuracy: 5 });
+  assert.match(said.at(-1), /Turn left onto B now, then turn right onto C\./);
+  assert.equal(nav.idx, 3);
+});
