@@ -201,9 +201,10 @@ export function makeProviders({ googleKey, fetchFn = (...a) => fetch(...a), onFa
 }
 
 export class Navigator {
-  constructor({ say, fetchFn = (...a) => fetch(...a), providers, getPosition, watch, unwatch, warnMetres = 40, nowMetres = 12, offRouteMetres = 40 }) {
+  constructor({ say, fetchFn = (...a) => fetch(...a), providers, getPosition, watch, unwatch, warnMetres = 40, nowMetres = 12, offRouteMetres = 40, reassureMs = 45000, reassureMetres = 80, now = () => Date.now() }) {
     this.providers = providers || makeProviders({ fetchFn });
-    Object.assign(this, { say, fetchFn, getPosition, watch, unwatch, warnMetres, nowMetres, offRouteMetres });
+    Object.assign(this, { say, fetchFn, getPosition, watch, unwatch, warnMetres, nowMetres, offRouteMetres, reassureMs, reassureMetres, now });
+    this.say = (t, k) => { this.lastSayAt = this.now(); say(t, k); }; // remember when we last spoke, for reassurance
     this.active = false;
     this.destination = null;
   }
@@ -246,7 +247,7 @@ export class Navigator {
 
   _begin(pos, dest, route, first) {
     this.destination = dest; this.route = route; this.idx = 1; this.warned = -1; this.nowSaid = -1; this.offCount = 0;
-    this.lastReroute = Date.now(); this.active = true; this.oriented = false; this.startFix = null; this.large = !!dest.large; this.source = route.source;
+    this.lastReroute = Date.now(); this.lastSayAt = this.now(); this.active = true; this.oriented = false; this.startFix = null; this.large = !!dest.large; this.source = route.source;
     const first0 = route.steps[0];
     this.say(first && this.brief
       ? `Starting. ${cap(instructionText(first0))} for ${roundMetres(first0.distance)}. I will tell you if you need to turn.`
@@ -322,7 +323,14 @@ export class Navigator {
         this.say('Off route. Finding a new way.', 'nav');
         this._route(p, this.destination, false);
       }
-    } else this.offCount = 0;
+    } else {
+      this.offCount = 0;
+      // A long quiet stretch: reassure the walker that they are still on the route (and roughly how far to the next turn).
+      if (d > Math.max(this.warnMetres + 10, this.reassureMetres) && this.now() - this.lastSayAt > this.reassureMs) {
+        const what = step.maneuver.type === 'arrive' ? 'Your destination is' : 'The next turn is';
+        this.say(`Keep going. You are on the route. ${what} about ${roundMetres(d)} away.`, 'status');
+      }
+    }
   }
 
   cancel(silent = false) {

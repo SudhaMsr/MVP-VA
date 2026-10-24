@@ -4,7 +4,8 @@ import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY, GOOGLE_KEY, FEATURES } from '
 import { filterAllowed, mergeLanes } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
-import { AlertEngine } from './alerts.js';
+import { AlertEngine, LEVELS } from './alerts.js';
+import { Cues } from './cues.js';
 import { Speaker } from './speech.js';
 import { parseCommand, HELP_TEXT } from './commands.js';
 import { Navigator, makeProviders } from './nav.js';
@@ -23,7 +24,7 @@ const $ = (id) => document.getElementById(id);
 const el = {
   start: $('startBtn'), stop: $('stopBtn'), repeat: $('repeatBtn'), mic: $('micBtn'),
   status: $('status'), last: $('lastAlert'), stats: $('stats'), video: $('video'), overlay: $('overlay'),
-  dl: $('logBtn'), saveRec: $('saveRecBtn'),
+  dl: $('logBtn'), saveRec: $('saveRecBtn'), level: $('levelBtn'), tap: $('tapBtn'),
 };
 
 const FULL_DISCLAIMER =
@@ -34,7 +35,8 @@ const speaker = new Speaker(window.speechSynthesis, window.SpeechSynthesisUttera
   rate: CONFIG.speechRate, lang: CONFIG.speechLang, staleMs: CONFIG.staleMs,
 });
 const tracker = new Tracker();
-const engine = new AlertEngine();
+const engine = new AlertEngine(CONFIG, CONFIG.verbosity);
+const cues = new Cues();
 let detector = null;
 let slowDetector = null; // second model for stairs, manholes, benches...
 const slow = { dets: [], t: null, ranAt: 0 };
@@ -47,8 +49,9 @@ let wakeLock = null;
 const state = {
   running: false, starting: false, listening: false, firstRun: true, wasRunning: false,
   lastSpoken: '', lastSpeechAt: performance.now(), lastFrameOk: 0, errors: 0, timer: null,
-  lastWarnAt: 0,
+  lastWarnAt: 0, talkUntil: 0, talkHeard: false, tapToTalk: true, lastTapAt: 0,
 };
+let talkTimer = null;
 const frameTimes = [];
 const frameLog = []; // per-frame detections, only filled when recording
 let recorder = null;
@@ -242,7 +245,8 @@ async function loop() {
     const dets = mergeLanes(fast, slow, t, SECONDARY.maxAgeMs);
     const tracks = tracker.update(dets, t, width, height);
     const alert = engine.next(tracks, width, height, t);
-    if (alert) {
+    if (alert && (alert.urgent || performance.now() > state.talkUntil)) { // routine alerts wait while the walker is speaking
+      if (alert.urgent) cues.play('urgent');
       speaker.speak(alert.text, alert.urgent ? 'urgent' : 'normal');
       logEvent('alert', `${alert.priority}|${alert.text}`);
     }
@@ -368,6 +372,8 @@ setInterval(() => {
 async function start() {
   if (state.running || state.starting) return;
   state.starting = true;
+  cues.unlock();
+  updateMain();
   setStatus('Starting');
   say(state.firstRun ? FULL_DISCLAIMER : 'Starting.', 'status');
   startListening(); // inside the tap, so the browser allows the microphone prompt
@@ -379,6 +385,7 @@ async function start() {
     say(cameraErrorText(e), 'status');
     setStatus('Camera problem. Tap start to retry.');
     state.starting = false;
+    updateMain();
     return;
   }
   try {
@@ -389,6 +396,7 @@ async function start() {
     setStatus('Model problem. Tap start to retry.');
     stopCamera();
     state.starting = false;
+    updateMain();
     return;
   }
   state.firstRun = false;
@@ -399,8 +407,14 @@ async function start() {
   tracker.tracks = [];
   slow.dets = []; slow.t = null; slow.ranAt = 0; frameCount = 0;
   engine.reset();
+  const wasFirst = state.welcomed !== true;
+  state.welcomed = true;
   setStatus(RECORD ? 'Running, recording' : 'Running');
-  say(RECORD ? 'Vision Assist active, recording.' : 'Vision Assist active. Detecting obstacles.', 'status');
+  updateMain();
+  cues.play('ok');
+  say(RECORD ? 'Vision Assist active, recording.'
+    : wasFirst ? 'Vision Assist active. Tap the screen, then say where you want to go. Say help to hear what else I can do.'
+    : 'Vision Assist active. Detecting obstacles.', 'status');
   startRecording();
   lockScreen();
   loop();
@@ -415,6 +429,7 @@ function stopInternal() {
   releaseScreen();
   try { const c = el.overlay; c.getContext('2d').clearRect(0, 0, c.width, c.height); } catch (_) { /* ignore */ }
   setStatus('Stopped');
+  updateMain();
 }
 
 function stop() {
@@ -425,6 +440,53 @@ function stop() {
   stopInternal();
   speaker.cancelAll();
   say('Stopped. Say start to begin again.', 'status');
+}
+
+// ---------- talk, main button, how much I say ----------
+function updateMain() {
+  const b = el.start;
+  b.classList.toggle('talk', state.running);
+  b.classList.toggle('busy', state.starting);
+  const label = state.starting ? 'Starting' : state.running ? 'Talk' : 'Start';
+  b.textContent = label;
+  b.setAttribute('aria-label', state.running ? 'Talk to Vision Assist. Double tap, then say what you want.' : state.starting ? 'Starting' : 'Start Vision Assist');
+}
+
+// The walker taps, the app goes quiet, plays a rising sound, and listens for about 9 seconds.
+const TALK_WINDOW_MS = 9000;
+function talk() {
+  if (!state.running) { start(); return; }
+  cues.unlock();
+  speaker.hush();
+  state.talkUntil = performance.now() + TALK_WINDOW_MS;
+  state.talkHeard = false;
+  cues.play('listen');
+  if (!state.listening) startListening();
+  setStatus('Listening');
+  clearTimeout(talkTimer);
+  talkTimer = setTimeout(() => {
+    if (!state.talkHeard && state.running) { cues.play('huh'); setStatus('Running'); logEvent('talk-timeout', ''); }
+  }, TALK_WINDOW_MS);
+  logEvent('talk', '');
+}
+
+const LEVEL_TEXT = {
+  quiet: 'Quiet. I will tell you about turns, vehicles, stairs, and people or things right in front of you.',
+  normal: 'Normal. I will also tell you about people and vehicles that are near.',
+  detailed: 'Detailed. I will also tell you about poles, bins, benches and other things in your way.',
+};
+function setLevel(level, speak = true) {
+  if (!LEVELS.includes(level)) return;
+  engine.setLevel(level);
+  el.level.textContent = `How much I say: ${level}`;
+  try { localStorage.setItem('va.level', level); } catch (_) { /* storage can be unavailable */ }
+  if (speak) { cues.play('ok'); say(LEVEL_TEXT[level], 'status'); }
+}
+function stepLevel(dir) {
+  const i = LEVELS.indexOf(engine.level);
+  const j = Math.max(0, Math.min(LEVELS.length - 1, i + dir));
+  if (j === i) { say(dir < 0 ? 'Already as quiet as I go.' : 'Already giving full detail.', 'status'); return; }
+  setLevel(LEVELS[j]);
 }
 
 function repeat() {
@@ -467,10 +529,16 @@ function isEcho(text) {
 
 function handleTranscript(text) {
   logEvent('heard', text);
-  if (isEcho(text)) { logEvent('ignored-echo', text); return; }
-  if (dialogue.answer(text)) return; // an answer to a question we asked
+  const inTalk = performance.now() < state.talkUntil;
+  if (!inTalk && isEcho(text)) { logEvent('ignored-echo', text); return; } // we hushed the app, so nothing we said is an echo
+  if (inTalk) { state.talkHeard = true; state.talkUntil = 0; clearTimeout(talkTimer); if (state.running) setStatus('Running'); }
+  if (dialogue.answer(text)) { cues.play('ok'); return; } // an answer to a question we asked
   const cmd = parseCommand(text);
+  if (cmd.type) cues.play('ok'); else if (inTalk) cues.play('huh');
   switch (cmd.type) {
+    case 'level':
+      if (cmd.arg === 'less') stepLevel(-1); else if (cmd.arg === 'more') stepLevel(1); else setLevel(cmd.arg);
+      break;
     case 'start': start(); break;
     case 'stop': stop(); break;
     case 'repeat': repeat(); break;
@@ -532,7 +600,24 @@ function updateMic() {
 }
 
 // ---------- buttons ----------
-el.start.addEventListener('click', start);
+el.start.addEventListener('click', () => { cues.unlock(); if (state.running) talk(); else start(); });
+el.level.addEventListener('click', () => setLevel(LEVELS[(LEVELS.indexOf(engine.level) + 1) % LEVELS.length]));
+el.tap.addEventListener('click', () => {
+  state.tapToTalk = !state.tapToTalk;
+  el.tap.setAttribute('aria-pressed', String(state.tapToTalk));
+  el.tap.textContent = `Tap anywhere to talk: ${state.tapToTalk ? 'on' : 'off'}`;
+  try { localStorage.setItem('va.tap', state.tapToTalk ? '1' : '0'); } catch (_) { /* ignore */ }
+  say(state.tapToTalk ? 'Tap anywhere to talk is on.' : 'Tap anywhere to talk is off. Use the Talk button.', 'status');
+});
+// While running, a tap on empty screen is the same as the Talk button, so there is nothing to find.
+document.addEventListener('click', (e) => {
+  if (!state.running || !state.tapToTalk) return;
+  if (e.target.closest && e.target.closest('button, input, summary, details, label, a, select, form')) return;
+  const now = performance.now();
+  if (now - state.lastTapAt < 1500) return; // ignore bounces and pocket drumming
+  state.lastTapAt = now;
+  talk();
+});
 el.stop.addEventListener('click', stop);
 el.repeat.addEventListener('click', repeat);
 el.mic.addEventListener('click', () => {
@@ -554,6 +639,12 @@ el.saveRec.addEventListener('click', () => {
 el.saveRec.hidden = !RECORD;
 
 if (DEBUG) document.body.classList.add('debug');
+try {
+  const lv = localStorage.getItem('va.level'); if (LEVELS.includes(lv)) engine.setLevel(lv);
+  if (localStorage.getItem('va.tap') === '0') { state.tapToTalk = false; el.tap.setAttribute('aria-pressed', 'false'); el.tap.textContent = 'Tap anywhere to talk: off'; }
+} catch (_) { /* storage can be unavailable */ }
+el.level.textContent = `How much I say: ${engine.level}`;
+updateMain();
 updateMic();
-window.__va = { state, speaker, session, tracker, engine, start, stop,
+window.__va = { state, speaker, session, tracker, engine, cues, start, stop, talk, setLevel,
   rec: () => ({ size: recBlob ? recBlob.size : null, mime: recMime, frames: frameLog.length }) };

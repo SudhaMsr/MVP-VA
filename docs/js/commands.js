@@ -10,6 +10,13 @@ export function parseCommand(raw) {
 
   if (/^(read|read this|read that|read it|read the sign|read the text|read aloud|what does (it|that|this) say|what does the sign say|what is written|what shop is this|what is this place|read again)$/.test(t)) return { type: 'read' };
 
+  // Talkativeness. Checked before 'stop' so "be quiet" changes the level instead of stopping the app.
+  if (/\bquiet mode\b/.test(t)) return { type: 'level', arg: 'quiet' };
+  if (/\bnormal mode\b/.test(t)) return { type: 'level', arg: 'normal' };
+  if (/\b(detailed mode|detail mode|full detail)\b/.test(t)) return { type: 'level', arg: 'detailed' };
+  if (/\b(less (talk|talking|chat|detail|info)|talk less|quieter|be quiet|fewer alerts|fewer messages)\b/.test(t)) return { type: 'level', arg: 'less' };
+  if (/\b(more (detail|talk|alerts|info)|talk more|more messages)\b/.test(t)) return { type: 'level', arg: 'more' };
+
   if (/\b(cancel navigation|stop navigation|cancel route|cancel)\b/.test(t)) return { type: 'cancel' };
   if (/\b(stop|pause|quit|finish|end session|turn off)\b/.test(t)) return { type: 'stop' };
   if (/\b(repeat|say again|again|what did you say)\b/.test(t)) return { type: 'repeat' };
@@ -20,4 +27,5 @@ export function parseCommand(raw) {
 
 export const HELP_TEXT =
   'You can say: start, stop, repeat, or navigate to, followed by a place. ' +
+  'Say less talk or more detail to change how much I say. ' +
   'Say help to hear this again.';

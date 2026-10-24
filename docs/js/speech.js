@@ -68,6 +68,14 @@ export class Speaker {
     return true;
   }
 
+  // Quiet the app so the walker can speak: drop routine alerts and stop a routine message in progress.
+  // Queued status, navigation and urgent messages are kept (an error or a route summary must not be lost); an urgent
+  // or navigation message already playing finishes.
+  hush() {
+    this.queue = this.queue.filter((q) => q.kind !== 'normal');
+    if (this.current && (this.current.kind === 'normal' || this.current.kind === 'status')) this._cancelCurrent();
+  }
+
   cancelAll() {
     this.queue = [];
     this._cancelCurrent();

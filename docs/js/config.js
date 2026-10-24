@@ -67,6 +67,10 @@ export const CONFIG = {
   heartbeatMs: 30000, // "still scanning" if nothing has been spoken for this long
   staleMs: 2500, // routine alerts older than this are dropped instead of spoken late
 
+  verbosity: 'quiet', // quiet | normal | detailed. New users start quiet; they can say "more detail" or "less talk"
+  quietNearMetres: 2, // in quiet mode, people, dogs and vehicles are only mentioned this close and straight ahead
+  reassureMs: 45000, // on a long straight stretch, say "you are on the route" if nothing has been said for this long
+  reassureMetres: 80, // ...and the next turn is at least this far away
   speechRate: 0.8, // calmer pace; 1.0 is the voice default
   speechLang: 'en-GB',
 };

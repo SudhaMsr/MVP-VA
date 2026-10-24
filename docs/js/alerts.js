@@ -27,12 +27,26 @@ function metres(d) {
   return `about ${n} ${n === 1 ? 'metre' : 'metres'}`;
 }
 
+export const LEVELS = ['quiet', 'normal', 'detailed'];
+
+// Things a cane or guide dog finds anyway (poles, bins, benches, ...) are only spoken in 'detailed'.
+// quiet: urgent and fall hazards (stairs, red lights, barriers), plus people, dogs and vehicles very close ahead.
+// normal: everything except those static things.   detailed: everything.
+export function levelAllows(a, level, quietNearMetres = 2) {
+  if (level === 'detailed' || a.priority <= 1) return true;
+  if (level === 'normal') return a.kind !== 'static';
+  return a.kind === 'moving' && a.dir === 'ahead' && a.d != null && a.d < quietNearMetres; // quiet
+}
+
 export class AlertEngine {
-  constructor(cfg = CONFIG) {
+  constructor(cfg = CONFIG, level = 'detailed') {
     this.cfg = cfg;
+    this.level = level;
     this.last = new Map(); // key -> { t: time last spoken, d: distance then, n: repeats since it last got closer }
     this.spokenAt = []; // times of recent non-urgent alerts, for the budget
   }
+
+  setLevel(level) { if (LEVELS.includes(level)) this.level = level; return this.level; }
 
   candidates(tracks, frameW, frameH) {
     const c = this.cfg;
@@ -92,11 +106,14 @@ export class AlertEngine {
         out.push({ key: `hydrant:${dir}`, text: `Hydrant, ${dir}, close.`, priority: 4 });
       }
       // 'sign', 'building' and 'road' are ignored on purpose: we cannot read it yet, so announcing it is just noise.
-      for (let i = start; i < out.length; i++) { out[i].d = d; out[i].dir = dir; }
+      const kind = STATIC_OBSTACLES[name] || name === 'manhole' || name === 'fire_hydrant' || name === 'blind_road' ? 'static'
+        : VEHICLES.has(name) || name === 'bicycle' || name === 'person' || name === 'dog' ? 'moving' : 'info';
+      for (let i = start; i < out.length; i++) { out[i].d = d; out[i].dir = dir; out[i].kind = kind; }
     }
     // Only things near or in the walker's path are worth speaking about: off to the side, wait until they are close.
     // Urgent alerts and fall hazards (stairs, red lights) always stay.
-    return out.filter((a) => a.priority <= 1 || a.dir === 'ahead' || a.d == null || a.d < (c.sideAlertMetres ?? 2.5));
+    return out.filter((a) => levelAllows(a, this.level, c.quietNearMetres) &&
+      (a.priority <= 1 || a.dir === 'ahead' || a.d == null || a.d < (c.sideAlertMetres ?? 2.5)));
   }
 
   // Returns {text, priority, urgent, key} or null.
