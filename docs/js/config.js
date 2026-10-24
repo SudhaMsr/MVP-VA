@@ -64,7 +64,7 @@ export const CONFIG = {
   heartbeatMs: 30000, // "still scanning" if nothing has been spoken for this long
   staleMs: 2500, // routine alerts older than this are dropped instead of spoken late
 
-  speechRate: 0.95,
+  speechRate: 0.8, // calmer pace; 1.0 is the voice default
   speechLang: 'en-GB',
 };
 

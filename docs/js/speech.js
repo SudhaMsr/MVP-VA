@@ -7,7 +7,7 @@ export class Speaker {
   constructor(synth, UtteranceCtor, opts = {}) {
     this.synth = synth;
     this.Utterance = UtteranceCtor;
-    this.rate = opts.rate ?? 0.95;
+    this.rate = opts.rate ?? 0.8;
     this.lang = opts.lang ?? 'en-GB';
     this.staleMs = opts.staleMs ?? 2500;
     this.maxNormalQueued = opts.maxNormalQueued ?? 2;
