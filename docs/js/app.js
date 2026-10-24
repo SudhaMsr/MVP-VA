@@ -475,18 +475,18 @@ const LEVEL_TEXT = {
   normal: 'Normal. I will also tell you about people and vehicles that are near.',
   detailed: 'Detailed. I will also tell you about poles, bins, benches and other things in your way.',
 };
-function setLevel(level, speak = true) {
+function setLevel(level, speak = true, tone = true) {
   if (!LEVELS.includes(level)) return;
   engine.setLevel(level);
   el.level.textContent = `How much I say: ${level}`;
   try { localStorage.setItem('va.level', level); } catch (_) { /* storage can be unavailable */ }
-  if (speak) { cues.play('ok'); say(LEVEL_TEXT[level], 'status'); }
+  if (speak) { if (tone) cues.play('ok'); say(LEVEL_TEXT[level], 'status'); } // by voice the command already played its tone
 }
 function stepLevel(dir) {
   const i = LEVELS.indexOf(engine.level);
   const j = Math.max(0, Math.min(LEVELS.length - 1, i + dir));
   if (j === i) { say(dir < 0 ? 'Already as quiet as I go.' : 'Already giving full detail.', 'status'); return; }
-  setLevel(LEVELS[j]);
+  setLevel(LEVELS[j], true, false);
 }
 
 function repeat() {
@@ -537,7 +537,7 @@ function handleTranscript(text) {
   if (cmd.type) cues.play('ok'); else if (inTalk) cues.play('huh');
   switch (cmd.type) {
     case 'level':
-      if (cmd.arg === 'less') stepLevel(-1); else if (cmd.arg === 'more') stepLevel(1); else setLevel(cmd.arg);
+      if (cmd.arg === 'less') stepLevel(-1); else if (cmd.arg === 'more') stepLevel(1); else setLevel(cmd.arg, true, false);
       break;
     case 'start': start(); break;
     case 'stop': stop(); break;
