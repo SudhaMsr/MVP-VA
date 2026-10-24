@@ -34,6 +34,7 @@ Open it in Chrome on the phone, tap **Start**, allow camera and microphone.
 ## Recording a test session (supervisor)
 Open `https://sudhamsr.github.io/MVP-VA/?debug&record`, tap **Start**, do the walk, say or tap **Stop**, then tap **Save recording**.
 Two files download: the raw camera video and a log of what the app saw, said and how fast it ran. Send both to the developer.
+Collect training frames: `python3 tools/extract_frames.py frames VIDEO... --every 15`. Training recipe: `tools/train_steps_colab.py`.
 Offline review: `python3 tools/analyze_session.py VIDEO LOG.json` replays the video through both models and writes `analysis/summary.txt` and `analysis/annotated.mp4`.
 (Recording adds some load on the phone, so leave it off for speed tests.)
 
