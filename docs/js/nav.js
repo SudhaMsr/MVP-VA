@@ -107,6 +107,17 @@ export function plainWords(text) {
   return t;
 }
 
+// Google sometimes names stops, ferries and stations ("Temple Meads - Castle Park/Temple Meads Ferry"). Spoken, that is
+// confusing, so any street name containing " - " or "/" is dropped and the instruction becomes plain left/right/straight.
+const ODD_NAME = /\s(?:onto|on|along|into)\s+([^,.]*?(?:\s[-\u2013\u2014]\s|\/)[^,.]*?)(?=,|\.|$|\sthen\b|\stoward|\stowards)/i;
+export function cleanStreetNames(text) {
+  let t = text;
+  for (let i = 0; i < 3 && ODD_NAME.test(t); i++) t = t.replace(ODD_NAME, '');
+  t = t.replace(/^walk along\s*$/i, 'walk straight').replace(/^walk\s*$/i, 'walk straight')
+    .replace(/^walk along(?=,|$)/i, 'walk straight').replace(/^continue(?=,|$)/i, 'continue straight');
+  return t.replace(/\s{2,}/g, ' ').trim();
+}
+
 // ---- Google (Places API New + Routes API). Key is restricted to this site's address in Google Cloud. ----
 const lowerFirst = (t) => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
 
@@ -151,7 +162,7 @@ export async function googleRoute(from, to, fetchFn, key) {
   const steps = raw.map((s, i) => {
     const ll = s.startLocation.latLng;
     const text = ((s.navigationInstruction && s.navigationInstruction.instructions) || '')
-      .split('\n').map((t) => lowerFirst(plainWords(t))).filter(Boolean).join(', then ');
+      .split('\n').map((t) => lowerFirst(cleanStreetNames(plainWords(t)))).filter(Boolean).join(', then ');
     return {
       distance: s.distanceMeters || 0, name: '', text: text || (i === 0 ? 'walk ahead' : 'continue'),
       maneuver: { type: i === 0 ? 'depart' : 'turn', location: [ll.longitude, ll.latitude] },
@@ -264,14 +275,25 @@ export class Navigator {
   onPosition(p) {
     if (!this.active || (p.accuracy != null && p.accuracy > 60)) return; // ignore poor fixes
     this.checkOrientation(p);
+    // GPS can jump (or the walker can be past a turn we never announced): if a later turn point is right here, go to it.
+    const here = this.route.steps[this.idx];
+    if (here && haversine(p, here.at) > this.nowMetres) {
+      for (let j = this.idx + 1; j <= Math.min(this.idx + 3, this.route.steps.length - 1); j++) {
+        if (haversine(p, this.route.steps[j].at) <= this.nowMetres) { this.idx = j; break; }
+      }
+    }
     const step = this.route.steps[this.idx];
     if (!step) return;
     const d = haversine(p, step.at);
+    if (this.minIdx !== this.idx) { this.minIdx = this.idx; this.minD = Infinity; }
+    this.minD = Math.min(this.minD, d);
     if (step.maneuver.type === 'arrive' && d <= this.nowMetres + 8) {
       this.say(`You have arrived at ${this.destination.name}.`, 'status');
       return this.cancel(true);
     }
-    if (d <= this.nowMetres) {
+    // Reached the point, or came within 25 m and is now moving away from it (fixes were too far apart to land inside 12 m).
+    const passed = step.maneuver.type !== 'arrive' && this.minD <= 25 && d > this.minD + 8;
+    if (d <= this.nowMetres || passed) {
       if (this.nowSaid !== this.idx && step.maneuver.type !== 'arrive') {
         this.nowSaid = this.idx;
         const next = this.route.steps[this.idx];
@@ -288,7 +310,7 @@ export class Navigator {
     }
     if (d <= this.warnMetres && this.warned !== this.idx) {
       this.warned = this.idx;
-      this.say(`In ${roundMetres(d)}, ${instructionText(step)}.`, 'status');
+      this.say(step.maneuver.type === 'arrive' ? `Your destination is in ${roundMetres(d)}.` : `In ${roundMetres(d)}, ${instructionText(step)}.`, 'status');
       return;
     }
     // off-route check against the current and previous leg
