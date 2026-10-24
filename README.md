@@ -40,7 +40,7 @@ Offline review: `python3 tools/analyze_session.py VIDEO LOG.json` replays the vi
 (Recording adds some load on the phone, so leave it off for speed tests.)
 
 ## Tests
-`npm test` (Node 20+) runs 48 unit tests: model output decoding checked against a Python reference, tracker, alert wording and priority, speech queue, voice-command parser.
+`npm test` (Node 20+) runs 55 unit tests: model output decoding checked against a Python reference, tracker, alert wording and priority, speech queue, voice-command parser.
 
 ## Layout
 - `docs/` the app (`js/` modules, `models/` ONNX models)

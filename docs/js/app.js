@@ -8,6 +8,7 @@ import { AlertEngine } from './alerts.js';
 import { Speaker } from './speech.js';
 import { parseCommand, HELP_TEXT } from './commands.js';
 import { Navigator, makeProviders } from './nav.js';
+import { Dialogue } from './dialogue.js';
 import { recogniseText, readingSpeech } from './reader.js';
 
 const params = new URLSearchParams(location.search);
@@ -88,6 +89,22 @@ const navigator_ = new Navigator({
   unwatch: (id) => navigator.geolocation.clearWatch(id),
 });
 window.__nav = navigator_;
+const answerRow = document.getElementById('answerRow');
+const dialogue = new Dialogue({
+  say: (t, k) => say(t, k),
+  nav: navigator_,
+  onPrompt: (options) => {
+    answerRow.textContent = '';
+    answerRow.hidden = !options;
+    for (const o of options || []) {
+      const b = document.createElement('button');
+      b.type = 'button'; b.textContent = o.label;
+      b.addEventListener('click', () => dialogue.answer(o.value));
+      answerRow.appendChild(b);
+    }
+  },
+});
+window.__dialogue = dialogue;
 document.getElementById('navForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const q = document.getElementById('navInput').value.trim();
@@ -445,6 +462,7 @@ function isEcho(text) {
 function handleTranscript(text) {
   logEvent('heard', text);
   if (isEcho(text)) { logEvent('ignored-echo', text); return; }
+  if (dialogue.answer(text)) return; // an answer to a question we asked
   const cmd = parseCommand(text);
   switch (cmd.type) {
     case 'start': start(); break;
@@ -454,7 +472,7 @@ function handleTranscript(text) {
     case 'help': say(HELP_TEXT, 'status'); break;
     case 'cancel': if (!navigator_.cancel()) say('No navigation is active.', 'status'); break;
     case 'navigate':
-      navigator_.start(cmd.arg);
+      dialogue.navigateTo(cmd.arg);
       break;
     default: break; // unrecognised speech is ignored; ambient talking should not interrupt
   }

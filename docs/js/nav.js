@@ -62,19 +62,24 @@ export function minutesText(seconds) {
   return mins === 1 ? 'about 1 minute' : `about ${mins} minutes`;
 }
 
-export async function geocode(query, pos, fetchFn) {
+export async function geocodeMany(query, pos, fetchFn, max = 3) {
   const dv = 0.15; // bias to roughly 15 km around the walker
   const url = 'https://nominatim.openstreetmap.org/search?format=jsonv2&limit=8&q=' + encodeURIComponent(query) +
     (pos ? `&viewbox=${pos.lon - dv},${pos.lat + dv},${pos.lon + dv},${pos.lat - dv}` : '');
   const res = await fetchFn(url, { headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error('search');
   const j = await res.json();
-  if (!j.length) return null;
-  // The search service's own ranking is better than distance: a nearer but unrelated street beat the real place in a field check.
-  const best = j[0];
+  return j.slice(0, max).map(toDest);
+}
+
+export async function geocode(query, pos, fetchFn) {
+  return (await geocodeMany(query, pos, fetchFn, 1))[0] || null;
+}
+
+function toDest(best) {
   const bb = (best.boundingbox || []).map(Number); // [south, north, west, east]
   const large = bb.length === 4 && haversine({ lat: bb[0], lon: bb[2] }, { lat: bb[1], lon: bb[3] }) > 1500;
-  return { large, lat: +best.lat, lon: +best.lon, name: (best.display_name || query).split(',').slice(0, 2).join(',') };
+  return { large, lat: +best.lat, lon: +best.lon, name: (best.display_name || 'that place').split(',').slice(0, 2).join(',') };
 }
 
 export async function fetchRoute(from, to, fetchFn) {
@@ -105,8 +110,8 @@ export function plainWords(text) {
 // ---- Google (Places API New + Routes API). Key is restricted to this site's address in Google Cloud. ----
 const lowerFirst = (t) => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
 
-export async function googleGeocode(query, pos, fetchFn, key) {
-  const body = { textQuery: query, maxResultCount: 1 };
+export async function googleGeocodeMany(query, pos, fetchFn, key, max = 3) {
+  const body = { textQuery: query, maxResultCount: max };
   if (pos) body.locationBias = { circle: { center: { latitude: pos.lat, longitude: pos.lon }, radius: 15000 } };
   const res = await fetchFn('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST',
@@ -115,10 +120,14 @@ export async function googleGeocode(query, pos, fetchFn, key) {
   });
   if (!res.ok) throw new Error('google places ' + res.status);
   const j = await res.json();
-  const p = j.places && j.places[0];
-  if (!p) return null;
-  const street = (p.formattedAddress || '').split(',')[0];
-  return { large: false, lat: p.location.latitude, lon: p.location.longitude, name: [p.displayName?.text, street].filter(Boolean).join(', ') };
+  return (j.places || []).map((p) => {
+    const street = (p.formattedAddress || '').split(',')[0];
+    return { large: false, lat: p.location.latitude, lon: p.location.longitude, name: [p.displayName?.text, street].filter(Boolean).join(', ') };
+  });
+}
+
+export async function googleGeocode(query, pos, fetchFn, key) {
+  return (await googleGeocodeMany(query, pos, fetchFn, key, 1))[0] || null;
 }
 
 export async function googleRoute(from, to, fetchFn, key) {
@@ -164,6 +173,12 @@ export function makeProviders({ googleKey, fetchFn = (...a) => fetch(...a), onFa
       const g = await geocode(query, pos, fetchFn);
       return g && { ...g, source: 'osm' };
     },
+    async search(query, pos) {
+      if (googleKey) {
+        try { const g = await googleGeocodeMany(query, pos, fetchFn, googleKey, 3); if (g.length) return g.map((d) => ({ ...d, source: 'google' })); } catch (e) { onFallback('place search', e); }
+      }
+      return (await geocodeMany(query, pos, fetchFn, 3)).map((d) => ({ ...d, source: 'osm' }));
+    },
     async route(from, to) {
       if (googleKey) {
         try { const r = await googleRoute(from, to, fetchFn, googleKey); if (r) return { ...r, source: 'google' }; } catch (e) { onFallback('route', e); }
@@ -193,10 +208,32 @@ export class Navigator {
     return this._route(pos, dest, true);
   }
 
+  // Step 1 of a spoken request: look up places near the walker (up to 3).
+  async find(query) {
+    this.cancel(true);
+    let pos;
+    try { pos = await this.getPosition(); } catch { this.say('I cannot find your location. Check location permission and try again.', 'status'); return null; }
+    let results;
+    try { results = await this.providers.search(query, pos); } catch { this.say('I could not search for places. Check your internet connection.', 'status'); return null; }
+    if (!results.length) { this.say(`I could not find ${query}. Try a nearby street or a well known place.`, 'status'); return null; }
+    return { pos, results };
+  }
+
+  // Step 2: get the route without starting, so the walker can be told the distance and agree first.
+  async plan(pos, dest) {
+    try { return await this.providers.route(pos, dest); } catch { this.say('I could not get walking directions. Check your internet connection.', 'status'); return null; }
+  }
+
+  begin(pos, dest, route, first = true) { return this._begin(pos, dest, route, first); }
+
   async _route(pos, dest, first) {
     let route;
     try { route = await this.providers.route(pos, dest); } catch { this.say('I could not get walking directions. Check your internet connection.', 'status'); return false; }
     if (!route) { this.say('I could not find a walking route there.', 'status'); return false; }
+    return this._begin(pos, dest, route, first);
+  }
+
+  _begin(pos, dest, route, first) {
     this.destination = dest; this.route = route; this.idx = 1; this.warned = -1; this.nowSaid = -1; this.offCount = 0;
     this.lastReroute = Date.now(); this.active = true; this.oriented = false; this.startFix = null; this.large = !!dest.large; this.source = route.source;
     const first0 = route.steps[0];
