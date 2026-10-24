@@ -91,3 +91,40 @@ test('tiny consecutive steps are spoken together', async () => {
   assert.match(said.at(-1), /Turn left onto B now, then turn right onto C\./);
   assert.equal(nav.idx, 3);
 });
+
+test('google route is converted to navigator steps, with street names and an arrival step', async () => {
+  const { googleRoute } = await import('../docs/js/nav.js');
+  const f = async () => ({ ok: true, json: async () => ({ routes: [{ distanceMeters: 300, duration: '240s', legs: [{ steps: [
+    { distanceMeters: 100, startLocation: { latLng: { latitude: 51, longitude: 0 } }, navigationInstruction: { instructions: 'Head east on Mill Lane' }, polyline: { geoJsonLinestring: { coordinates: [[0, 51], [0.0015, 51]] } } },
+    { distanceMeters: 200, startLocation: { latLng: { latitude: 51, longitude: 0.0015 } }, navigationInstruction: { instructions: 'Turn left onto High Street\nTake the stairs' }, polyline: { geoJsonLinestring: { coordinates: [[0.0015, 51], [0.0015, 51.002]] } } },
+  ] }] }] }) });
+  const r = await googleRoute({ lat: 51, lon: 0 }, { lat: 51.002, lon: 0.0015 }, f, 'KEY');
+  assert.equal(r.duration, 240);
+  assert.equal(r.steps.length, 3);
+  assert.equal(r.steps[1].text, 'turn left onto High Street, then take the stairs');
+  assert.equal(r.steps[2].maneuver.type, 'arrive');
+});
+
+test('falls back to OpenStreetMap when Google fails', async () => {
+  const { makeProviders } = await import('../docs/js/nav.js');
+  const seen = [];
+  const f = async (url) => {
+    if (url.includes('googleapis.com')) return { ok: false, status: 403, json: async () => ({}) };
+    if (url.includes('nominatim')) return { ok: true, json: async () => [{ lat: '51.0', lon: '0.002', display_name: 'Test Cafe, High Street, Town' }] };
+    return { ok: true, json: async () => ({ routes: [{ distance: 220, duration: 180, legs: [{ steps }] }] }) };
+  };
+  const p = makeProviders({ googleKey: 'KEY', fetchFn: f, onFallback: (w) => seen.push(w) });
+  const g = await p.geocode('cafe', { lat: 51, lon: 0 });
+  assert.equal(g.source, 'osm');
+  const r = await p.route({ lat: 51, lon: 0 }, g);
+  assert.equal(r.source, 'osm');
+  assert.deepEqual(seen, ['place search', 'route']);
+});
+
+test('google is used first when it works', async () => {
+  const { makeProviders } = await import('../docs/js/nav.js');
+  const f = async () => ({ ok: true, json: async () => ({ places: [{ displayName: { text: 'Wills Memorial Building' }, formattedAddress: 'Queens Rd, Bristol', location: { latitude: 51.456, longitude: -2.6046 } }] }) });
+  const g = await makeProviders({ googleKey: 'KEY', fetchFn: f }).geocode('wills', { lat: 51.45, lon: -2.58 });
+  assert.equal(g.source, 'google');
+  assert.equal(g.name, 'Wills Memorial Building, Queens Rd');
+});

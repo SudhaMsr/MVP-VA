@@ -47,6 +47,7 @@ const MOD = {
 
 // Instruction for one OSRM step, e.g. "turn left onto High Street".
 export function instructionText(step) {
+  if (step.text) return step.text;
   const m = step.maneuver || {};
   const name = step.name ? ` onto ${step.name}` : '';
   if (m.type === 'arrive') return 'you have arrived';
@@ -91,8 +92,81 @@ export async function fetchRoute(from, to, fetchFn) {
   return { distance: r.distance, duration: r.duration, steps };
 }
 
+// ---- Google (Places API New + Routes API). Key is restricted to this site's address in Google Cloud. ----
+const lowerFirst = (t) => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
+
+export async function googleGeocode(query, pos, fetchFn, key) {
+  const body = { textQuery: query, maxResultCount: 1 };
+  if (pos) body.locationBias = { circle: { center: { latitude: pos.lat, longitude: pos.lon }, radius: 15000 } };
+  const res = await fetchFn('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error('google places ' + res.status);
+  const j = await res.json();
+  const p = j.places && j.places[0];
+  if (!p) return null;
+  const street = (p.formattedAddress || '').split(',')[0];
+  return { large: false, lat: p.location.latitude, lon: p.location.longitude, name: [p.displayName?.text, street].filter(Boolean).join(', ') };
+}
+
+export async function googleRoute(from, to, fetchFn, key) {
+  const res = await fetchFn('https://routes.googleapis.com/directions/v2:computeRoutes', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json', 'X-Goog-Api-Key': key,
+      'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.legs.steps.distanceMeters,routes.legs.steps.navigationInstruction,routes.legs.steps.startLocation,routes.legs.steps.polyline',
+    },
+    body: JSON.stringify({
+      origin: { location: { latLng: { latitude: from.lat, longitude: from.lon } } },
+      destination: { location: { latLng: { latitude: to.lat, longitude: to.lon } } },
+      travelMode: 'WALK', polylineEncoding: 'GEO_JSON_LINESTRING', languageCode: 'en-GB', units: 'METRIC',
+    }),
+  });
+  if (!res.ok) throw new Error('google routes ' + res.status);
+  const j = await res.json();
+  const r = j.routes && j.routes[0];
+  if (!r) return null;
+  const raw = r.legs[0].steps;
+  const steps = raw.map((s, i) => {
+    const ll = s.startLocation.latLng;
+    const text = ((s.navigationInstruction && s.navigationInstruction.instructions) || '')
+      .split('\n').map((t) => lowerFirst(t.trim())).filter(Boolean).join(', then ');
+    return {
+      distance: s.distanceMeters || 0, name: '', text: text || (i === 0 ? 'walk ahead' : 'continue'),
+      maneuver: { type: i === 0 ? 'depart' : 'turn', location: [ll.longitude, ll.latitude] },
+      at: { lat: ll.latitude, lon: ll.longitude },
+      path: (s.polyline?.geoJsonLinestring?.coordinates || []).map(([lon, lat]) => ({ lat, lon })),
+    };
+  });
+  steps.push({ distance: 0, name: '', text: 'you have arrived', maneuver: { type: 'arrive', location: [to.lon, to.lat] }, at: { lat: to.lat, lon: to.lon }, path: [] });
+  return { distance: r.distanceMeters, duration: parseInt(r.duration, 10) || 0, steps };
+}
+
+// Google first (better place search, street names), OpenStreetMap as the fallback so navigation never goes silent.
+export function makeProviders({ googleKey, fetchFn = (...a) => fetch(...a), onFallback = () => {} }) {
+  return {
+    async geocode(query, pos) {
+      if (googleKey) {
+        try { const g = await googleGeocode(query, pos, fetchFn, googleKey); if (g) return { ...g, source: 'google' }; } catch (e) { onFallback('place search', e); }
+      }
+      const g = await geocode(query, pos, fetchFn);
+      return g && { ...g, source: 'osm' };
+    },
+    async route(from, to) {
+      if (googleKey) {
+        try { const r = await googleRoute(from, to, fetchFn, googleKey); if (r) return { ...r, source: 'google' }; } catch (e) { onFallback('route', e); }
+      }
+      const r = await fetchRoute(from, to, fetchFn);
+      return r && { ...r, source: 'osm' };
+    },
+  };
+}
+
 export class Navigator {
-  constructor({ say, fetchFn = (...a) => fetch(...a), getPosition, watch, unwatch, warnMetres = 40, nowMetres = 12, offRouteMetres = 40 }) {
+  constructor({ say, fetchFn = (...a) => fetch(...a), providers, getPosition, watch, unwatch, warnMetres = 40, nowMetres = 12, offRouteMetres = 40 }) {
+    this.providers = providers || makeProviders({ fetchFn });
     Object.assign(this, { say, fetchFn, getPosition, watch, unwatch, warnMetres, nowMetres, offRouteMetres });
     this.active = false;
     this.destination = null;
@@ -104,17 +178,17 @@ export class Navigator {
     let pos;
     try { pos = await this.getPosition(); } catch { this.say('I cannot find your location. Check location permission and try again.', 'status'); return false; }
     let dest;
-    try { dest = await geocode(query, pos, this.fetchFn); } catch { this.say('I could not search for places. Check your internet connection.', 'status'); return false; }
+    try { dest = await this.providers.geocode(query, pos); } catch { this.say('I could not search for places. Check your internet connection.', 'status'); return false; }
     if (!dest) { this.say(`I could not find ${query}. Try a nearby street or a well known place.`, 'status'); return false; }
     return this._route(pos, dest, true);
   }
 
   async _route(pos, dest, first) {
     let route;
-    try { route = await fetchRoute(pos, dest, this.fetchFn); } catch { this.say('I could not get walking directions. Check your internet connection.', 'status'); return false; }
+    try { route = await this.providers.route(pos, dest); } catch { this.say('I could not get walking directions. Check your internet connection.', 'status'); return false; }
     if (!route) { this.say('I could not find a walking route there.', 'status'); return false; }
     this.destination = dest; this.route = route; this.idx = 1; this.warned = -1; this.nowSaid = -1; this.offCount = 0;
-    this.lastReroute = Date.now(); this.active = true; this.large = !!dest.large;
+    this.lastReroute = Date.now(); this.active = true; this.large = !!dest.large; this.source = route.source;
     const first0 = route.steps[0];
     this.say(first
       ? `Going to ${dest.name}. ${roundMetres(route.distance)}, ${minutesText(route.duration)}.${this.large && first ? ' This is a large site, so I am heading for its middle. For a particular building, say its name.' : ''} Say cancel to stop. First, ${instructionText(first0)} for ${roundMetres(first0.distance)}.`

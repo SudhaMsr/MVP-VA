@@ -1,13 +1,13 @@
 // Vision Assist - app wiring: camera, detection loop, speech, voice commands, error handling.
 // Rule for this file: every failure is spoken. No silent states.
-import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY } from './config.js';
+import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY, GOOGLE_KEY } from './config.js';
 import { filterAllowed, mergeLanes } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
 import { AlertEngine } from './alerts.js';
 import { Speaker } from './speech.js';
 import { parseCommand, HELP_TEXT } from './commands.js';
-import { Navigator } from './nav.js';
+import { Navigator, makeProviders } from './nav.js';
 
 const params = new URLSearchParams(location.search);
 const SIZE = params.get('size') === '416' ? 416 : CONFIG.inputSize;
@@ -72,6 +72,10 @@ function say(text, kind = 'status') {
 
 const navigator_ = new Navigator({
   say: (t, k) => say(t, k),
+  providers: makeProviders({
+    googleKey: new URLSearchParams(location.search).get('maps') === 'osm' ? '' : GOOGLE_KEY,
+    onFallback: (what, e) => session.events.push({ t: Date.now(), kind: 'nav-fallback', text: `${what}: ${e && e.message}` }),
+  }),
   getPosition: () => new Promise((res, rej) => {
     if (!('geolocation' in navigator)) return rej(new Error('no geolocation'));
     navigator.geolocation.getCurrentPosition((p) => res({ lat: p.coords.latitude, lon: p.coords.longitude }), rej,
