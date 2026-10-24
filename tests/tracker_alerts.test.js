@@ -150,3 +150,10 @@ test('two-lane merge: slow-lane results are reused briefly, then expire', async 
   const kept = filterAllowed([{ name: 'person' }, { name: 'stairs' }, { name: 'manhole' }], ['stairs', 'manhole']);
   assert.deepEqual(kept.map((d) => d.name), ['stairs', 'manhole']);
 });
+
+test('portrait pictures use the long side for the field of view (field log: phone frames are 480x640)', () => {
+  const d = estimateDistance(det('person', 190, 100, 290, 500), 480, 66, 640); // 100 px wide, portrait
+  assert.ok(Math.abs(d - 0.5 * (640 / (2 * Math.tan((33 * Math.PI) / 180))) / 100) < 1e-9);
+  const landscapeStyle = estimateDistance(det('person', 190, 100, 290, 500), 480, 66, 480);
+  assert.ok(d > landscapeStyle * 1.3 && d < landscapeStyle * 1.4, 'portrait distance should be about 1.33x larger');
+});

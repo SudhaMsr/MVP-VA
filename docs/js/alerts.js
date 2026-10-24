@@ -48,7 +48,8 @@ export class AlertEngine {
         if (d == null) continue;
         const maxD = name === 'bicycle' ? 8 : c.vehicleAlertMetres;
         const approaching = sp != null && sp > c.approachSpeedMps && tr.hits >= c.approachMinHits;
-        if ((approaching && d < maxD) || d < c.vehicleUrgentMetres) {
+        const veryNear = d < c.vehicleUrgentMetres && tr.hits >= 2; // one-frame wide boxes caused false alarms in the field log
+        if ((approaching && d < maxD) || veryNear) {
           const text = approaching
             ? `Caution. ${LABEL[name]} approaching, ${dir}, ${metres(d)}.`
             : `Caution. ${LABEL[name]}, ${dir}, ${metres(d)}.`;

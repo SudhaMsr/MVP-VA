@@ -34,7 +34,7 @@ const tracker = new Tracker();
 const engine = new AlertEngine();
 let detector = null;
 let slowDetector = null; // second model for stairs, manholes, benches...
-const slow = { dets: [], t: null };
+const slow = { dets: [], t: null, ranAt: 0 };
 let frameCount = 0;
 const USE_SLOW = params.get('lane') !== 'off' && MODEL_KEY !== SECONDARY.model;
 let stream = null;
@@ -153,7 +153,8 @@ async function loop() {
     const { dets: fast, width, height } = await detector.detect(el.video, CONFIG.confThreshold, CONFIG.nmsIou);
     if (!state.running) return; // stopped while this frame was in flight
     frameCount += 1;
-    if (slowDetector && frameCount % SECONDARY.everyNFrames === 0) {
+    if (slowDetector && performance.now() - slow.ranAt >= SECONDARY.everyMs) {
+      slow.ranAt = performance.now();
       try {
         const r = await slowDetector.detect(el.video, SECONDARY.conf, CONFIG.nmsIou);
         slow.dets = filterAllowed(r.dets, SECONDARY.classes);
@@ -163,7 +164,7 @@ async function loop() {
     }
     const t = performance.now();
     const dets = mergeLanes(fast, slow, t, SECONDARY.maxAgeMs);
-    const tracks = tracker.update(dets, t, width);
+    const tracks = tracker.update(dets, t, width, height);
     const alert = engine.next(tracks, width, height, t);
     if (alert) {
       speaker.speak(alert.text, alert.urgent ? 'urgent' : 'normal');
@@ -198,7 +199,8 @@ function updateStats() {
   const p95 = a[Math.min(a.length - 1, Math.floor(a.length * 0.95))];
   el.stats.textContent =
     `Speed check: median ${med.toFixed(0)} ms, 95% under ${p95.toFixed(0)} ms ` +
-    `(${(1000 / med).toFixed(1)} frames/s). Model ${MODEL_KEY} ${SIZE}px${slowDetector ? ' + stairs lane' : ''}, ${EP}.`;
+    `(${(1000 / med).toFixed(1)} frames/s). Model ${MODEL_KEY} ${SIZE}px${slowDetector ? ' + stairs lane' : ''}, ${EP}, ` +
+    `${window.ort ? window.ort.env.wasm.numThreads : '?'} thread(s)${self.crossOriginIsolated ? ', isolated' : ''}.`;
 }
 
 function drawOverlay(tracks, w, h) {
@@ -318,7 +320,7 @@ async function start() {
   state.errors = 0;
   state.lastFrameOk = performance.now();
   tracker.tracks = [];
-  slow.dets = []; slow.t = null; frameCount = 0;
+  slow.dets = []; slow.t = null; slow.ranAt = 0; frameCount = 0;
   engine.reset();
   setStatus(RECORD ? 'Running, recording' : 'Running');
   say(RECORD ? 'Vision Assist active, recording.' : 'Vision Assist active. Detecting obstacles.', 'status');

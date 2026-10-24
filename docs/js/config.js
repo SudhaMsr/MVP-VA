@@ -30,7 +30,7 @@ export function canonical(name) {
 
 // Slow lane: a second model run every few frames, contributing only these classes.
 export const SECONDARY = {
-  model: 'rod', size: 416, everyNFrames: 4, conf: 0.40, maxAgeMs: 1500,
+  model: 'rod', size: 416, everyMs: 2000, conf: 0.40, maxAgeMs: 2500, // field log: one pass costs ~430 ms on the Poco
   classes: ['stairs', 'manhole', 'bench', 'chair', 'guard_rail', 'electrical_box', 'plant_pot', 'bicycle_rack'],
 };
 
@@ -41,7 +41,7 @@ export const CONFIG = {
   nmsIou: 0.5,
 
   // Camera horizontal field of view (degrees) used for distance estimates. Calibrate per phone.
-  hfovDeg: 66,
+  hfovDeg: 66, // field of view along the long side of the picture
 
   // Loop pacing: minimum gap between frames (ms). 0 = as fast as the phone allows.
   minFrameGapMs: 0,
