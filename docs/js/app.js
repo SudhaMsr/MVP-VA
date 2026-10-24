@@ -26,7 +26,7 @@ const el = {
 };
 
 const FULL_DISCLAIMER =
-  'Vision Assist is a test prototype. It can miss obstacles and can be wrong. ' +
+  'Vision Assist can miss obstacles and can be wrong. ' +
   'Always use your cane or guide dog as well. Starting now.';
 
 const speaker = new Speaker(window.speechSynthesis, window.SpeechSynthesisUtterance, {
