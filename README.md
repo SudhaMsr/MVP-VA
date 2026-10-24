@@ -22,8 +22,22 @@ Poco M2 Pro (Android, Chrome).
 - Validation results: precision 0.83, recall 0.69, mAP50 0.77.
 - Dataset source and licence: _to be added._
 
+## How to try it
+The app is a web page in `docs/`, published with GitHub Pages at https://sudhamsr.github.io/MVP-VA/ (turn on once: Settings > Pages > Deploy from a branch > `main` / `docs`).
+Open it in Chrome on the phone, tap **Start**, allow camera and microphone.
+- `?debug` shows the camera view and boxes (for the supervisor).
+- `?size=416` uses the larger model (slower, sees smaller things).
+- The line "Speed check" on screen shows frame time on the phone. Send it to the developer.
+
+## Tests
+`npm test` (Node 20+) runs 24 unit tests: model output decoding checked against a Python reference, tracker, alert wording and priority, speech queue, voice-command parser.
+
+## Layout
+- `docs/` the app (`js/` modules, `models/` ONNX models)
+- `best.pt` original trained weights; `tests/` unit tests
+
 ## Status
-In development. 10-day plan to a supervised test with blind and low-vision testers.
+Day 1 of 10: live detection, spoken alerts, voice start/stop/repeat. Navigation is not built yet.
 
 ## Security
 Never commit API keys or service-account files. Use environment variables.
