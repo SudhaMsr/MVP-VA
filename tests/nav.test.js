@@ -19,7 +19,7 @@ test('wording', () => {
   assert.equal(roundMetres(43), '40 metres');
   assert.equal(roundMetres(260), '250 metres');
   assert.equal(instructionText({ name: 'High Street', maneuver: { type: 'turn', modifier: 'left' } }), 'turn left onto High Street');
-  assert.equal(instructionText({ name: '', maneuver: { type: 'turn', modifier: 'slight right' } }), 'bear right');
+  assert.equal(instructionText({ name: '', maneuver: { type: 'turn', modifier: 'slight right' } }), 'keep right');
   assert.equal(instructionText({ maneuver: { type: 'arrive' } }), 'you have arrived');
 });
 
@@ -44,7 +44,7 @@ test('navigator speaks route, warning, turn and arrival', async () => {
   });
   assert.equal(await nav.start('test cafe'), true);
   assert.match(said.join(' | '), /Going to Test Cafe/);
-  assert.match(said.join(' | '), /First, walk east on Mill Lane/);
+  assert.match(said.join(' | '), /First, walk along Mill Lane/);
   cb({ lat: 51, lon: 0.0010, accuracy: 10 }); // ~35 m from turn
   assert.match(said.at(-1), /^In \d+ metres, turn left onto High Street/);
   cb({ lat: 51, lon: 0.00145, accuracy: 10 });
@@ -127,4 +127,27 @@ test('google is used first when it works', async () => {
   const g = await makeProviders({ googleKey: 'KEY', fetchFn: f }).geocode('wills', { lat: 51.45, lon: -2.58 });
   assert.equal(g.source, 'google');
   assert.equal(g.name, 'Wills Memorial Building, Queens Rd');
+});
+
+test('compass and vague words are removed from provider text', async () => {
+  const { plainWords } = await import('../docs/js/nav.js');
+  assert.equal(plainWords('Head north-west on Temple Meads - Castle Park'), 'walk along Temple Meads - Castle Park');
+  assert.equal(plainWords('Head east'), 'walk ahead');
+  assert.equal(plainWords('Turn slightly left onto High Street'), 'keep left onto High Street');
+  assert.equal(plainWords('Slight right toward Park Street'), 'keep right toward Park Street');
+  assert.equal(plainWords('Turn left onto Westbury Road'), 'Turn left onto Westbury Road');
+});
+
+test('orientation check says right way, wrong way, or which side', async () => {
+  const run = async (move) => {
+    const said = []; let cb;
+    const nav = new Navigator({ say: (t) => said.push(t), fetchFn: fakeNet(steps), getPosition: async () => ({ lat: 51, lon: 0 }), watch: (f) => { cb = f; return 1; }, unwatch: () => {} });
+    await nav.start('x'); const n = said.length;
+    cb({ lat: 51, lon: 0, accuracy: 5 }); cb({ ...move, accuracy: 5 });
+    return said.slice(n).join(' ');
+  };
+  assert.match(await run({ lat: 51, lon: 0.00015 }), /right way/);           // route runs east
+  assert.match(await run({ lat: 51, lon: -0.00015 }), /Wrong way/);
+  assert.match(await run({ lat: 51.00015, lon: 0 }), /to your right/);       // walking north, route is east
+  assert.match(await run({ lat: 50.99985, lon: 0 }), /to your left/);        // walking south, route is east
 });

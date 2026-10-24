@@ -41,7 +41,7 @@ export function roundMetres(m) {
 }
 
 const MOD = {
-  left: 'turn left', right: 'turn right', 'slight left': 'bear left', 'slight right': 'bear right',
+  left: 'turn left', right: 'turn right', 'slight left': 'keep left', 'slight right': 'keep right',
   'sharp left': 'turn sharp left', 'sharp right': 'turn sharp right', straight: 'continue straight', uturn: 'turn around',
 };
 
@@ -51,7 +51,7 @@ export function instructionText(step) {
   const m = step.maneuver || {};
   const name = step.name ? ` onto ${step.name}` : '';
   if (m.type === 'arrive') return 'you have arrived';
-  if (m.type === 'depart') return `walk ${compass(m.bearing_after ?? 0)}${step.name ? ` on ${step.name}` : ''}`;
+  if (m.type === 'depart') return step.name ? `walk along ${step.name}` : 'walk ahead';
   if (m.type === 'roundabout' || m.type === 'rotary') return `at the roundabout, take exit ${m.exit ?? 'ahead'}${name}`;
   const verb = MOD[m.modifier] || 'continue';
   return verb === 'continue straight' ? `continue straight${step.name ? ` on ${step.name}` : ''}` : `${verb}${name}`;
@@ -90,6 +90,16 @@ export async function fetchRoute(from, to, fetchFn) {
     at: { lat: s.maneuver.location[1], lon: s.maneuver.location[0] },
   }));
   return { distance: r.distance, duration: r.duration, steps };
+}
+
+// Blind walkers cannot use compass points or vague words ("bear", "slightly"): see the research notes in README.
+export function plainWords(text) {
+  let t = text.trim();
+  t = t.replace(/^head\b/i, 'walk');
+  t = t.replace(/\b(?:(?:north|south)[- ]?)?(?:east|west)\b|\b(?:north|south)\b/gi, '').replace(/\s{2,}/g, ' ').trim();
+  t = t.replace(/^walk\s+(on|along)\b/i, 'walk along').replace(/^walk\s*$/i, 'walk ahead');
+  t = t.replace(/\b(?:turn\s+)?slight(?:ly)?\s+(left|right)\b/gi, 'keep $1').replace(/\bbear\s+(left|right)\b/gi, 'keep $1');
+  return t;
 }
 
 // ---- Google (Places API New + Routes API). Key is restricted to this site's address in Google Cloud. ----
@@ -132,7 +142,7 @@ export async function googleRoute(from, to, fetchFn, key) {
   const steps = raw.map((s, i) => {
     const ll = s.startLocation.latLng;
     const text = ((s.navigationInstruction && s.navigationInstruction.instructions) || '')
-      .split('\n').map((t) => lowerFirst(t.trim())).filter(Boolean).join(', then ');
+      .split('\n').map((t) => lowerFirst(plainWords(t))).filter(Boolean).join(', then ');
     return {
       distance: s.distanceMeters || 0, name: '', text: text || (i === 0 ? 'walk ahead' : 'continue'),
       maneuver: { type: i === 0 ? 'depart' : 'turn', location: [ll.longitude, ll.latitude] },
@@ -188,17 +198,33 @@ export class Navigator {
     try { route = await this.providers.route(pos, dest); } catch { this.say('I could not get walking directions. Check your internet connection.', 'status'); return false; }
     if (!route) { this.say('I could not find a walking route there.', 'status'); return false; }
     this.destination = dest; this.route = route; this.idx = 1; this.warned = -1; this.nowSaid = -1; this.offCount = 0;
-    this.lastReroute = Date.now(); this.active = true; this.large = !!dest.large; this.source = route.source;
+    this.lastReroute = Date.now(); this.active = true; this.oriented = false; this.startFix = null; this.large = !!dest.large; this.source = route.source;
     const first0 = route.steps[0];
     this.say(first
-      ? `Going to ${dest.name}. ${roundMetres(route.distance)}, ${minutesText(route.duration)}.${this.large && first ? ' This is a large site, so I am heading for its middle. For a particular building, say its name.' : ''} Say cancel to stop. First, ${instructionText(first0)} for ${roundMetres(first0.distance)}.`
+      ? `Going to ${dest.name}. ${roundMetres(route.distance)}, ${minutesText(route.duration)}.${this.large && first ? ' This is a large site, so I am heading for its middle. For a particular building, say its name.' : ''} Say cancel to stop. First, ${instructionText(first0)} for ${roundMetres(first0.distance)}. Start walking and I will tell you if you need to turn.`
       : `New route. ${instructionText(first0)} for ${roundMetres(first0.distance)}.`, 'status');
     this.watchId = this.watch((p) => this.onPosition(p), () => this.say('I lost your location signal.', 'status'));
     return true;
   }
 
+  // After ~10 m of walking, compare the walker's real heading with the route and say left/right/turn around.
+  checkOrientation(p) {
+    if (this.oriented) return;
+    if (!this.startFix) { this.startFix = { lat: p.lat, lon: p.lon }; return; }
+    if (haversine(this.startFix, p) < 10) return;
+    this.oriented = true;
+    const target = this.route.steps[1]?.at;
+    if (!target) return;
+    const diff = ((bearing(p, target) - bearing(this.startFix, p) + 540) % 360) - 180; // + = route is to the right
+    const a = Math.abs(diff);
+    if (a < 45) this.say('You are going the right way.', 'status');
+    else if (a > 135) this.say('Wrong way. Turn around.', 'status');
+    else this.say(`The route is to your ${diff > 0 ? 'right' : 'left'}. Turn ${diff > 0 ? 'right' : 'left'} when you can.`, 'status');
+  }
+
   onPosition(p) {
     if (!this.active || (p.accuracy != null && p.accuracy > 60)) return; // ignore poor fixes
+    this.checkOrientation(p);
     const step = this.route.steps[this.idx];
     if (!step) return;
     const d = haversine(p, step.at);
