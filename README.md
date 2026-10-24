@@ -10,6 +10,7 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
 - Voice commands: start, stop, repeat, navigate to a place.
 - Spoken walking directions: type or say "navigate to ...", turns announced about 40 m ahead and at the turn; says "cancel" to stop. Needs internet and location permission.
 - Spoken errors: no silent failures.
+- Text reading (built, switched off until the core is tested; add ?read=1 to try it): say "read" or tap Read, runs on the phone.
 
 ## Not in the MVP
 Text reading, accounts, payments, kerb detection, iPhone.

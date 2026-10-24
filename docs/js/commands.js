@@ -19,5 +19,5 @@ export function parseCommand(raw) {
 }
 
 export const HELP_TEXT =
-  'You can say: start, stop, repeat, read, or navigate to, followed by a place. ' +
+  'You can say: start, stop, repeat, or navigate to, followed by a place. ' +
   'Say help to hear this again.';

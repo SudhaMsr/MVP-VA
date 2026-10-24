@@ -1,6 +1,6 @@
 // Vision Assist - app wiring: camera, detection loop, speech, voice commands, error handling.
 // Rule for this file: every failure is spoken. No silent states.
-import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY, GOOGLE_KEY } from './config.js';
+import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY, GOOGLE_KEY, FEATURES } from './config.js';
 import { filterAllowed, mergeLanes } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
@@ -97,9 +97,10 @@ document.getElementById('navCancel').addEventListener('click', () => {
   if (!navigator_.cancel()) say('No navigation is active.', 'status');
 });
 
+const READ_ON = FEATURES.read || new URLSearchParams(location.search).get('read') === '1';
 let reading = false;
 async function readText() {
-  if (reading) return;
+  if (reading || !READ_ON) return;
   if (!stream || !el.video.videoWidth) { say('Tap start first, so the camera is on. Then say read.', 'status'); return; }
   reading = true;
   try {
@@ -119,6 +120,7 @@ async function readText() {
     say('I could not read that. The reading tool needs internet the first time. Try again.', 'status');
   } finally { reading = false; }
 }
+document.getElementById('readBtn').hidden = !READ_ON;
 document.getElementById('readBtn').addEventListener('click', () => readText());
 
 function setStatus(text) {

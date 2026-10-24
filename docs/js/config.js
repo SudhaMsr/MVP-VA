@@ -71,3 +71,6 @@ export const CONFIG = {
 // Google Maps Platform key. Restricted in Google Cloud to https://sudhamsr.github.io/* and to the Places, Routes,
 // Geocoding and Maps JavaScript APIs, so it is useless elsewhere. Empty string = use OpenStreetMap only.
 export const GOOGLE_KEY = 'AIzaSyBkblGHKZibIQUbufndBeCK6TKQpjzuCyY';
+
+// Features that are built but switched off until the core (hazards + navigation) is tested.
+export const FEATURES = { read: false }; // ?read=1 turns reading on for testing
