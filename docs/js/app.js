@@ -8,6 +8,7 @@ import { AlertEngine } from './alerts.js';
 import { Speaker } from './speech.js';
 import { parseCommand, HELP_TEXT } from './commands.js';
 import { Navigator, makeProviders } from './nav.js';
+import { callVision, parseVision, readingSpeech, READ_NOTICE } from './reader.js';
 
 const params = new URLSearchParams(location.search);
 const SIZE = params.get('size') === '416' ? 416 : CONFIG.inputSize;
@@ -95,6 +96,38 @@ document.getElementById('navForm').addEventListener('submit', (e) => {
 document.getElementById('navCancel').addEventListener('click', () => {
   if (!navigator_.cancel()) say('No navigation is active.', 'status');
 });
+
+let reading = false;
+async function readText() {
+  if (reading) return;
+  if (!stream || !el.video.videoWidth) { say('Tap start first, so the camera is on. Then say read.', 'status'); return; }
+  if (!GOOGLE_KEY) { say('Reading is not set up in this build.', 'status'); return; }
+  let agreed = false;
+  try { agreed = localStorage.getItem('readConsent') === '1'; } catch (_) { /* ignore */ }
+  if (!agreed) {
+    try { localStorage.setItem('readConsent', '1'); } catch (_) { /* ignore */ }
+    say(READ_NOTICE, 'status');
+    return;
+  }
+  reading = true;
+  try {
+    say('Reading.', 'status');
+    const v = el.video, scale = Math.min(1, 1280 / Math.max(v.videoWidth, v.videoHeight));
+    const c = document.createElement('canvas');
+    c.width = Math.round(v.videoWidth * scale); c.height = Math.round(v.videoHeight * scale);
+    c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+    const b64 = c.toDataURL('image/jpeg', 0.85).split(',')[1];
+    const parsed = parseVision(await callVision(b64, GOOGLE_KEY));
+    const text = readingSpeech(parsed);
+    session.events.push({ t: Date.now(), kind: 'read', text, pieces: parsed.pieces, confidence: parsed.confidence });
+    say(text, 'status');
+    state.lastSpoken = text;
+  } catch (e) {
+    session.events.push({ t: Date.now(), kind: 'read-error', text: String(e && e.message) });
+    say('I could not read that. Check your internet connection and try again.', 'status');
+  } finally { reading = false; }
+}
+document.getElementById('readBtn').addEventListener('click', () => readText());
 
 function setStatus(text) {
   el.status.textContent = text;
@@ -423,6 +456,7 @@ function handleTranscript(text) {
     case 'start': start(); break;
     case 'stop': stop(); break;
     case 'repeat': repeat(); break;
+    case 'read': readText(); break;
     case 'help': say(HELP_TEXT, 'status'); break;
     case 'cancel': if (!navigator_.cancel()) say('No navigation is active.', 'status'); break;
     case 'navigate':

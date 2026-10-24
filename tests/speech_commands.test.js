@@ -102,3 +102,11 @@ test('command parser', () => {
   assert.equal(parseCommand('nice weather today').type, null);
   assert.equal(parseCommand('').type, null);
 });
+
+test('read commands', async () => {
+  const { parseCommand } = await import('../docs/js/commands.js');
+  for (const s of ['read', 'Read this', 'what does it say?', 'read the sign', 'what shop is this', 'read again']) {
+    assert.equal(parseCommand(s).type, 'read', s);
+  }
+  assert.notEqual(parseCommand('repeat').type, 'read');
+});
