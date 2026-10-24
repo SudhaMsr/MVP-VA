@@ -8,11 +8,11 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
 - Detects street hazards on the phone (people, vehicles, bikes, poles, cones, bins, tactile paving, crossings, traffic lights and more).
 - Speaks alerts with direction (front left / front / front right) and an approximate distance for people and vehicles.
 - Voice commands: start, stop, repeat, navigate to a place.
-- Spoken walking directions; hazard alerts interrupt directions, then directions resume.
+- Spoken walking directions: type or say "navigate to ...", turns announced about 40 m ahead and at the turn; says "cancel" to stop. Needs internet and location permission.
 - Spoken errors: no silent failures.
 
 ## Not in the MVP
-Text reading, accounts, payments, stairs and kerb detection, iPhone.
+Text reading, accounts, payments, kerb detection, iPhone.
 
 ## Test device
 Poco M2 Pro (Android, Chrome).
@@ -39,7 +39,7 @@ Offline review: `python3 tools/analyze_session.py VIDEO LOG.json` replays the vi
 (Recording adds some load on the phone, so leave it off for speed tests.)
 
 ## Tests
-`npm test` (Node 20+) runs 29 unit tests: model output decoding checked against a Python reference, tracker, alert wording and priority, speech queue, voice-command parser.
+`npm test` (Node 20+) runs 36 unit tests: model output decoding checked against a Python reference, tracker, alert wording and priority, speech queue, voice-command parser.
 
 ## Layout
 - `docs/` the app (`js/` modules, `models/` ONNX models)

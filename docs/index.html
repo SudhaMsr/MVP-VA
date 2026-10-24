@@ -41,6 +41,15 @@
   </div>
   <button id="micBtn" type="button" aria-label="Voice commands" aria-pressed="false">Voice commands off</button>
 
+  <form id="navForm" style="margin:0 0 12px">
+    <label for="navInput" style="display:block;font-weight:700;margin-bottom:6px">Walk to (or say "navigate to ...")</label>
+    <input id="navInput" type="text" autocomplete="off" placeholder="e.g. Tesco, High Street" style="width:100%;min-height:64px;font-size:1.3rem;padding:0 12px;border-radius:12px;border:3px solid #fff;background:#111;color:#fff">
+    <div class="row" style="margin-top:12px">
+      <button id="navGo" type="submit" style="margin:0;font-size:1.3rem">Go</button>
+      <button id="navCancel" type="button" style="margin:0;font-size:1.3rem">Cancel route</button>
+    </div>
+  </form>
+
   <p id="status" role="status" aria-live="polite">Ready. Tap start.</p>
   <p id="lastAlert" aria-live="off"></p>
   <p id="stats" aria-hidden="true"></p>

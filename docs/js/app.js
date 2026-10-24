@@ -7,6 +7,7 @@ import { Tracker } from './tracker.js';
 import { AlertEngine } from './alerts.js';
 import { Speaker } from './speech.js';
 import { parseCommand, HELP_TEXT } from './commands.js';
+import { Navigator } from './nav.js';
 
 const params = new URLSearchParams(location.search);
 const SIZE = params.get('size') === '416' ? 416 : CONFIG.inputSize;
@@ -68,6 +69,28 @@ function say(text, kind = 'status') {
   if (!speaker.supported) setStatus('Speech is not available on this phone. Alerts will only show on screen.');
   speaker.speak(text, kind);
 }
+
+const navigator_ = new Navigator({
+  say: (t, k) => say(t, k),
+  getPosition: () => new Promise((res, rej) => {
+    if (!('geolocation' in navigator)) return rej(new Error('no geolocation'));
+    navigator.geolocation.getCurrentPosition((p) => res({ lat: p.coords.latitude, lon: p.coords.longitude }), rej,
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
+  }),
+  watch: (ok, err) => navigator.geolocation.watchPosition(
+    (p) => ok({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy }), err,
+    { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 }),
+  unwatch: (id) => navigator.geolocation.clearWatch(id),
+});
+window.__nav = navigator_;
+document.getElementById('navForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const q = document.getElementById('navInput').value.trim();
+  if (q) navigator_.start(q); else say('Type or say where you want to go.', 'status');
+});
+document.getElementById('navCancel').addEventListener('click', () => {
+  if (!navigator_.cancel()) say('No navigation is active.', 'status');
+});
 
 function setStatus(text) {
   el.status.textContent = text;
@@ -397,9 +420,9 @@ function handleTranscript(text) {
     case 'stop': stop(); break;
     case 'repeat': repeat(); break;
     case 'help': say(HELP_TEXT, 'status'); break;
-    case 'cancel': say('No navigation is active.', 'status'); break;
+    case 'cancel': if (!navigator_.cancel()) say('No navigation is active.', 'status'); break;
     case 'navigate':
-      say(`Navigation is not in this test build yet. I heard: navigate to ${cmd.arg}.`, 'status');
+      navigator_.start(cmd.arg);
       break;
     default: break; // unrecognised speech is ignored; ambient talking should not interrupt
   }
