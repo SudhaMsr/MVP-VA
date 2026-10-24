@@ -1,13 +1,35 @@
-// Central settings. Tune these during field testing (day 8-9).
-export const CLASSES = [
+// Class lists for each trained model. Model 'wotr' = original 20-class model; 'rod' = 25-class model
+// that also knows stairs, manholes, benches, chairs, guard rails. Order must match the training yaml.
+export const WOTR_NAMES = [
   'tree', 'red_light', 'green_light', 'crosswalk', 'blind_road', 'sign', 'person', 'bicycle', 'bus',
   'truck', 'car', 'motorcycle', 'reflective_cone', 'ashcan', 'warning_column', 'roadblock', 'pole', 'dog',
   'tricycle', 'fire_hydrant',
 ];
+export const ROD_NAMES = [
+  'Bike', 'Building', 'Car', 'Person', 'Stairs', 'Traffic sign', 'Electrical Pole', 'Road', 'Motorcycle',
+  'Dustbin', 'Dog', 'Manhole', 'Tree', 'Guard rail', 'Pedestrian crosswalk', 'Truck', 'Bus', 'Bench',
+  'Traffic Cone', 'Fire hydrant', 'Teraffic Barrel', 'Plant Pot', 'Electrical Box', 'Chair', 'Bicycle Rack',
+];
+export const CLASSES = WOTR_NAMES; // kept for older imports
+
+export const MODELS = {
+  wotr: { names: WOTR_NAMES, url: (size) => `models/best${size}.onnx` },
+  rod: { names: ROD_NAMES, url: (size) => `models/rod${size}.onnx` },
+};
+export const DEFAULT_MODEL = 'wotr'; // switch to 'rod' once the rod*.onnx files are in docs/models
+
+// Different datasets name the same thing differently; the alert code only sees these names.
+const ALIAS = {
+  bike: 'bicycle', electrical_pole: 'pole', dustbin: 'ashcan', traffic_cone: 'reflective_cone',
+  teraffic_barrel: 'roadblock', pedestrian_crosswalk: 'crosswalk', traffic_sign: 'sign',
+};
+export function canonical(name) {
+  const key = String(name).toLowerCase().trim().replace(/\s+/g, '_');
+  return ALIAS[key] || key;
+}
 
 export const CONFIG = {
-  // Model: 320 is faster, 416 sees smaller objects. Override with ?size=416
-  modelUrl: (size) => `models/best${size}.onnx`,
+  // Input size: 320 is faster, 416 sees smaller objects. Override with ?size=416 (and ?model=rod or ?model=wotr)
   inputSize: 320,
   confThreshold: 0.45,
   nmsIou: 0.5,

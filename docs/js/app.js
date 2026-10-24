@@ -1,6 +1,6 @@
 // Vision Assist - app wiring: camera, detection loop, speech, voice commands, error handling.
 // Rule for this file: every failure is spoken. No silent states.
-import { CONFIG } from './config.js';
+import { CONFIG, MODELS, DEFAULT_MODEL } from './config.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
 import { AlertEngine } from './alerts.js';
@@ -9,6 +9,8 @@ import { parseCommand, HELP_TEXT } from './commands.js';
 
 const params = new URLSearchParams(location.search);
 const SIZE = params.get('size') === '416' ? 416 : CONFIG.inputSize;
+const MODEL_KEY = MODELS[params.get('model')] ? params.get('model') : DEFAULT_MODEL;
+const MODEL = MODELS[MODEL_KEY];
 const DEBUG = params.has('debug');
 const EP = params.get('ep') || 'wasm';
 
@@ -40,7 +42,7 @@ const state = {
 };
 const frameTimes = [];
 const spokenHistory = []; // for ignoring our own voice picked up by the microphone
-const session = { startedAt: new Date().toISOString(), events: [], size: SIZE, ep: EP };
+const session = { startedAt: new Date().toISOString(), events: [], size: SIZE, ep: EP, model: MODEL_KEY };
 
 speaker.onSpoken = (item) => {
   state.lastSpeechAt = performance.now();
@@ -114,9 +116,9 @@ async function loadModel() {
   if (detector && detector.session) return;
   if (!window.ort) throw new Error('onnxruntime-web did not load');
   window.ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/';
-  const d = new Detector(window.ort, SIZE);
+  const d = new Detector(window.ort, SIZE, MODEL.names);
   const t0 = performance.now();
-  await d.load(CONFIG.modelUrl(SIZE), [EP]);
+  await d.load(MODEL.url(SIZE), [EP]);
   session.modelLoadMs = Math.round(performance.now() - t0);
   detector = d;
 }
@@ -163,7 +165,7 @@ function updateStats() {
   const p95 = a[Math.min(a.length - 1, Math.floor(a.length * 0.95))];
   el.stats.textContent =
     `Speed check: median ${med.toFixed(0)} ms, 95% under ${p95.toFixed(0)} ms ` +
-    `(${(1000 / med).toFixed(1)} frames/s). Model ${SIZE}px, ${EP}.`;
+    `(${(1000 / med).toFixed(1)} frames/s). Model ${MODEL_KEY} ${SIZE}px, ${EP}.`;
 }
 
 function drawOverlay(tracks, w, h) {

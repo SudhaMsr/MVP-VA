@@ -106,3 +106,36 @@ test('very close distance says "very close" not "about 1 metres"', () => {
   const t = [{ id: 1, cls: idx('person'), name: 'person', hits: 3, dist: 1.0, speed: 0, box: { x1: 280, y1: 50, x2: 360, y2: 450 } }];
   assert.equal(eng.next(t, W, H, 0).text, 'Person, ahead, very close.');
 });
+
+test('model class names from different datasets map to the same alert names', async () => {
+  const { canonical } = await import('../docs/js/config.js');
+  assert.equal(canonical('Bike'), 'bicycle');
+  assert.equal(canonical('Electrical Pole'), 'pole');
+  assert.equal(canonical('Dustbin'), 'ashcan');
+  assert.equal(canonical('Traffic Cone'), 'reflective_cone');
+  assert.equal(canonical('Teraffic Barrel'), 'roadblock');
+  assert.equal(canonical('Pedestrian crosswalk'), 'crosswalk');
+  assert.equal(canonical('Stairs'), 'stairs');
+  assert.equal(canonical('Manhole'), 'manhole');
+});
+
+test('stairs are a priority 1 hazard once low in the picture', () => {
+  const eng = new AlertEngine();
+  const t = [{ id: 1, cls: 4, name: 'stairs', hits: 2, dist: null, speed: null, box: { x1: 200, y1: 250, x2: 440, y2: 440 } }];
+  const a = eng.next(t, W, H, 0);
+  assert.equal(a.priority, 1);
+  assert.equal(a.text, 'Stairs, ahead, close.');
+  const far = [{ ...t[0], box: { x1: 200, y1: 120, x2: 440, y2: 180 } }];
+  assert.equal(new AlertEngine().next(far, W, H, 0), null);
+});
+
+test('manhole only when close; buildings and roads are silent', () => {
+  const eng = new AlertEngine();
+  const near = [{ id: 1, cls: 11, name: 'manhole', hits: 2, dist: null, speed: null, box: { x1: 250, y1: 380, x2: 400, y2: 470 } }];
+  assert.equal(eng.next(near, W, H, 0).text, 'Manhole, ahead, close.');
+  const quiet = [
+    { id: 2, cls: 1, name: 'building', hits: 2, dist: null, speed: null, box: { x1: 0, y1: 0, x2: 600, y2: 400 } },
+    { id: 3, cls: 7, name: 'road', hits: 2, dist: null, speed: null, box: { x1: 0, y1: 300, x2: 640, y2: 480 } },
+  ];
+  assert.equal(new AlertEngine().next(quiet, W, H, 0), null);
+});

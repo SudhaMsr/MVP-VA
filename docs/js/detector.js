@@ -1,5 +1,5 @@
 // Pure helpers (testable in Node) + a Detector class that wraps onnxruntime-web.
-import { CLASSES } from './config.js';
+import { CLASSES, canonical } from './config.js';
 
 export function letterbox(srcW, srcH, size) {
   const r = Math.min(size / srcW, size / srcH);
@@ -29,7 +29,8 @@ export function iou(a, b) {
 }
 
 // YOLOv8 output is channels-first: [1, 4+nc, N]. Boxes are cx,cy,w,h in letterboxed input pixels.
-export function decode(output, N, lb, srcW, srcH, conf, nmsIou, numClasses = CLASSES.length) {
+export function decode(output, N, lb, srcW, srcH, conf, nmsIou, names = CLASSES) {
+  const numClasses = names.length;
   const cands = [];
   for (let i = 0; i < N; i++) {
     let best = -1, bs = 0;
@@ -44,7 +45,7 @@ export function decode(output, N, lb, srcW, srcH, conf, nmsIou, numClasses = CLA
     const x2 = Math.min(srcW, Math.max(0, (cx + w / 2 - lb.dx) / lb.r));
     const y2 = Math.min(srcH, Math.max(0, (cy + h / 2 - lb.dy) / lb.r));
     if (x2 - x1 < 2 || y2 - y1 < 2) continue;
-    cands.push({ cls: best, name: CLASSES[best], score: bs, x1, y1, x2, y2 });
+    cands.push({ cls: best, name: canonical(names[best]), score: bs, x1, y1, x2, y2 });
   }
   cands.sort((a, b) => b.score - a.score);
   const kept = [];
@@ -60,9 +61,10 @@ export function decode(output, N, lb, srcW, srcH, conf, nmsIou, numClasses = CLA
 }
 
 export class Detector {
-  constructor(ort, size) {
+  constructor(ort, size, names = CLASSES) {
     this.ort = ort;
     this.size = size;
+    this.names = names;
     this.session = null;
     this.canvas = null;
     this.ctx = null;
@@ -100,6 +102,6 @@ export class Detector {
     const out = await this.session.run({ [this.inputName]: input });
     const t = out[this.outputName];
     const N = t.dims[2];
-    return { dets: decode(t.data, N, lb, sw, sh, conf, nmsIou), width: sw, height: sh };
+    return { dets: decode(t.data, N, lb, sw, sh, conf, nmsIou, this.names), width: sw, height: sh };
   }
 }

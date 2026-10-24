@@ -5,8 +5,10 @@ import { CONFIG } from './config.js';
 const VEHICLES = new Set(['car', 'truck', 'bus', 'motorcycle', 'tricycle']);
 const STATIC_OBSTACLES = {
   pole: 'Pole', ashcan: 'Bin', warning_column: 'Warning post', reflective_cone: 'Cone',
-  roadblock: 'Barrier', tree: 'Tree',
+  roadblock: 'Barrier', tree: 'Tree', guard_rail: 'Barrier', bench: 'Bench', chair: 'Chair',
+  plant_pot: 'Plant pot', electrical_box: 'Electrical box', bicycle_rack: 'Bicycle rack',
 };
+const STATIC_PRIORITY = { roadblock: 1, tree: 3, plant_pot: 3, bench: 3 }; // default 2
 const LABEL = {
   car: 'Car', truck: 'Truck', bus: 'Bus', motorcycle: 'Motorbike', tricycle: 'Tricycle', bicycle: 'Bicycle',
   person: 'Person', dog: 'Dog',
@@ -40,6 +42,7 @@ export class AlertEngine {
       const d = tr.dist; // number or null
       const sp = tr.speed; // number or null
       const hFrac = (tr.box.y2 - tr.box.y1) / frameH;
+      const bottom = tr.box.y2 / frameH; // low in the picture = close to the camera, for things on the ground
 
       if (VEHICLES.has(name) || name === 'bicycle') {
         if (d == null) continue;
@@ -61,9 +64,17 @@ export class AlertEngine {
         if (d != null && d < c.dogNearMetres) {
           out.push({ key: `dog:${dir}`, text: `Dog, ${dir}, ${metres(d)}.`, priority: 2 });
         }
+      } else if (name === 'stairs') {
+        // A fall hazard: announce as soon as it is in the lower half of the picture.
+        if (bottom > 0.5) {
+          const near = bottom > 0.8 ? ', close' : '';
+          out.push({ key: `stairs:${dir}`, text: `Stairs, ${dir}${near}.`, priority: 1 });
+        }
+      } else if (name === 'manhole') {
+        if (bottom > 0.7) out.push({ key: `manhole:${dir}`, text: `Manhole, ${dir}, close.`, priority: 2 });
       } else if (STATIC_OBSTACLES[name]) {
-        if (hFrac > c.staticNearFraction) {
-          const pr = name === 'roadblock' ? 1 : name === 'tree' ? 3 : 2;
+        if (hFrac > c.staticNearFraction || bottom > 0.9) {
+          const pr = STATIC_PRIORITY[name] ?? 2;
           out.push({ key: `${name}:${dir}`, text: `${STATIC_OBSTACLES[name]}, ${dir}, close.`, priority: pr });
         }
       } else if (name === 'red_light') {
@@ -77,7 +88,7 @@ export class AlertEngine {
       } else if (name === 'fire_hydrant' && hFrac > c.staticNearFraction) {
         out.push({ key: `hydrant:${dir}`, text: `Hydrant, ${dir}, close.`, priority: 4 });
       }
-      // 'sign' is ignored on purpose: we cannot read it yet, so announcing it is just noise.
+      // 'sign', 'building' and 'road' are ignored on purpose: we cannot read it yet, so announcing it is just noise.
     }
     return out;
   }
