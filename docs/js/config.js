@@ -28,6 +28,12 @@ export function canonical(name) {
   return ALIAS[key] || key;
 }
 
+// Slow lane: a second model run every few frames, contributing only these classes.
+export const SECONDARY = {
+  model: 'rod', size: 416, everyNFrames: 4, conf: 0.40, maxAgeMs: 1500,
+  classes: ['stairs', 'manhole', 'bench', 'chair', 'guard_rail', 'electrical_box', 'plant_pot', 'bicycle_rack'],
+};
+
 export const CONFIG = {
   // Input size: 320 is faster, 416 sees smaller objects. Override with ?size=416 (and ?model=rod or ?model=wotr)
   inputSize: 320,

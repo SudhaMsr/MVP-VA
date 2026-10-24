@@ -139,3 +139,14 @@ test('manhole only when close; buildings and roads are silent', () => {
   ];
   assert.equal(new AlertEngine().next(quiet, W, H, 0), null);
 });
+
+test('two-lane merge: slow-lane results are reused briefly, then expire', async () => {
+  const { mergeLanes, filterAllowed } = await import('../docs/js/lanes.js');
+  const fast = [{ name: 'person' }];
+  const slow = { dets: [{ name: 'stairs' }], t: 1000 };
+  assert.deepEqual(mergeLanes(fast, slow, 1500, 1500).map((d) => d.name), ['person', 'stairs']);
+  assert.deepEqual(mergeLanes(fast, slow, 3000, 1500).map((d) => d.name), ['person']);
+  assert.deepEqual(mergeLanes(fast, { dets: [], t: null }, 100, 1500).map((d) => d.name), ['person']);
+  const kept = filterAllowed([{ name: 'person' }, { name: 'stairs' }, { name: 'manhole' }], ['stairs', 'manhole']);
+  assert.deepEqual(kept.map((d) => d.name), ['stairs', 'manhole']);
+});

@@ -1,6 +1,7 @@
 // Vision Assist - app wiring: camera, detection loop, speech, voice commands, error handling.
 // Rule for this file: every failure is spoken. No silent states.
-import { CONFIG, MODELS, DEFAULT_MODEL } from './config.js';
+import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY } from './config.js';
+import { filterAllowed, mergeLanes } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
 import { AlertEngine } from './alerts.js';
@@ -31,6 +32,10 @@ const speaker = new Speaker(window.speechSynthesis, window.SpeechSynthesisUttera
 const tracker = new Tracker();
 const engine = new AlertEngine();
 let detector = null;
+let slowDetector = null; // second model for stairs, manholes, benches...
+const slow = { dets: [], t: null };
+let frameCount = 0;
+const USE_SLOW = params.get('lane') !== 'off' && MODEL_KEY !== SECONDARY.model;
 let stream = null;
 let recognition = null;
 let wakeLock = null;
@@ -121,6 +126,17 @@ async function loadModel() {
   await d.load(MODEL.url(SIZE), [EP]);
   session.modelLoadMs = Math.round(performance.now() - t0);
   detector = d;
+  if (USE_SLOW && !slowDetector) {
+    try {
+      const sm = MODELS[SECONDARY.model];
+      const sd = new Detector(window.ort, SECONDARY.size, sm.names);
+      await sd.load(sm.url(SECONDARY.size), [EP]);
+      slowDetector = sd;
+    } catch (e) {
+      logEvent('slow-model-error', e && e.message);
+      say('Stairs and manhole detection could not load. Other detection is working.', 'status');
+    }
+  }
 }
 
 // ---------- main loop ----------
@@ -128,9 +144,19 @@ async function loop() {
   if (!state.running) return;
   const t0 = performance.now();
   try {
-    const { dets, width, height } = await detector.detect(el.video, CONFIG.confThreshold, CONFIG.nmsIou);
+    const { dets: fast, width, height } = await detector.detect(el.video, CONFIG.confThreshold, CONFIG.nmsIou);
     if (!state.running) return; // stopped while this frame was in flight
+    frameCount += 1;
+    if (slowDetector && frameCount % SECONDARY.everyNFrames === 0) {
+      try {
+        const r = await slowDetector.detect(el.video, SECONDARY.conf, CONFIG.nmsIou);
+        slow.dets = filterAllowed(r.dets, SECONDARY.classes);
+        slow.t = performance.now();
+      } catch (e) { logEvent('slow-frame-error', e && e.message); }
+      if (!state.running) return;
+    }
     const t = performance.now();
+    const dets = mergeLanes(fast, slow, t, SECONDARY.maxAgeMs);
     const tracks = tracker.update(dets, t, width);
     const alert = engine.next(tracks, width, height, t);
     if (alert) {
@@ -165,7 +191,7 @@ function updateStats() {
   const p95 = a[Math.min(a.length - 1, Math.floor(a.length * 0.95))];
   el.stats.textContent =
     `Speed check: median ${med.toFixed(0)} ms, 95% under ${p95.toFixed(0)} ms ` +
-    `(${(1000 / med).toFixed(1)} frames/s). Model ${MODEL_KEY} ${SIZE}px, ${EP}.`;
+    `(${(1000 / med).toFixed(1)} frames/s). Model ${MODEL_KEY} ${SIZE}px${slowDetector ? ' + stairs lane' : ''}, ${EP}.`;
 }
 
 function drawOverlay(tracks, w, h) {
@@ -226,6 +252,7 @@ async function start() {
   state.errors = 0;
   state.lastFrameOk = performance.now();
   tracker.tracks = [];
+  slow.dets = []; slow.t = null; frameCount = 0;
   engine.reset();
   setStatus('Running');
   say('Vision Assist active. Detecting obstacles.', 'status');
