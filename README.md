@@ -2,18 +2,27 @@
 
 A voice-first walking companion for blind and low-vision people. It uses the phone camera to spot hazards, speaks short alerts ("Person, front left"), and gives spoken walking directions.
 
-> **Safety notice:** This is a test prototype, not a validated mobility aid. It can miss obstacles and lose GPS. Always use a cane or guide dog as well.
+> **Safety notice:** This is a test version, not a validated mobility aid. It can miss obstacles and lose GPS. Always use a cane or guide dog as well.
 
 ## What the MVP does
 - Detects street hazards on the phone (people, vehicles, bikes, poles, cones, bins, tactile paving, crossings, traffic lights and more).
-- Speaks alerts with direction (front left / front / front right) and an approximate distance for people and vehicles.
-- Voice commands: start, stop, repeat, navigate to a place.
-- Spoken walking directions: type or say "navigate to ...", turns announced about 40 m ahead and at the turn; says "cancel" to stop. Needs internet and location permission.
+- **One screen, two main controls:** a big **Start** button that becomes **Talk** while running, and **Stop**. Everything else (repeat, how much I say, voice on/off, tap anywhere to talk, distances, typing a destination, session log) is inside **More options**, so a screen-reader user meets three things, not nine.
+- **Talk:** tap the Talk button (or empty screen, if "tap anywhere to talk" is on). The app goes quiet, plays a rising tone and listens for about 9 seconds. Four sounds, one meaning each: listening (rising), understood (single), not understood (falling), urgent (sharp beep plus a buzz).
+- **How much I say:** quiet (default), normal or detailed. Quiet speaks turns, urgent vehicles, stairs, red lights, barriers, and people or vehicles very close ahead. Things a cane finds anyway (poles, bins, benches) are only spoken in detailed. Say "less talk", "more detail", "quiet mode", "normal mode" or "detailed mode".
+- **Calm alerts:** repeats of the same alert wait longer unless the thing got clearly closer; at most 3 routine alerts per 10 seconds (urgent ones are exempt); things to the side are only mentioned when close.
+- **Spoken walking directions:** type or say "navigate to ...", turns announced about 40 m ahead and at the turn, "keep going, you are on the route" on long quiet stretches. Turn prompts go ahead of hazard chatter. Say "cancel" to stop. Needs internet and location permission.
+- **Ask the app:**
+  - "What is in front of me?" describes what the camera sees now, by side and distance, and says plainly when it sees nothing it recognises.
+  - "Where am I?" says the street and area (free OpenStreetMap lookup).
+  - "Save this place as home", then "take me home" (or any name). Places are kept on the phone.
+  - "Use steps" / "use metres" changes every spoken distance (one step is taken as 0.7 m, so step counts are approximate).
+  - "Battery" tells the charge. The app also warns once at 20, 10 and 5 percent while not charging, and logs battery level in the session log.
+- Voice commands: start, stop, repeat, help, plus the ones above.
 - Spoken errors: no silent failures.
 - Text reading (built, switched off until the core is tested; add ?read=1 to try it): say "read" or tap Read, runs on the phone.
 
 ## Not in the MVP
-Text reading, accounts, payments, kerb detection, iPhone.
+Text reading switched on by default, accounts, payments, kerb and steps detection (needs footage and training), iPhone, spatial audio, crossing warnings.
 
 ## Test device
 Poco M2 Pro (Android, Chrome).
@@ -40,7 +49,7 @@ Offline review: `python3 tools/analyze_session.py VIDEO LOG.json` replays the vi
 (Recording adds some load on the phone, so leave it off for speed tests.)
 
 ## Tests
-`npm test` (Node 20+) runs 56 unit tests: model output decoding checked against a Python reference, tracker, alert wording and priority, speech queue, voice-command parser.
+`npm test` (Node 20+) runs the unit tests: model output decoding checked against a Python reference, tracker, alert wording, priority and talkativeness levels, speech queue and priorities, voice-command parser, navigation (including simulated walks), sounds, scene description, saved places, units, battery.
 
 ## Layout
 - `docs/` the app (`js/` modules, `models/` ONNX models)
@@ -50,7 +59,7 @@ Offline review: `python3 tools/analyze_session.py VIDEO LOG.json` replays the vi
 Hold or mount the phone at chest height with the camera facing forward and **your arm out of the picture**. In our demo video the tester's own arm in view was detected as a person. A chest lanyard is the recommended mount for tests.
 
 ## Status
-Day 2 of 10: two-lane detection, spoken alerts, voice start/stop/repeat. Navigation is not built yet.
+Built: two-lane hazard detection, calm spoken alerts, spoken walking navigation (Google when available, OpenStreetMap as the fallback), the one-screen interface, and the ask-the-app features above. Not yet tested outdoors with blind testers. A known-limits list and a tester guide are still to be written.
 
 ## Security
 Never commit API keys or service-account files. Use environment variables.

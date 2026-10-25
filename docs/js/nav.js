@@ -1,5 +1,6 @@
 // Spoken walking navigation: geocode a place, fetch a walking route, speak turns as the walker approaches them.
 // Pure helpers are exported for tests; Navigator takes its network/GPS/speech dependencies as arguments.
+import { roundDistance } from './units.js';
 const R = 6371000;
 const rad = (d) => (d * Math.PI) / 180;
 
@@ -34,11 +35,8 @@ export function distanceToPath(p, path) {
   return best;
 }
 
-export function roundMetres(m) {
-  if (m < 15) return 'a few metres';
-  if (m < 100) return `${Math.round(m / 10) * 10} metres`;
-  return `${Math.round(m / 50) * 50} metres`;
-}
+// Spoken route distance. Metres by default; steps when the walker has asked for them (see units.js).
+export function roundMetres(m) { return roundDistance(m); }
 
 const MOD = {
   left: 'turn left', right: 'turn right', 'slight left': 'keep left', 'slight right': 'keep right',

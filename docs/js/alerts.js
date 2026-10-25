@@ -1,9 +1,10 @@
 // Turns tracked objects into at most one short spoken alert per call.
 // Priority 0 = urgent (interrupts), 1-2 = hazards, 3-4 = information (only when nothing else is in view).
 import { CONFIG } from './config.js';
+import { nearDistance } from './units.js';
 
-const VEHICLES = new Set(['car', 'truck', 'bus', 'motorcycle', 'tricycle']);
-const STATIC_OBSTACLES = {
+export const VEHICLES = new Set(['car', 'truck', 'bus', 'motorcycle', 'tricycle']);
+export const STATIC_OBSTACLES = {
   pole: 'Pole', ashcan: 'Bin', warning_column: 'Warning post', reflective_cone: 'Cone',
   roadblock: 'Barrier', tree: 'Tree', guard_rail: 'Barrier', bench: 'Bench', chair: 'Chair',
   plant_pot: 'Plant pot', electrical_box: 'Electrical box', bicycle_rack: 'Bicycle rack',
@@ -21,11 +22,7 @@ export function directionOf(cx, frameW) {
   return 'ahead';
 }
 
-function metres(d) {
-  if (d < 1.5) return 'very close';
-  const n = Math.round(d);
-  return `about ${n} ${n === 1 ? 'metre' : 'metres'}`;
-}
+function metres(d) { return nearDistance(d); } // metres or steps, as the walker chose
 
 export const LEVELS = ['quiet', 'normal', 'detailed'];
 

@@ -51,6 +51,14 @@ export class Dialogue {
     this.pending = { pos, results };
   }
 
+  // A place the walker saved earlier ("take me home"): no search, go straight to the distance and the yes/no.
+  async navigateToSaved(place) {
+    this._set('idle');
+    let pos;
+    try { pos = await this.nav.getPosition(); } catch { this.say('I cannot find your location. Check location permission and try again.', 'status'); return; }
+    return this._preview(pos, { lat: place.lat, lon: place.lon, large: false, name: `your ${place.name}` });
+  }
+
   async _preview(pos, dest) {
     const route = await this.nav.plan(pos, dest);
     if (!route) { if (!this.nav.active) this.say('I could not find a walking route there.', 'status'); return this._set('idle'); }

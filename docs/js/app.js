@@ -6,6 +6,10 @@ import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
 import { AlertEngine, LEVELS } from './alerts.js';
 import { Cues } from './cues.js';
+import { getUnits, setUnits, STEP_METRES } from './units.js';
+import { describeScene, NO_CAMERA } from './describe.js';
+import { reverseLookup, describePlace, PlaceStore, normaliseName } from './places.js';
+import { BatteryWatch } from './battery.js';
 import { Speaker } from './speech.js';
 import { parseCommand, HELP_TEXT } from './commands.js';
 import { Navigator, makeProviders } from './nav.js';
@@ -24,7 +28,7 @@ const $ = (id) => document.getElementById(id);
 const el = {
   start: $('startBtn'), stop: $('stopBtn'), repeat: $('repeatBtn'), mic: $('micBtn'),
   status: $('status'), last: $('lastAlert'), stats: $('stats'), video: $('video'), overlay: $('overlay'),
-  dl: $('logBtn'), saveRec: $('saveRecBtn'), level: $('levelBtn'), tap: $('tapBtn'),
+  dl: $('logBtn'), saveRec: $('saveRecBtn'), level: $('levelBtn'), tap: $('tapBtn'), units: $('unitsBtn'),
 };
 
 const FULL_DISCLAIMER =
@@ -37,6 +41,7 @@ const speaker = new Speaker(window.speechSynthesis, window.SpeechSynthesisUttera
 const tracker = new Tracker();
 const engine = new AlertEngine(CONFIG, CONFIG.verbosity);
 const cues = new Cues();
+const places = new PlaceStore();
 let detector = null;
 let slowDetector = null; // second model for stairs, manholes, benches...
 const slow = { dets: [], t: null, ranAt: 0 };
@@ -85,7 +90,7 @@ const navigator_ = new Navigator({
     if (!('geolocation' in navigator)) return rej(new Error('no geolocation'));
     const wait = setTimeout(() => say('Waiting for your location. If your phone asks, allow location.', 'status'), 4000);
     navigator.geolocation.getCurrentPosition(
-      (p) => { clearTimeout(wait); res({ lat: p.coords.latitude, lon: p.coords.longitude }); },
+      (p) => { clearTimeout(wait); res({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy }); },
       (e) => { clearTimeout(wait); rej(e); },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
   }),
@@ -114,7 +119,9 @@ window.__dialogue = dialogue;
 document.getElementById('navForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const q = document.getElementById('navInput').value.trim();
-  if (q) navigator_.start(q); else say('Type or say where you want to go.', 'status');
+  if (!q) { say('Type or say where you want to go.', 'status'); return; }
+  const saved = places.get(q);
+  if (saved) dialogue.navigateToSaved(saved); else navigator_.start(q);
 });
 document.getElementById('navCancel').addEventListener('click', () => {
   if (!navigator_.cancel()) say('No navigation is active.', 'status');
@@ -244,6 +251,7 @@ async function loop() {
     const t = performance.now();
     const dets = mergeLanes(fast, slow, t, SECONDARY.maxAgeMs);
     const tracks = tracker.update(dets, t, width, height);
+    state.scene = { tracks, w: width, h: height, t };
     const alert = engine.next(tracks, width, height, t);
     if (alert && (alert.urgent || performance.now() > state.talkUntil)) { // routine alerts wait while the walker is speaking
       if (alert.urgent) cues.play('urgent');
@@ -373,6 +381,7 @@ async function start() {
   if (state.running || state.starting) return;
   state.starting = true;
   cues.unlock();
+  startBatteryWatch();
   updateMain();
   setStatus('Starting');
   say(state.firstRun ? FULL_DISCLAIMER : 'Starting.', 'status');
@@ -489,6 +498,64 @@ function stepLevel(dir) {
   setLevel(LEVELS[j], true, false);
 }
 
+// ---------- things the walker can ask for ----------
+function describeNow() {
+  if (!state.running || !state.scene) { say(NO_CAMERA, 'status'); return; }
+  if (performance.now() - state.scene.t > 5000) { say('The camera view has not updated for a moment. Try again in a few seconds.', 'status'); return; }
+  const text = describeScene(state.scene.tracks, state.scene.w);
+  logEvent('describe', text);
+  say(text, 'status');
+  state.lastSpoken = text;
+}
+
+async function whereAmI() {
+  let pos;
+  try { pos = await navigator_.getPosition(); } catch { say('I cannot find your location. Check location permission and try again.', 'status'); return; }
+  try {
+    const text = describePlace(await reverseLookup(pos), pos.accuracy);
+    logEvent('whereami', text);
+    say(text, 'status'); state.lastSpoken = text;
+  } catch (e) {
+    logEvent('whereami-error', e && e.message);
+    say('I could not look up which street you are on. Check your internet connection.', 'status');
+  }
+}
+
+async function savePlace(rawName) {
+  if (!normaliseName(rawName)) { say('Say save this place as, and a name. For example, save this place as home.', 'status'); return; }
+  let pos;
+  try { pos = await navigator_.getPosition(); } catch { say('I cannot find your location, so I could not save this place. Check location permission and try again.', 'status'); return; }
+  const r = places.save(rawName, pos);
+  if (!r) { say('I did not catch a name for this place.', 'status'); return; }
+  logEvent('save-place', r.name);
+  const back = r.name === 'home' ? 'take me home' : `take me to ${r.name}`;
+  say(`${r.replaced ? `Updated ${r.name} to this spot.` : `Saved as ${r.name}.`} To come back, say ${back}.` +
+    `${pos.accuracy > 40 ? ' My location signal is weak, so this spot may be a little off.' : ''}` +
+    `${r.persisted ? '' : ' I could not store it on this phone, so I will only remember it until you close the page.'}`, 'status');
+}
+
+function goTo(query) {
+  const saved = places.get(query);
+  if (saved) { dialogue.navigateToSaved(saved); return; }
+  if (normaliseName(query) === 'home') { say('You have not saved a home yet. When you are at home, say save this place as home.', 'status'); return; }
+  dialogue.navigateTo(query);
+}
+
+function changeUnits(mode, speak = true) {
+  setUnits(mode);
+  el.units.textContent = `Distances in: ${getUnits()}`;
+  try { localStorage.setItem('va.units', getUnits()); } catch (_) { /* storage can be unavailable */ }
+  if (speak) say(getUnits() === 'steps' ? `Okay, distances in steps. One step is about ${Math.round(STEP_METRES * 100)} centimetres, so they are approximate.` : 'Okay, distances in metres.', 'status');
+}
+
+const battery = new BatteryWatch({
+  getBattery: navigator.getBattery ? navigator.getBattery : null,
+  say: (t, k) => say(t, k),
+  log: (level, charging) => logEvent('battery', `${Math.round(level * 100)}${charging ? ' charging' : ''}`),
+});
+let batteryStarted = false;
+function startBatteryWatch() { if (batteryStarted) return; batteryStarted = true; battery.start().catch(() => {}); }
+
 function repeat() {
   say(state.lastSpoken || 'Nothing to repeat yet.', 'status');
 }
@@ -536,6 +603,11 @@ function handleTranscript(text) {
   const cmd = parseCommand(text);
   if (cmd.type) cues.play('ok'); else if (inTalk) cues.play('huh');
   switch (cmd.type) {
+    case 'describe': describeNow(); break;
+    case 'whereami': whereAmI(); break;
+    case 'save': savePlace(cmd.arg); break;
+    case 'units': changeUnits(cmd.arg); break;
+    case 'battery': say(battery.ask(), 'status'); if (!batteryStarted) startBatteryWatch(); break;
     case 'level':
       if (cmd.arg === 'less') stepLevel(-1); else if (cmd.arg === 'more') stepLevel(1); else setLevel(cmd.arg, true, false);
       break;
@@ -546,7 +618,7 @@ function handleTranscript(text) {
     case 'help': say(HELP_TEXT, 'status'); break;
     case 'cancel': if (!navigator_.cancel()) say('No navigation is active.', 'status'); break;
     case 'navigate':
-      dialogue.navigateTo(cmd.arg);
+      goTo(cmd.arg);
       break;
     default: break; // unrecognised speech is ignored; ambient talking should not interrupt
   }
@@ -601,6 +673,7 @@ function updateMic() {
 
 // ---------- buttons ----------
 el.start.addEventListener('click', () => { cues.unlock(); if (state.running) talk(); else start(); });
+el.units.addEventListener('click', () => changeUnits(getUnits() === 'metres' ? 'steps' : 'metres'));
 el.level.addEventListener('click', () => setLevel(LEVELS[(LEVELS.indexOf(engine.level) + 1) % LEVELS.length]));
 el.tap.addEventListener('click', () => {
   state.tapToTalk = !state.tapToTalk;
@@ -641,10 +714,12 @@ el.saveRec.hidden = !RECORD;
 if (DEBUG) document.body.classList.add('debug');
 try {
   const lv = localStorage.getItem('va.level'); if (LEVELS.includes(lv)) engine.setLevel(lv);
+  const un = localStorage.getItem('va.units'); if (un) setUnits(un);
   if (localStorage.getItem('va.tap') === '0') { state.tapToTalk = false; el.tap.setAttribute('aria-pressed', 'false'); el.tap.textContent = 'Tap anywhere to talk: off'; }
 } catch (_) { /* storage can be unavailable */ }
 el.level.textContent = `How much I say: ${engine.level}`;
+el.units.textContent = `Distances in: ${getUnits()}`;
 updateMain();
 updateMic();
-window.__va = { state, speaker, session, tracker, engine, cues, start, stop, talk, setLevel,
+window.__va = { state, speaker, session, tracker, engine, cues, places, battery, start, stop, talk, setLevel, describeNow, whereAmI, savePlace, changeUnits,
   rec: () => ({ size: recBlob ? recBlob.size : null, mime: recMime, frames: frameLog.length }) };
