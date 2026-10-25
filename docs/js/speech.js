@@ -75,13 +75,13 @@ export class Speaker {
   // Queued status, navigation and urgent messages are kept (an error or a route summary must not be lost); an urgent
   // or navigation message already playing finishes.
   // The walker has tapped Talk: stop speaking at once so they can be heard (and the mic does not hear us).
-  // Anything cut off that matters (a turn prompt, a status message) goes back to the front and is spoken after, not lost.
+  // A turn prompt that was cut off goes back to the front and is spoken after. A cut-off status message is dropped (say "repeat").
   hush() {
     this.queue = this.queue.filter((q) => q.kind !== 'normal');
     const cur = this.current;
     if (cur && cur.kind !== 'urgent') {
       this._cancelCurrent();
-      if (cur.kind !== 'normal') { cur.resume = true; this.queue.unshift(cur); }
+      if (cur.kind === 'nav') { cur.resume = true; this.queue.unshift(cur); } // a turn prompt must not be lost; anything else, the walker can ask to repeat
     }
   }
 
