@@ -31,3 +31,9 @@ def test_per_class_cap_counts_pictures_not_boxes():
     got, per = f.collect(lines, {'/m/01': 'stairs'}, ['stairs'], 3)
     assert sorted(got) == ['img0', 'img1', 'img2']
     assert len(got['img0']) == 2, 'a second box on a picture already chosen is still kept'
+
+def test_cap_holds_across_several_files():
+    per = {'stairs': set()}
+    a, _ = f.collect(rows(*[f'a{i},x,/m/01,1,0.1,0.5,0.2,0.8,0,0,0,0,0\n' for i in range(3)]), {'/m/01': 'stairs'}, ['stairs'], 4, per=per)
+    b, _ = f.collect(rows(*[f'b{i},x,/m/01,1,0.1,0.5,0.2,0.8,0,0,0,0,0\n' for i in range(3)]), {'/m/01': 'stairs'}, ['stairs'], 4, per=per)
+    assert len(a) == 3 and len(b) == 1 and len(per['stairs']) == 4

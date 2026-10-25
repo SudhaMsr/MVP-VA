@@ -87,12 +87,12 @@ def yolo_line(cls_idx, row, header):
     return f'{cls_idx} {(x0 + x1) / 2:.6f} {(y0 + y1) / 2:.6f} {x1 - x0:.6f} {y1 - y0:.6f}'
 
 
-def collect(lines, mid_to_ours, order, per_class, seed=1):
+def collect(lines, mid_to_ours, order, per_class, seed=1, per=None):
     """lines: an iterable of annotation csv lines. -> {image id: [yolo lines]}, with at most per_class images per class."""
     reader = csv.reader(lines)
     header = {name: i for i, name in enumerate(next(reader))}
-    by_image, per = {}, {c: set() for c in order}
-    rng = random.Random(seed)
+    by_image = {}
+    per = per if per is not None else {c: set() for c in order}  # pass the same dict for every file so the cap holds across them
     for row in reader:
         mid = row[header['LabelName']]
         if mid not in mid_to_ours or not box_row_ok(row, header):
@@ -143,12 +143,14 @@ def main():
     ap.add_argument('--val-fraction', type=float, default=0.1)
     ap.add_argument('--splits', default='validation,test,train', help='train is a 1.2 GB annotation file, read as a stream')
     ap.add_argument('--workers', type=int, default=16)
+    ap.add_argument('--classes', default='', help='comma list of our class names to keep, e.g. stairs,scooter (default: all)')
     ap.add_argument('--dry-run', action='store_true', help='only report what would be downloaded')
     a = ap.parse_args()
 
     mids = read_classes(fetch(f'{BASE}/v7/oidv7-class-descriptions-boxable.csv').decode('utf-8'))
-    mid_to_ours, missing = resolve(WANTED, mids)
-    order = [c for c in WANTED if c not in missing]
+    wanted = {k: v for k, v in WANTED.items() if not a.classes or k in a.classes.split(',')}
+    mid_to_ours, missing = resolve(wanted, mids)
+    order = [c for c in wanted if c not in missing]
     print('classes found:', order); print('not in Open Images (will need your own footage):', missing)
 
     by_image, per = {}, {c: set() for c in order}
@@ -157,7 +159,7 @@ def main():
         for url in BBOX[split]:  # V7 reuses the V5/V6 box files; try each known address
             print('reading', url)
             try:
-                got, p = collect(stream_lines(url), mid_to_ours, order, a.per_class)
+                got, p = collect(stream_lines(url), mid_to_ours, order, a.per_class, per=per)
                 break
             except Exception as e:
                 print('  could not read it:', e)
@@ -166,8 +168,6 @@ def main():
             continue
         for img, ls in got.items():
             by_image.setdefault(img, (split, []))[1].extend(ls)
-        for c in order:
-            per[c] |= p[c]
         if all(len(per[c]) >= a.per_class for c in order):
             break
 
