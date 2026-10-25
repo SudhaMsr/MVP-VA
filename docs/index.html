@@ -75,7 +75,7 @@
       <button id="recordBtn" type="button" aria-pressed="false">Record session: off</button>
       <button id="saveRecBtn" type="button" hidden disabled aria-label="Save the recording and log" style="min-height:64px;font-size:1.1rem">Save recording</button>
       <button id="logBtn" type="button" aria-label="Save session log" style="min-height:56px;font-size:1rem">Save session log</button>
-      <p class="small">Version: <span id="ver">5c5db3e</span></p>
+      <p class="small">Version: <span id="ver">4e4cfe0</span></p>
     </details>
   </details>
 
@@ -100,26 +100,27 @@
 </script>
 <!--stamp-->
 <script type="importmap">{"imports": {
-    "./js/alerts.js": "./js/alerts.js?v=5c5db3e",
-    "./js/app.js": "./js/app.js?v=5c5db3e",
-    "./js/barge.js": "./js/barge.js?v=5c5db3e",
-    "./js/battery.js": "./js/battery.js?v=5c5db3e",
-    "./js/commands.js": "./js/commands.js?v=5c5db3e",
-    "./js/config.js": "./js/config.js?v=5c5db3e",
-    "./js/cues.js": "./js/cues.js?v=5c5db3e",
-    "./js/describe.js": "./js/describe.js?v=5c5db3e",
-    "./js/detector.js": "./js/detector.js?v=5c5db3e",
-    "./js/dialogue.js": "./js/dialogue.js?v=5c5db3e",
-    "./js/lanes.js": "./js/lanes.js?v=5c5db3e",
-    "./js/nav.js": "./js/nav.js?v=5c5db3e",
-    "./js/places.js": "./js/places.js?v=5c5db3e",
-    "./js/reader.js": "./js/reader.js?v=5c5db3e",
-    "./js/speech.js": "./js/speech.js?v=5c5db3e",
-    "./js/tracker.js": "./js/tracker.js?v=5c5db3e",
-    "./js/units.js": "./js/units.js?v=5c5db3e"
+    "./js/alerts.js": "./js/alerts.js?v=4e4cfe0",
+    "./js/app.js": "./js/app.js?v=4e4cfe0",
+    "./js/barge.js": "./js/barge.js?v=4e4cfe0",
+    "./js/battery.js": "./js/battery.js?v=4e4cfe0",
+    "./js/commands.js": "./js/commands.js?v=4e4cfe0",
+    "./js/config.js": "./js/config.js?v=4e4cfe0",
+    "./js/cues.js": "./js/cues.js?v=4e4cfe0",
+    "./js/describe.js": "./js/describe.js?v=4e4cfe0",
+    "./js/detector.js": "./js/detector.js?v=4e4cfe0",
+    "./js/dialogue.js": "./js/dialogue.js?v=4e4cfe0",
+    "./js/lanes.js": "./js/lanes.js?v=4e4cfe0",
+    "./js/nav.js": "./js/nav.js?v=4e4cfe0",
+    "./js/places.js": "./js/places.js?v=4e4cfe0",
+    "./js/reader.js": "./js/reader.js?v=4e4cfe0",
+    "./js/speech.js": "./js/speech.js?v=4e4cfe0",
+    "./js/tracker.js": "./js/tracker.js?v=4e4cfe0",
+    "./js/units.js": "./js/units.js?v=4e4cfe0"
 }}</script>
 <!--/stamp-->
-<script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/ort.min.js"></script>
-<script type="module" src="js/app.js?v=5c5db3e"></script>
+<script>window.ORT_BASE = new URL('vendor/ort/', location.href).href;</script>
+<script src="vendor/ort/ort.min.js" onerror="window.ORT_BASE='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/';var s=document.createElement('script');s.src=window.ORT_BASE+'ort.min.js';document.head.appendChild(s);"></script>
+<script type="module" src="js/app.js?v=4e4cfe0"></script>
 </body>
 </html>

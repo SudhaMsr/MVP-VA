@@ -233,7 +233,7 @@ function cameraErrorText(e) {
 async function loadModel() {
   if (detector && detector.session) return;
   if (!window.ort) throw new Error('onnxruntime-web did not load');
-  window.ort.env.wasm.wasmPaths = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/';
+  window.ort.env.wasm.wasmPaths = window.ORT_BASE || 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/'; // our own copy first, the CDN only if that fails
   const d = new Detector(window.ort, SIZE, MODEL.names);
   const t0 = performance.now();
   await d.load(MODEL.url(SIZE), [EP]);
