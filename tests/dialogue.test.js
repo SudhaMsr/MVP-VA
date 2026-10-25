@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { setUnits } from '../docs/js/units.js'; setUnits('metres'); // these tests check the metres wording; miles is the app default
 import assert from 'node:assert/strict';
 import { Dialogue, parseAnswer } from '../docs/js/dialogue.js';
 

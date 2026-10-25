@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { setUnits } from '../docs/js/units.js'; setUnits('metres'); // these tests check the metres wording; miles is the app default
 import assert from 'node:assert/strict';
 import { haversine, bearing, compass, distanceToPath, roundMetres, instructionText, Navigator } from '../docs/js/nav.js';
 
@@ -150,4 +151,48 @@ test('orientation check says right way, wrong way, or which side', async () => {
   assert.match(await run({ lat: 51, lon: -0.00015 }), /Wrong way/);
   assert.match(await run({ lat: 51.00015, lon: 0 }), /to your right/);       // walking north, route is east
   assert.match(await run({ lat: 50.99985, lon: 0 }), /to your left/);        // walking south, route is east
+});
+
+test('odd Google stop and ferry names are dropped from spoken instructions', async () => {
+  const { cleanStreetNames, plainWords } = await import('../docs/js/nav.js');
+  const c = (t) => cleanStreetNames(plainWords(t));
+  assert.equal(c('Head northwest on Temple Meads - Castle Park/Temple Meads Ferry'), 'walk straight');
+  assert.equal(c('Turn left onto Temple Meads - Castle Park/Temple Meads Ferry'), 'Turn left');
+  assert.equal(c('Turn right onto Victoria Street'), 'Turn right onto Victoria Street');
+  assert.equal(c('Head east on Mill Lane'), 'walk along Mill Lane');
+  assert.equal(c('Continue onto A/B'), 'continue straight');
+});
+
+function lShape() {
+  const lat0 = 51.4545, lon0 = -2.5879, mLon = 111320 * Math.cos(lat0 * Math.PI / 180), mLat = 110574;
+  const P = (e, n) => ({ lat: lat0 + n / mLat, lon: lon0 + e / mLon });
+  const A = P(0, 0), B = P(150, 0), C = P(150, 120), D = P(150, 220);
+  const st = (type, a, path, text, distance) => ({ distance, name: '', text, maneuver: { type, location: [a.lon, a.lat] }, at: a, path });
+  const route = { distance: 370, duration: 280, source: 'google', steps: [
+    st('depart', A, [A, B], 'walk ahead', 150), st('turn', B, [B, C], 'turn left', 120),
+    st('turn', C, [C, D], 'turn right', 100), st('arrive', D, [], 'you have arrived', 0)] };
+  const said = []; let cb;
+  const nav = new Navigator({ say: (t) => said.push(t), providers: { route: async () => route, geocode: async () => ({ ...D, name: 'Dest' }) },
+    getPosition: async () => A, watch: (f) => { cb = f; return 1; }, unwatch: () => {} });
+  return { P, said, nav, fix: (p) => cb({ ...p, accuracy: 8 }) };
+}
+
+test('jumping straight to a later turn point announces that turn', async () => {
+  const t = lShape(); await t.nav.start('x'); t.said.length = 0;
+  t.fix(t.P(150, 120)); // second turn, first never announced
+  assert.deepEqual(t.said, ['Turn right now.']);
+  assert.equal(t.nav.idx, 3);
+});
+
+test('"now" still fires when fixes straddle the 12 m window', async () => {
+  const t = lShape(); await t.nav.start('x'); t.said.length = 0;
+  t.fix(t.P(120, 0)); t.fix(t.P(138, 6)); // 18 m from the turn, closest so far
+  t.fix(t.P(150, 22)); // now past it and moving away
+  assert.match(t.said.join(' | '), /Turn left now/);
+});
+
+test('arrival warning says destination, not "turn"', async () => {
+  const t = lShape(); await t.nav.start('x'); t.said.length = 0;
+  t.fix(t.P(150, 100)); t.fix(t.P(150, 120)); t.fix(t.P(150, 190));
+  assert.match(t.said.join(' | '), /Your destination is in \d+ metres\./);
 });

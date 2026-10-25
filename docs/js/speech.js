@@ -1,13 +1,15 @@
 // Speech queue. Three kinds of message:
 //   urgent - interrupts whatever is playing; never dropped
-//   status - queued in order; never dropped (command feedback, errors, navigation)
+//   nav    - time-critical turn prompts: go ahead of queued status and routine messages, drop stale routine alerts,
+//            and cut off a routine alert in progress (a late "turn left now" is useless); never dropped themselves
+//   status - queued in order; never dropped (command feedback, errors, route summaries)
 //   normal - routine alerts; dropped if they have become stale or the queue is long
 // The old prototype silently dropped everything while it was already speaking. This does not.
 export class Speaker {
   constructor(synth, UtteranceCtor, opts = {}) {
     this.synth = synth;
     this.Utterance = UtteranceCtor;
-    this.rate = opts.rate ?? 0.95;
+    this.rate = opts.rate ?? 0.8;
     this.lang = opts.lang ?? 'en-GB';
     this.staleMs = opts.staleMs ?? 2500;
     this.maxNormalQueued = opts.maxNormalQueued ?? 2;
@@ -45,6 +47,12 @@ export class Speaker {
       this.queue = this.queue.filter((q) => q.kind !== 'normal');
       this.queue.unshift(item);
       if (this.current && this.current.kind !== 'urgent') this._cancelCurrent();
+    } else if (kind === 'nav') {
+      this.queue = this.queue.filter((q) => q.kind !== 'normal');
+      let i = 0;
+      while (i < this.queue.length && (this.queue[i].kind === 'urgent' || this.queue[i].kind === 'nav')) i++;
+      this.queue.splice(i, 0, item);
+      if (this.current && this.current.kind === 'normal') this._cancelCurrent();
     } else if (kind === 'normal') {
       const queuedNormal = this.queue.filter((q) => q.kind === 'normal').length;
       if (queuedNormal >= this.maxNormalQueued) {
@@ -58,6 +66,14 @@ export class Speaker {
     }
     this._pump();
     return true;
+  }
+
+  // Quiet the app so the walker can speak: drop routine alerts and stop a routine message in progress.
+  // Queued status, navigation and urgent messages are kept (an error or a route summary must not be lost); an urgent
+  // or navigation message already playing finishes.
+  hush() {
+    this.queue = this.queue.filter((q) => q.kind !== 'normal');
+    if (this.current && (this.current.kind === 'normal' || this.current.kind === 'status')) this._cancelCurrent();
   }
 
   cancelAll() {

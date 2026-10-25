@@ -1,4 +1,5 @@
 import test from 'node:test';
+import { setUnits } from '../docs/js/units.js'; setUnits('metres'); // these tests check the metres wording; miles is the app default
 import assert from 'node:assert/strict';
 import { Tracker, estimateDistance } from '../docs/js/tracker.js';
 import { AlertEngine, directionOf } from '../docs/js/alerts.js';
@@ -69,6 +70,7 @@ test('approaching car is urgent (priority 0) with direction and distance', () =>
 test('speed is not trusted until the vehicle has been tracked for a few frames', () => {
   const t = approachingCarTracks();
   t[0].hits = 1;
+  t[0].box = { x1: 280, y1: 200, x2: 360, y2: 300 }; // straight ahead, so the routine alert is not filtered as off to the side
   const a = new AlertEngine().next(t, W, H, 0);
   assert.doesNotMatch(a.text, /approaching/);
 });

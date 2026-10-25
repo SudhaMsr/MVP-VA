@@ -61,10 +61,17 @@ export const CONFIG = {
 
   // Cooldowns per priority (ms)
   cooldownMs: { 0: 3000, 1: 6000, 2: 6000, 3: 12000, 4: 15000 },
+  sideAlertMetres: 2.5, // things to the left or right are only mentioned when closer than this
+  repeatCloserMetres: 1.5, // a repeat alert is allowed straight away if the thing got this much closer
+  budgetWindowMs: 10000, budgetMax: 3, // at most this many routine alerts per window; urgent ones are exempt
   heartbeatMs: 30000, // "still scanning" if nothing has been spoken for this long
   staleMs: 2500, // routine alerts older than this are dropped instead of spoken late
 
-  speechRate: 0.95,
+  verbosity: 'quiet', // quiet | normal | detailed. New users start quiet; they can say "more detail" or "less talk"
+  quietNearMetres: 2, // in quiet mode, people, dogs and vehicles are only mentioned this close and straight ahead
+  reassureMs: 45000, // on a long straight stretch, say "you are on the route" if nothing has been said for this long
+  reassureMetres: 80, // ...and the next turn is at least this far away
+  speechRate: 0.8, // calmer pace; 1.0 is the voice default
   speechLang: 'en-GB',
 };
 

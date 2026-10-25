@@ -1,5 +1,6 @@
 // Spoken walking navigation: geocode a place, fetch a walking route, speak turns as the walker approaches them.
 // Pure helpers are exported for tests; Navigator takes its network/GPS/speech dependencies as arguments.
+import { roundDistance, durationPhrase } from './units.js';
 const R = 6371000;
 const rad = (d) => (d * Math.PI) / 180;
 
@@ -34,11 +35,33 @@ export function distanceToPath(p, path) {
   return best;
 }
 
-export function roundMetres(m) {
-  if (m < 15) return 'a few metres';
-  if (m < 100) return `${Math.round(m / 10) * 10} metres`;
-  return `${Math.round(m / 50) * 50} metres`;
+// Spoken route distance. Metres by default; steps when the walker has asked for them (see units.js).
+// The point `ahead` metres further along a route line, from the spot on the line nearest to p. Used to judge the walker's
+// heading against the way the route really goes: a leg can bend, so a straight line to its end would give false alarms.
+export function pointAhead(path, p, ahead = 30) {
+  if (!path || !path.length) return null;
+  if (path.length === 1) return path[0];
+  const k = Math.cos(rad(p.lat));
+  const pts = path.map((q) => ({ x: rad(q.lon - p.lon) * R * k, y: rad(q.lat - p.lat) * R }));
+  let best = { d: Infinity, i: 0, t: 0 };
+  for (let i = 0; i < pts.length - 1; i++) {
+    const a = pts[i], b = pts[i + 1], dx = b.x - a.x, dy = b.y - a.y, len2 = dx * dx + dy * dy;
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, -(a.x * dx + a.y * dy) / len2));
+    const d = Math.hypot(a.x + t * dx, a.y + t * dy);
+    if (d < best.d) best = { d, i, t };
+  }
+  let cur = { x: pts[best.i].x + (pts[best.i + 1].x - pts[best.i].x) * best.t, y: pts[best.i].y + (pts[best.i + 1].y - pts[best.i].y) * best.t };
+  let remaining = ahead;
+  const back = (q) => ({ lat: p.lat + (q.y / R) * (180 / Math.PI), lon: p.lon + (q.x / (R * k)) * (180 / Math.PI) });
+  for (let i = best.i; i < pts.length - 1; i++) {
+    const b = pts[i + 1], seg = Math.hypot(b.x - cur.x, b.y - cur.y);
+    if (seg >= remaining) { const f = seg === 0 ? 0 : remaining / seg; return back({ x: cur.x + (b.x - cur.x) * f, y: cur.y + (b.y - cur.y) * f }); }
+    remaining -= seg; cur = b;
+  }
+  return path[path.length - 1];
 }
+
+export function roundMetres(m) { return roundDistance(m); }
 
 const MOD = {
   left: 'turn left', right: 'turn right', 'slight left': 'keep left', 'slight right': 'keep right',
@@ -57,10 +80,8 @@ export function instructionText(step) {
   return verb === 'continue straight' ? `continue straight${step.name ? ` on ${step.name}` : ''}` : `${verb}${name}`;
 }
 
-export function minutesText(seconds) {
-  const mins = Math.max(1, Math.round(seconds / 60));
-  return mins === 1 ? 'about 1 minute' : `about ${mins} minutes`;
-}
+// Journey time, rounded so it is easy to take in (see units.js).
+export function minutesText(seconds) { return durationPhrase(seconds); }
 
 export async function geocodeMany(query, pos, fetchFn, max = 3) {
   const dv = 0.15; // bias to roughly 15 km around the walker
@@ -79,7 +100,7 @@ export async function geocode(query, pos, fetchFn) {
 function toDest(best) {
   const bb = (best.boundingbox || []).map(Number); // [south, north, west, east]
   const large = bb.length === 4 && haversine({ lat: bb[0], lon: bb[2] }, { lat: bb[1], lon: bb[3] }) > 1500;
-  return { large, lat: +best.lat, lon: +best.lon, name: (best.display_name || 'that place').split(',').slice(0, 2).join(',') };
+  return { large, address: best.display_name || '', lat: +best.lat, lon: +best.lon, name: (best.display_name || 'that place').split(',').slice(0, 2).join(',') };
 }
 
 export async function fetchRoute(from, to, fetchFn) {
@@ -107,6 +128,17 @@ export function plainWords(text) {
   return t;
 }
 
+// Google sometimes names stops, ferries and stations ("Temple Meads - Castle Park/Temple Meads Ferry"). Spoken, that is
+// confusing, so any street name containing " - " or "/" is dropped and the instruction becomes plain left/right/straight.
+const ODD_NAME = /\s(?:onto|on|along|into)\s+([^,.]*?(?:\s[-\u2013\u2014]\s|\/)[^,.]*?)(?=,|\.|$|\sthen\b|\stoward|\stowards)/i;
+export function cleanStreetNames(text) {
+  let t = text;
+  for (let i = 0; i < 3 && ODD_NAME.test(t); i++) t = t.replace(ODD_NAME, '');
+  t = t.replace(/^walk along\s*$/i, 'walk straight').replace(/^walk\s*$/i, 'walk straight')
+    .replace(/^walk along(?=,|$)/i, 'walk straight').replace(/^continue(?=,|$)/i, 'continue straight');
+  return t.replace(/\s{2,}/g, ' ').trim();
+}
+
 // ---- Google (Places API New + Routes API). Key is restricted to this site's address in Google Cloud. ----
 const lowerFirst = (t) => (t ? t.charAt(0).toLowerCase() + t.slice(1) : t);
 
@@ -122,7 +154,9 @@ export async function googleGeocodeMany(query, pos, fetchFn, key, max = 3) {
   const j = await res.json();
   return (j.places || []).map((p) => {
     const street = (p.formattedAddress || '').split(',')[0];
-    return { large: false, lat: p.location.latitude, lon: p.location.longitude, name: [p.displayName?.text, street].filter(Boolean).join(', ') };
+    const parts = [p.displayName?.text, street].filter(Boolean);
+    const name = parts.filter((x, i) => parts.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i).join(', '); // "25 Lakeside" not "25 Lakeside, 25 Lakeside"
+    return { large: false, address: p.formattedAddress || '', lat: p.location.latitude, lon: p.location.longitude, name };
   });
 }
 
@@ -151,7 +185,7 @@ export async function googleRoute(from, to, fetchFn, key) {
   const steps = raw.map((s, i) => {
     const ll = s.startLocation.latLng;
     const text = ((s.navigationInstruction && s.navigationInstruction.instructions) || '')
-      .split('\n').map((t) => lowerFirst(plainWords(t))).filter(Boolean).join(', then ');
+      .split('\n').map((t) => lowerFirst(cleanStreetNames(plainWords(t)))).filter(Boolean).join(', then ');
     return {
       distance: s.distanceMeters || 0, name: '', text: text || (i === 0 ? 'walk ahead' : 'continue'),
       maneuver: { type: i === 0 ? 'depart' : 'turn', location: [ll.longitude, ll.latitude] },
@@ -190,9 +224,10 @@ export function makeProviders({ googleKey, fetchFn = (...a) => fetch(...a), onFa
 }
 
 export class Navigator {
-  constructor({ say, fetchFn = (...a) => fetch(...a), providers, getPosition, watch, unwatch, warnMetres = 40, nowMetres = 12, offRouteMetres = 40 }) {
+  constructor({ say, fetchFn = (...a) => fetch(...a), providers, getPosition, watch, unwatch, warnMetres = 40, nowMetres = 12, offRouteMetres = 40, reassureMs = 45000, reassureMetres = 80, now = () => Date.now(), trace = null }) {
     this.providers = providers || makeProviders({ fetchFn });
-    Object.assign(this, { say, fetchFn, getPosition, watch, unwatch, warnMetres, nowMetres, offRouteMetres });
+    Object.assign(this, { say, fetchFn, getPosition, watch, unwatch, warnMetres, nowMetres, offRouteMetres, reassureMs, reassureMetres, now, trace });
+    this.say = (t, k) => { this.lastSayAt = this.now(); say(t, k); }; // remember when we last spoke, for reassurance
     this.active = false;
     this.destination = null;
   }
@@ -207,6 +242,9 @@ export class Navigator {
     if (!dest) { this.say(`I could not find ${query}. Try a nearby street or a well known place.`, 'status'); return false; }
     return this._route(pos, dest, true);
   }
+
+  // Find one place or address without needing the walker's location (used to save a home address). Null if nothing found.
+  async lookup(query, pos = null) { return this.providers.geocode(query, pos); }
 
   // Step 1 of a spoken request: look up places near the walker (up to 3).
   async find(query) {
@@ -235,7 +273,7 @@ export class Navigator {
 
   _begin(pos, dest, route, first) {
     this.destination = dest; this.route = route; this.idx = 1; this.warned = -1; this.nowSaid = -1; this.offCount = 0;
-    this.lastReroute = Date.now(); this.active = true; this.oriented = false; this.startFix = null; this.large = !!dest.large; this.source = route.source;
+    this.lastReroute = Date.now(); this.lastSayAt = this.now(); this.lastFixAt = this.now(); this.silentSaid = false; this.weakSince = 0; this.weakSaid = false; this.active = true; this.oriented = false; this.startFix = null; this.large = !!dest.large; this.source = route.source;
     const first0 = route.steps[0];
     this.say(first && this.brief
       ? `Starting. ${cap(instructionText(first0))} for ${roundMetres(first0.distance)}. I will tell you if you need to turn.`
@@ -252,26 +290,48 @@ export class Navigator {
     if (!this.startFix) { this.startFix = { lat: p.lat, lon: p.lon }; return; }
     if (haversine(this.startFix, p) < 10) return;
     this.oriented = true;
-    const target = this.route.steps[1]?.at;
+    const ahead = this.route.steps.slice(0, 3).flatMap((st) => st.path || []);
+    const target = pointAhead(ahead, p, 30) || this.route.steps[1]?.at;
     if (!target) return;
     const diff = ((bearing(p, target) - bearing(this.startFix, p) + 540) % 360) - 180; // + = route is to the right
     const a = Math.abs(diff);
-    if (a < 45) this.say('You are going the right way.', 'status');
-    else if (a > 135) this.say('Wrong way. Turn around.', 'status');
-    else this.say(`The route is to your ${diff > 0 ? 'right' : 'left'}. Turn ${diff > 0 ? 'right' : 'left'} when you can.`, 'status');
+    if (a < 45) this.say('You are going the right way.', 'nav');
+    else if (a > 135) this.say('Wrong way. Turn around.', 'nav');
+    else this.say(`The route is to your ${diff > 0 ? 'right' : 'left'}. Turn ${diff > 0 ? 'right' : 'left'} when you can.`, 'nav');
   }
 
   onPosition(p) {
-    if (!this.active || (p.accuracy != null && p.accuracy > 60)) return; // ignore poor fixes
+    if (!this.active) return;
+    const t = this.now();
+    this.lastFixAt = t; this.silentSaid = false;
+    if (p.accuracy != null && p.accuracy > 60) { // ignore poor fixes, but never silently: tell the walker if it goes on
+      if (!this.weakSince) this.weakSince = t;
+      if (!this.weakSaid && t - this.weakSince > 15000) { this.weakSaid = true; this.say('My location signal is weak. I may be late with turns, so go carefully.', 'status'); }
+      return;
+    }
+    this.weakSince = 0;
+    if (this.weakSaid) { this.weakSaid = false; this.say('Location signal is back.', 'status'); }
     this.checkOrientation(p);
+    // GPS can jump (or the walker can be past a turn we never announced): if a later turn point is right here, go to it.
+    const here = this.route.steps[this.idx];
+    if (here && haversine(p, here.at) > this.nowMetres) {
+      for (let j = this.idx + 1; j <= Math.min(this.idx + 3, this.route.steps.length - 1); j++) {
+        if (haversine(p, this.route.steps[j].at) <= this.nowMetres) { this.idx = j; break; }
+      }
+    }
     const step = this.route.steps[this.idx];
     if (!step) return;
     const d = haversine(p, step.at);
+    if (this.minIdx !== this.idx) { this.minIdx = this.idx; this.minD = Infinity; }
+    this.minD = Math.min(this.minD, d);
+    if (this.trace) this.trace({ lat: p.lat, lon: p.lon, accuracy: p.accuracy ?? null, step: this.idx, toTurn: Math.round(d) });
     if (step.maneuver.type === 'arrive' && d <= this.nowMetres + 8) {
-      this.say(`You have arrived at ${this.destination.name}.`, 'status');
+      this.say(`You have arrived at ${this.destination.name}.`, 'nav');
       return this.cancel(true);
     }
-    if (d <= this.nowMetres) {
+    // Reached the point, or came within 25 m and is now moving away from it (fixes were too far apart to land inside 12 m).
+    const passed = step.maneuver.type !== 'arrive' && this.minD <= 25 && d > this.minD + 8;
+    if (d <= this.nowMetres || passed) {
       if (this.nowSaid !== this.idx && step.maneuver.type !== 'arrive') {
         this.nowSaid = this.idx;
         const next = this.route.steps[this.idx];
@@ -282,25 +342,42 @@ export class Navigator {
           text += `, then ${instructionText(this.route.steps[this.idx])}`;
           this.idx += 1;
         }
-        this.say(`${text}.`, 'status');
+        this.say(`${text}.`, 'nav');
       }
       return;
     }
     if (d <= this.warnMetres && this.warned !== this.idx) {
       this.warned = this.idx;
-      this.say(`In ${roundMetres(d)}, ${instructionText(step)}.`, 'status');
+      this.say(step.maneuver.type === 'arrive' ? `Your destination is in ${roundMetres(d)}.` : `In ${roundMetres(d)}, ${instructionText(step)}.`, 'nav');
       return;
     }
     // off-route check against the current and previous leg
     const legs = [...(this.route.steps[this.idx - 1]?.path || []), ...step.path];
-    if (legs.length && distanceToPath(p, legs) > this.offRouteMetres) {
+    // GPS can be 10 to 50 m out: never call it off route when the fix itself is that imprecise.
+    if (legs.length && distanceToPath(p, legs) > Math.max(this.offRouteMetres, (p.accuracy || 0) * 1.5)) {
       this.offCount += 1;
       if (this.offCount >= 2 && Date.now() - this.lastReroute > 15000) {
         this.lastReroute = Date.now(); this.offCount = 0;
-        this.say('Off route. Finding a new way.', 'status');
+        this.say('Off route. Finding a new way.', 'nav');
         this._route(p, this.destination, false);
       }
-    } else this.offCount = 0;
+    } else {
+      this.offCount = 0;
+      // A long quiet stretch: reassure the walker that they are still on the route (and roughly how far to the next turn).
+      if (d > Math.max(this.warnMetres + 10, this.reassureMetres) && this.now() - this.lastSayAt > this.reassureMs) {
+        const what = step.maneuver.type === 'arrive' ? 'Your destination is' : 'The next turn is';
+        this.say(`Keep going. You are on the route. ${what} about ${roundMetres(d)} away.`, 'status');
+      }
+    }
+  }
+
+  // Called about once a second by the app: the phone can simply stop sending locations without raising an error.
+  tick() {
+    if (!this.active || !this.lastFixAt) return;
+    if (!this.silentSaid && this.now() - this.lastFixAt > 30000) {
+      this.silentSaid = true;
+      this.say('I have not had a location update for a while. Please go carefully.', 'status');
+    }
   }
 
   cancel(silent = false) {

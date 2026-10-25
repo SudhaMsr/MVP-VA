@@ -9,19 +9,27 @@
   :root { --bg:#000; --fg:#fff; --accent:#ffd400; --ok:#1fd655; --danger:#ff5a5a; }
   * { box-sizing: border-box; }
   html, body { margin:0; background:var(--bg); color:var(--fg); font-family: system-ui, sans-serif; }
-  body { padding: 16px; max-width: 640px; margin: 0 auto; font-size: 1.15rem; line-height: 1.4; }
+  body { padding: 16px; max-width: 640px; margin: 0 auto; font-size: 1.15rem; line-height: 1.4; min-height: 100vh; }
   h1 { font-size: 1.8rem; margin: 4px 0 8px; }
-  p.notice { border:2px solid var(--accent); border-radius:12px; padding:10px 12px; margin:8px 0 16px; }
-  button { width:100%; min-height: 84px; margin: 0 0 12px; border-radius: 16px; border: 3px solid var(--fg);
+  p.notice { border:2px solid var(--accent); border-radius:12px; padding:10px 12px; margin:8px 0 12px; }
+  button, summary { width:100%; min-height: 84px; margin: 0 0 12px; border-radius: 16px; border: 3px solid var(--fg);
            background:#111; color:var(--fg); font-size:1.6rem; font-weight:700; }
-  button:focus-visible { outline: 6px solid var(--accent); outline-offset: 3px; }
-  #startBtn { min-height: 160px; background: var(--ok); color:#000; border-color:#000; font-size: 2.2rem; }
+  button:focus-visible, summary:focus-visible, input:focus-visible { outline: 6px solid var(--accent); outline-offset: 3px; }
+  /* One big main control: green "Start" before running, yellow "Talk" while running. */
+  #startBtn { min-height: 38vh; background: var(--ok); color:#000; border-color:#000; font-size: 2.6rem; }
+  #startBtn.talk { background: var(--accent); }
+  #startBtn.busy { background: #888; }
   #stopBtn { background: var(--danger); color:#000; border-color:#000; }
-  .row { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .row button { margin:0 0 12px; font-size:1.3rem; }
-  #status { font-size:1.4rem; font-weight:700; margin: 8px 0; }
+  #status { font-size:1.4rem; font-weight:700; margin: 8px 0 4px; }
   #lastAlert { font-size:1.3rem; color: var(--accent); min-height: 1.6em; margin:4px 0 12px; }
   #stats { font-size: .95rem; opacity:.85; margin-top: 8px; }
+  details { margin: 8px 0 12px; }
+  details summary { display:flex; align-items:center; justify-content:center; min-height: 72px; font-size:1.4rem; cursor:pointer; list-style:none; }
+  details summary::-webkit-details-marker { display:none; }
+  details[open] > summary { margin-bottom: 12px; }
+  details details summary { min-height: 56px; font-size: 1.1rem; }
+  .row { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .row button { margin:0 0 12px; font-size:1.3rem; }
   .preview { position:relative; margin-top: 12px; aspect-ratio: 4 / 3; overflow:hidden; border-radius:12px; background:#111; }
   .preview video, .preview canvas { width:100%; height:100%; object-fit:contain; display:block; }
   .preview canvas { position:absolute; inset:0; pointer-events:none; }
@@ -33,38 +41,49 @@
 <main>
   <h1>Vision Assist</h1>
   <p class="notice">Vision Assist can miss obstacles and can be wrong. Always use your cane or guide dog as well.</p>
-
-  <button id="startBtn" type="button" aria-label="Start Vision Assist">Start</button>
-  <div class="row">
-    <button id="stopBtn" type="button" aria-label="Stop Vision Assist">Stop</button>
-    <button id="repeatBtn" type="button" aria-label="Repeat last alert">Repeat</button>
-  </div>
-  <button id="readBtn" hidden type="button" aria-label="Read the text in front of the camera aloud" style="min-height:84px">Read</button>
-  <button id="micBtn" type="button" aria-label="Voice commands" aria-pressed="false">Voice commands off</button>
-
-  <form id="navForm" style="margin:0 0 12px">
-    <label for="navInput" style="display:block;font-weight:700;margin-bottom:6px">Walk to (or say "navigate to ...")</label>
-    <input id="navInput" type="text" autocomplete="off" placeholder="e.g. Tesco, High Street" style="width:100%;min-height:64px;font-size:1.3rem;padding:0 12px;border-radius:12px;border:3px solid #fff;background:#111;color:#fff">
-    <div class="row" style="margin-top:12px">
-      <button id="navGo" type="submit" style="margin:0;font-size:1.3rem">Go</button>
-      <button id="navCancel" type="button" style="margin:0;font-size:1.3rem">Cancel route</button>
-    </div>
-  </form>
-
-  <div id="answerRow" hidden aria-label="Answer the question"></div>
-
   <p id="status" aria-live="off">Ready. Tap start.</p>
   <p id="lastAlert" aria-live="off"></p>
-  <p id="stats" aria-hidden="true"></p>
 
+  <button id="startBtn" type="button" aria-label="Start Vision Assist">Start</button>
+  <button id="stopBtn" type="button" aria-label="Stop Vision Assist">Stop</button>
+  <div id="answerRow" hidden aria-label="Answer the question"></div>
+
+  <details id="more">
+    <summary>More options</summary>
+    <div class="row">
+      <button id="repeatBtn" type="button" aria-label="Repeat last alert">Repeat</button>
+      <button id="levelBtn" type="button" aria-label="How much I say. Tap to change.">How much I say: quiet</button>
+    </div>
+    <button id="micBtn" type="button" aria-label="Voice commands" aria-pressed="false">Voice commands off</button>
+    <button id="tapBtn" type="button" aria-label="Tap anywhere to talk" aria-pressed="true">Tap anywhere to talk: on</button>
+    <button id="unitsBtn" type="button" aria-label="Distances in miles, metres or steps. Tap to change.">Distances in: miles</button>
+    <button id="stepBtn" type="button" aria-label="Your step length, used when distances are in steps. Tap to change.">Step length: 70 cm</button>
+    <button id="readBtn" hidden type="button" aria-label="Read the text in front of the camera aloud">Read</button>
+
+    <form id="navForm" style="margin:0 0 12px">
+      <label for="navInput" style="display:block;font-weight:700;margin-bottom:6px">Walk to (or say "navigate to ...")</label>
+      <input id="navInput" type="text" autocomplete="off" placeholder="e.g. Tesco, High Street" style="width:100%;min-height:64px;font-size:1.3rem;padding:0 12px;border-radius:12px;border:3px solid #fff;background:#111;color:#fff">
+      <div class="row" style="margin-top:12px">
+        <button id="navGo" type="submit" style="margin:0;font-size:1.3rem">Go</button>
+        <button id="navCancel" type="button" style="margin:0;font-size:1.3rem">Cancel route</button>
+      </div>
+    </form>
+
+    <details id="sup">
+      <summary>Supervisor tools</summary>
+      <button id="debugBtn" type="button" aria-pressed="false">Camera view: off</button>
+      <button id="recordBtn" type="button" aria-pressed="false">Record session: off</button>
+      <button id="saveRecBtn" type="button" hidden disabled aria-label="Save the recording and log" style="min-height:64px;font-size:1.1rem">Save recording</button>
+      <button id="logBtn" type="button" aria-label="Save session log" style="min-height:56px;font-size:1rem">Save session log</button>
+    </details>
+  </details>
+
+  <p id="stats" aria-hidden="true"></p>
   <div class="preview" aria-hidden="true">
     <video id="video" playsinline muted></video>
     <canvas id="overlay"></canvas>
   </div>
-
-  <button id="saveRecBtn" type="button" hidden disabled aria-label="Save the recording and log" style="min-height:64px;font-size:1.1rem;margin-top:16px">Save recording</button>
-  <button id="logBtn" type="button" aria-label="Save session log" style="min-height:56px;font-size:1rem;margin-top:16px">Save session log</button>
-  <p class="small">Say: start, stop, repeat, help, or navigate to a place.</p>
+  <p class="small">Say: start, stop, repeat, help, less talk, more detail, what is in front of me, where am I, battery, or navigate to a place.</p>
 </main>
 
 <script>
