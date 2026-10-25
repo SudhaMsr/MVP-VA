@@ -1,0 +1,26 @@
+# One-off: copy the onnxruntime-web runtime into docs/vendor so the app does not depend on a CDN.
+name: Vendor onnxruntime-web
+on: workflow_dispatch
+permissions:
+  contents: write
+jobs:
+  vendor:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          npm pack onnxruntime-web@1.17.3
+          tar xzf onnxruntime-web-1.17.3.tgz
+          mkdir -p docs/vendor/ort
+          cp package/dist/ort.min.js docs/vendor/ort/
+          cp package/dist/ort-wasm.wasm package/dist/ort-wasm-simd.wasm package/dist/ort-wasm-threaded.wasm package/dist/ort-wasm-simd-threaded.wasm docs/vendor/ort/
+          cp package/dist/ort-wasm-threaded.worker.js docs/vendor/ort/ 2>/dev/null || true
+          cp package/LICENSE docs/vendor/ort/LICENSE
+          ls -la docs/vendor/ort
+          rm -rf package onnxruntime-web-1.17.3.tgz
+      - run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add docs/vendor
+          git commit -m "Vendor onnxruntime-web 1.17.3 (self-hosted runtime)" || echo "nothing to commit"
+          git push
