@@ -786,5 +786,5 @@ el.units.textContent = `Distances in: ${getUnits()}`;
 el.step.textContent = `Step length: ${stepCm()} cm`;
 updateMain();
 updateMic();
-window.__va = { state, speaker, session, tracker, engine, cues, places, battery, start, stop, talk, setLevel, describeNow, whereAmI, savePlace, changeUnits, changeStep, setCameraView, setRecording, dialogue,
+window.__va = { handleTranscript, state, speaker, session, tracker, engine, cues, places, battery, start, stop, talk, setLevel, describeNow, whereAmI, savePlace, changeUnits, changeStep, setCameraView, setRecording, dialogue,
   rec: () => ({ size: recBlob ? recBlob.size : null, mime: recMime, frames: frameLog.length }) };
