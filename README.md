@@ -71,3 +71,6 @@ The session log now includes location fixes (about every 3 seconds while navigat
 
 ## Navigation trust
 Route data comes from Google (checked: spoken distances match Google's own figures). Position is the phone's raw GPS, so it can be 10 to 50 m out. The app says when the signal is weak or has stopped, ignores very imprecise fixes, and tolerates more drift before calling "off route". The voice wizard waits 40 seconds for a yes or no.
+
+## Updating the live site
+After changing anything in `docs/js`, run `python3 tools/stamp.py` (a test fails if you forget). GitHub Pages lets browsers reuse scripts for up to 10 minutes, so without the stamp a phone can run old code right after an update. The stamp gives each script a version in its address. The version shows under More options > Supervisor tools, so a tester can confirm they have the latest.
