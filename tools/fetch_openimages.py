@@ -106,10 +106,15 @@ def collect(lines, mid_to_ours, order, per_class, seed=1):
     return by_image, per
 
 
+BBOX = {  # box annotation files (V7 uses the V5 files for validation and test and the V6 file for train)
+    'validation': [f'{BASE}/v5/validation-annotations-bbox.csv', f'{BASE}/v6/oidv6-validation-annotations-bbox.csv'],
+    'test': [f'{BASE}/v5/test-annotations-bbox.csv', f'{BASE}/v6/oidv6-test-annotations-bbox.csv'],
+    'train': [f'{BASE}/v6/oidv6-train-annotations-bbox.csv'],
+}
 META = {  # per-picture licence and author files (best effort: if a link has moved, the manifest just has no licence column)
     'validation': 'https://storage.googleapis.com/openimages/2018_04/validation/validation-images-with-rotation.csv',
     'test': 'https://storage.googleapis.com/openimages/2018_04/test/test-images-with-rotation.csv',
-    'train': 'https://storage.googleapis.com/openimages/2018_04/train/train-images-with-rotation.csv',
+    'train': 'https://storage.googleapis.com/openimages/2018_04/train/train-images-boxable-with-rotation.csv',
 }
 
 
@@ -148,10 +153,17 @@ def main():
 
     by_image, per = {}, {c: set() for c in order}
     for split in a.splits.split(','):
-        # Open Images V7 reuses the V6 box files
-        url = f'{BASE}/v6/oidv6-{split}-annotations-bbox.csv'
-        print('reading', url)
-        got, p = collect(stream_lines(url), mid_to_ours, order, a.per_class)
+        got = p = None
+        for url in BBOX[split]:  # V7 reuses the V5/V6 box files; try each known address
+            print('reading', url)
+            try:
+                got, p = collect(stream_lines(url), mid_to_ours, order, a.per_class)
+                break
+            except Exception as e:
+                print('  could not read it:', e)
+        if got is None:
+            print('skipping', split, '- no box file could be read; see https://storage.googleapis.com/openimages/web/download_v7.html')
+            continue
         for img, ls in got.items():
             by_image.setdefault(img, (split, []))[1].extend(ls)
         for c in order:
@@ -159,6 +171,8 @@ def main():
         if all(len(per[c]) >= a.per_class for c in order):
             break
 
+    if not by_image:
+        sys.exit('No annotation files could be read, so nothing was selected. Check the internet connection and the addresses in BBOX.')
     report = [f'{c}: {len(per[c])} pictures' for c in order] + [f'no Open Images class: {c}' for c in missing]
     print('\n'.join(report))
     if a.dry_run:
