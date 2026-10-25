@@ -9,7 +9,7 @@ export const wordsOf = (text) => String(text || '').toLowerCase().replace(/[^a-z
 export function looksLikeEcho(text, recent) {
   const w = wordsOf(text);
   if (!w.length) return true;
-  return recent.slice(-3).some((h) => w.every((x) => h.includes(x)));
+  return recent.slice(-5).some((h) => w.every((x) => h.includes(x)));
 }
 
 // text: what the recogniser has heard so far (may be unfinished).

@@ -87,3 +87,9 @@ test('speech speed steps one notch at a time and stops at the ends', () => {
   assert.equal(stepRate(RATES[0], -1), null); assert.equal(stepRate(RATES.at(-1), 1), null);
   assert.equal(stepRate(0.97, 1), 1.1, 'an odd saved value snaps to the nearest notch first');
 });
+
+test('the app\'s own "Already stopped. Say start" is never taken as the command "start", even a few words late', () => {
+  const recent = ['already stopped. say start, or tap start.', 'nothing to repeat yet.'];
+  for (const heard of ['say start or tap start', 'start', 'nothing to repeat yet', 'repeat', 'already stopped']) assert.equal(looksLikeEcho(heard, recent), true, heard);
+  assert.equal(looksLikeEcho('where am i', recent), false, 'a real question is not an echo');
+});

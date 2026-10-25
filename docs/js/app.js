@@ -33,8 +33,7 @@ const el = {
 };
 
 const FULL_DISCLAIMER =
-  'Vision Assist can miss obstacles and can be wrong. ' +
-  'Always use your cane or guide dog as well. Starting now.';
+  'Vision Assist can miss obstacles. Always use your cane or guide dog.';
 
 const speaker = new Speaker(window.speechSynthesis, window.SpeechSynthesisUtterance, {
   rate: CONFIG.speechRate, lang: CONFIG.speechLang, staleMs: CONFIG.staleMs,
@@ -71,7 +70,7 @@ speaker.onSpoken = (item) => {
   state.lastSpeechAt = performance.now();
   state.lastSpoken = item.kind === 'status' ? state.lastSpoken : item.text;
   spokenHistory.push({ text: item.text.toLowerCase(), t: performance.now() });
-  if (spokenHistory.length > 6) spokenHistory.shift();
+  if (spokenHistory.length > 8) spokenHistory.shift();
   el.last.textContent = item.text;
   session.events.push({ t: Date.now(), kind: item.kind, text: item.text });
 };
@@ -406,7 +405,7 @@ async function start() {
   startBatteryWatch();
   updateMain();
   setStatus('Starting');
-  say(state.firstRun ? FULL_DISCLAIMER : 'Starting.', 'status');
+  if (state.firstRun) say(FULL_DISCLAIMER, 'status'); else cues.play('ok'); // a sound, not a sentence, once you have heard the warning
   startListening(); // inside the tap, so the browser allows the microphone prompt
   try { navigator.geolocation.getCurrentPosition(() => {}, () => {}, { maximumAge: 60000, timeout: 10000 }); } catch (_) { /* ask for location now, so the prompt is not a surprise mid-walk */ }
   try {
@@ -443,9 +442,7 @@ async function start() {
   setStatus(RECORD ? 'Running, recording' : 'Running');
   updateMain();
   cues.play('ok');
-  say(RECORD ? 'Vision Assist active, recording.'
-    : wasFirst ? 'Vision Assist active. Tap the screen, then say where you want to go. Say help to hear what else I can do.'
-    : 'Vision Assist active. Detecting obstacles.', 'status');
+  say(RECORD ? 'Ready, recording.' : wasFirst ? 'Ready. Tap the screen, then speak.' : 'Ready.', 'status');
   startRecording();
   lockScreen();
   loop();
@@ -453,6 +450,7 @@ async function start() {
 
 function stopInternal() {
   speaker.hold(false);
+  stopListening(); // nothing should hear the app's own 'Stopped' and treat it as a command
   state.running = false;
   state.starting = false;
   if (state.timer) clearTimeout(state.timer);
@@ -466,12 +464,12 @@ function stopInternal() {
 
 function stop() {
   if (!state.running && !state.starting) {
-    say('Already stopped. Say start, or tap start.', 'status');
+    say('Already stopped.', 'status');
     return;
   }
   stopInternal();
   speaker.cancelAll();
-  say('Stopped. Say start to begin again.', 'status');
+  say('Stopped.', 'status'); // the microphone is off now, so only the button starts it again
 }
 
 // ---------- talk, main button, how much I say ----------
@@ -676,7 +674,7 @@ document.addEventListener('visibilitychange', () => {
 // after (recognition results arrive about a second late), and only if every word was in what we said.
 // A real command said after that window always goes through, including "stop" during alerts.
 function isEcho(text) {
-  const recent = speaker.busy() || Date.now() - speaker.lastEnd < 1200;
+  const recent = speaker.busy() || Date.now() - speaker.lastEnd < 5000; // the recogniser can be several seconds behind
   if (!recent) return false;
   return looksLikeEcho(text, spokenHistory.map((h) => h.text));
 }
