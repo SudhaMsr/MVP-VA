@@ -63,7 +63,9 @@ export class Speaker {
       }
       this.queue.push(item);
     } else {
-      this.queue.push(item);
+      // An answer to what the walker just asked goes before a message that was cut off to let them speak.
+      const r = this.queue.findIndex((q) => q.resume);
+      if (r >= 0) this.queue.splice(r, 0, item); else this.queue.push(item);
     }
     this._pump();
     return true;
@@ -79,7 +81,7 @@ export class Speaker {
     const cur = this.current;
     if (cur && cur.kind !== 'urgent') {
       this._cancelCurrent();
-      if (cur.kind !== 'normal') this.queue.unshift(cur);
+      if (cur.kind !== 'normal') { cur.resume = true; this.queue.unshift(cur); }
     }
   }
 

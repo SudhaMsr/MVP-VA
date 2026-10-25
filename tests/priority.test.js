@@ -104,3 +104,14 @@ test('an urgent warning in progress is not cut off by Talk', () => {
   sp.speak('Danger, car.', 'urgent'); sp.hush();
   assert.equal(cancelled.length, 0);
 });
+
+test('the answer to what the walker asked is spoken before the message that was cut off for them', () => {
+  const { sp, spoken, finish } = fakeSpeaker();
+  sp.speak('In 40 metres, turn left.', 'nav'); // playing
+  sp.hush(); sp.hold(true);
+  sp.speak('Battery is at 80 percent.', 'status'); // they spoke; the app answers while still held
+  sp.hold(false);
+  assert.equal(spoken.at(-1), 'Battery is at 80 percent.');
+  finish();
+  assert.equal(spoken.at(-1), 'In 40 metres, turn left.', 'the cut-off prompt follows');
+});

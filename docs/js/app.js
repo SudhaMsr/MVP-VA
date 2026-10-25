@@ -656,7 +656,7 @@ function handleTranscript(text) {
   logEvent('heard', text);
   const inTalk = performance.now() < state.talkUntil;
   if (!inTalk && isEcho(text)) { logEvent('ignored-echo', text); return; } // we hushed the app, so nothing we said is an echo
-  if (inTalk) { speaker.hold(false); state.talkHeard = true; state.talkUntil = 0; clearTimeout(talkTimer); if (state.running) setStatus('Running'); }
+  if (inTalk) { setTimeout(() => speaker.hold(false), 150); /* after the command's own reply is queued, so the answer comes first */ state.talkHeard = true; state.talkUntil = 0; clearTimeout(talkTimer); if (state.running) setStatus('Running'); }
   if (dialogue.answer(text)) { cues.play('ok'); return; } // an answer to a question we asked
   const cmd = parseCommand(text);
   if (cmd.type) cues.play('ok'); else if (inTalk) cues.play('huh');
