@@ -34,6 +34,14 @@ export function parseCommand(raw) {
   if (save) return { type: 'save', arg: (save[1] || '').trim() };
   if (/\b(?:save|remember|mark|bookmark)\s+(?:my\s+)?(home|work)$/.test(t)) return { type: 'save', arg: t.match(/(home|work)$/)[1] }; // only when nothing follows: "save my home" = here
 
+  // Speech speed
+  if (/\b(slow down|slower|more slowly|speak slower|talk slower|too fast)\b/.test(t)) return { type: 'rate', arg: 'slower' };
+  if (/\b(speed up|faster|more quickly|quicker|speak faster|talk faster|too slow)\b/.test(t)) return { type: 'rate', arg: 'faster' };
+
+  // Safety: send where I am to someone, and "I am lost"
+  if (/\b(?:share|send|text)\s+(?:my\s+)?(?:location|position|where i am)\b/.test(t)) return { type: 'share' };
+  if (/\b(?:i am|i'm|im|we are|we're)\s+lost\b|\bhelp me i am lost\b/.test(t)) return { type: 'lost' };
+
   if (/\b(where am i|where are we|my location|what street (?:am i on|is this)|which street (?:am i on|is this))\b/.test(t)) return { type: 'whereami' };
 
   // What the camera sees, on request ("what is in front of me"). "what is this place" stays with reading (shop signs).
@@ -72,5 +80,6 @@ export const HELP_TEXT =
   'Say save this place as home, and later, take me home. ' +
   'Say use miles, use metres or use steps for distances, and my step is, with a length, to set your step. ' +
   'Say save my home address as, and the address, to set home from an address. ' +
+  'Say slower or faster to change how fast I speak. Say share my location to send where you are to someone. If you are lost, say I am lost. ' +
   'Say less talk or more detail to change how much I say. ' +
   'Say help to hear this again.';

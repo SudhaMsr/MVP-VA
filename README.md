@@ -15,15 +15,21 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
   - "What is in front of me?" describes what the camera sees now, by side and distance, and says plainly when it sees nothing it recognises.
   - "Where am I?" says the street and area (free OpenStreetMap lookup).
   - "Save this place as home" (uses where you are now), or "save my home address as 25 Lakeside BS16 3EE" (the app reads back what it found and asks yes or no; it warns if the postcode differs). Then "take me home" (or any name). Places are kept on the phone only, never in the code.
+  - "Slower" / "faster" changes how fast it speaks (6 notches, saved on the phone; also a button).
+  - "Share my location" gets a link ready (street plus a map link); then tap the empty screen and choose who to send it to. The browser only opens the share sheet from a real tap.
+  - "I am lost" says where you are and what to do next.
   - Distances are in **miles by default** ("50 yards", "0.3 miles"). Say "use metres" or "use steps", or tap the units button in More options. Steps: one step is taken as 70 cm; say "my step is 60 centimetres" or tap the step button to change it. Step counts are approximate.
   - Distances and times are rounded on purpose ("about 8 minutes", "0.7 miles") so they are easy to take in.
   - "Battery" tells the charge. The app also warns once at 20, 10 and 5 percent while not charging, and logs battery level in the session log.
-- Voice commands: start, stop, repeat, help, plus the ones above.
+- Voice commands: start, stop, repeat, help, plus the ones above. While it is asking a question you can answer at once, even over its voice; talking over it stops it.
 - Spoken errors: no silent failures.
 - Text reading (built, switched off until the core is tested; add ?read=1 to try it): say "read" or tap Read, runs on the phone.
 
 ## Not in the MVP
 Text reading switched on by default, accounts, payments, kerb and steps detection (needs footage and training), iPhone, spatial audio, crossing warnings.
+
+## Runtime
+The detection runtime (onnxruntime-web 1.17.3) is served from `docs/vendor/ort`, so the app does not depend on a CDN (the CDN is only a fallback). Licence: MIT.
 
 ## Test device
 Poco M2 Pro (Android, Chrome).

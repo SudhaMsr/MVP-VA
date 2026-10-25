@@ -72,3 +72,18 @@ test('while choosing, "repeat" reads the list again and answering during it work
   assert.equal(dlg.answer('repeat'), true); assert.match(said.at(-1), /^Number 1\./, 'repeat works for the yes/no question too');
   dlg.cancel();
 });
+
+import { parseCommand } from '../docs/js/commands.js';
+import { stepRate, RATES } from '../docs/js/speech.js';
+test('speech speed, share my location and "I am lost" commands', () => {
+  for (const p of ['slower', 'speak slower please', 'slow down', 'you are too fast']) assert.deepEqual(parseCommand(p), { type: 'rate', arg: 'slower' }, p);
+  for (const p of ['faster', 'speak faster', 'speed up']) assert.deepEqual(parseCommand(p), { type: 'rate', arg: 'faster' }, p);
+  for (const p of ['share my location', 'send my location', 'share where i am']) assert.equal(parseCommand(p).type, 'share', p);
+  for (const p of ['i am lost', "i'm lost", 'help me i am lost']) assert.equal(parseCommand(p).type, 'lost', p);
+  assert.equal(parseCommand('navigate to the lost property office').type, 'navigate', 'a place with "lost" in its name is still a destination');
+});
+test('speech speed steps one notch at a time and stops at the ends', () => {
+  assert.equal(stepRate(0.8, -1), 0.7); assert.equal(stepRate(0.8, 1), 0.9);
+  assert.equal(stepRate(RATES[0], -1), null); assert.equal(stepRate(RATES.at(-1), 1), null);
+  assert.equal(stepRate(0.97, 1), 1.1, 'an odd saved value snaps to the nearest notch first');
+});

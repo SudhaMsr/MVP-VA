@@ -5,6 +5,16 @@
 //   status - queued in order; never dropped (command feedback, errors, route summaries)
 //   normal - routine alerts; dropped if they have become stale or the queue is long
 // The old prototype silently dropped everything while it was already speaking. This does not.
+// Speech speeds the walker can step through (1.0 is the voice's normal pace).
+export const RATES = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1];
+// The next speed up (dir 1) or down (-1) from the current one, or null when already at the end.
+export function stepRate(current, dir) {
+  let i = 0;
+  RATES.forEach((r, k) => { if (Math.abs(r - current) < Math.abs(RATES[i] - current)) i = k; });
+  const j = i + dir;
+  return j < 0 || j >= RATES.length ? null : RATES[j];
+}
+
 export class Speaker {
   constructor(synth, UtteranceCtor, opts = {}) {
     this.synth = synth;

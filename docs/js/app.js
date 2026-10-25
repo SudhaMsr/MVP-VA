@@ -10,7 +10,7 @@ import { getUnits, setUnits, getStep, setStep, stepCm, UNIT_MODES } from './unit
 import { describeScene, NO_CAMERA } from './describe.js';
 import { reverseLookup, describePlace, PlaceStore, normaliseName } from './places.js';
 import { BatteryWatch } from './battery.js';
-import { Speaker } from './speech.js';
+import { Speaker, stepRate } from './speech.js';
 import { parseCommand, HELP_TEXT } from './commands.js';
 import { Navigator, makeProviders, locationMessage } from './nav.js';
 import { looksLikeEcho, isBargeIn } from './barge.js';
@@ -29,7 +29,7 @@ const $ = (id) => document.getElementById(id);
 const el = {
   start: $('startBtn'), stop: $('stopBtn'), repeat: $('repeatBtn'), mic: $('micBtn'),
   status: $('status'), last: $('lastAlert'), stats: $('stats'), video: $('video'), overlay: $('overlay'),
-  dl: $('logBtn'), saveRec: $('saveRecBtn'), level: $('levelBtn'), tap: $('tapBtn'), units: $('unitsBtn'), step: $('stepBtn'), dbg: $('debugBtn'), rec: $('recordBtn'),
+  dl: $('logBtn'), saveRec: $('saveRecBtn'), level: $('levelBtn'), tap: $('tapBtn'), units: $('unitsBtn'), step: $('stepBtn'), rate: $('rateBtn'), shareBtn: $('shareBtn'), dbg: $('debugBtn'), rec: $('recordBtn'),
 };
 
 const FULL_DISCLAIMER =
@@ -533,6 +533,36 @@ function describeNow() {
   state.lastSpoken = text;
 }
 
+function changeRate(dir) {
+  const next = stepRate(speaker.rate, dir);
+  if (next == null) { say(dir < 0 ? 'That is already the slowest I speak.' : 'That is already the fastest I speak.', 'status'); return; }
+  speaker.rate = next;
+  try { localStorage.setItem('va.rate', String(next)); } catch (_) { /* storage can be unavailable */ }
+  if (el.rate) el.rate.textContent = `Speech speed: ${Math.round(next * 100)}%`;
+  logEvent('rate', String(next));
+  say(dir < 0 ? 'Okay, slower. Like this.' : 'Okay, faster. Like this.', 'status');
+}
+
+// Sharing needs a real tap (the browser will not open the share sheet from a voice command), so the command
+// gets the location ready and the next tap on the empty screen opens the share sheet.
+let pendingShare = null;
+async function prepareShare() {
+  let pos;
+  try { pos = await navigator_.getPosition(); } catch (e) { say(locationMessage(e, 'I cannot find your location to share.'), 'status'); return; }
+  const where = await reverseLookup(pos).then((j) => describePlace(j).replace(/^You are /, 'I am ')).catch(() => '');
+  pendingShare = `${where ? where + ' ' : ''}My location: https://www.google.com/maps?q=${pos.lat.toFixed(6)},${pos.lon.toFixed(6)} (accurate to about ${Math.round(pos.accuracy)} metres)`;
+  logEvent('share-ready', '');
+  say('Your location is ready to send. Tap the screen, then choose who to send it to.', 'status');
+}
+async function doShare() {
+  const text = pendingShare; pendingShare = null;
+  try {
+    if (navigator.share) { await navigator.share({ text }); logEvent('share', 'shared'); }
+    else if (navigator.clipboard) { await navigator.clipboard.writeText(text); say('I have copied your location. Paste it into a message.', 'status'); }
+    else say('I cannot share from this browser.', 'status');
+  } catch (e) { if (!e || e.name !== 'AbortError') say('I could not share your location.', 'status'); }
+}
+
 async function whereAmI() {
   let pos;
   try { pos = await navigator_.getPosition(); } catch (e) { say(locationMessage(e), 'status'); return; }
@@ -685,6 +715,9 @@ function handleTranscript(text) {
     case 'units': changeUnits(cmd.arg); break;
     case 'stepLength': changeStep(cmd.arg); break;
     case 'saveAddress': dialogue.saveAddress(cmd.name, cmd.arg); break;
+    case 'rate': changeRate(cmd.arg === 'slower' ? -1 : 1); break;
+    case 'share': prepareShare(); break;
+    case 'lost': (async () => { await whereAmI(); say('Stay where you are if it is not safe to move. Say take me home, or navigate to a place, or share my location.', 'status'); })(); break;
     case 'battery': say(battery.ask(), 'status'); if (!batteryStarted) startBatteryWatch(); break;
     case 'level':
       if (cmd.arg === 'less') stepLevel(-1); else if (cmd.arg === 'more') stepLevel(1); else setLevel(cmd.arg, true, false);
@@ -754,6 +787,8 @@ function updateMic() {
 el.start.addEventListener('click', () => { cues.unlock(); if (state.running) talk(); else start(); });
 el.units.addEventListener('click', () => changeUnits(UNIT_MODES[(UNIT_MODES.indexOf(getUnits()) + 1) % UNIT_MODES.length]));
 el.step.addEventListener('click', cycleStep);
+el.rate.addEventListener('click', () => changeRate(speaker.rate >= 1.1 ? -5 : 1)); // up a step, wrapping back to the slowest
+el.shareBtn.addEventListener('click', prepareShare);
 el.dbg.addEventListener('click', () => setCameraView(!DEBUG));
 el.rec.addEventListener('click', () => setRecording(!RECORD));
 el.level.addEventListener('click', () => setLevel(LEVELS[(LEVELS.indexOf(engine.level) + 1) % LEVELS.length]));
@@ -766,6 +801,7 @@ el.tap.addEventListener('click', () => {
 });
 // While running, a tap on empty screen is the same as the Talk button, so there is nothing to find.
 document.addEventListener('click', (e) => {
+  if (pendingShare && !(e.target.closest && e.target.closest('button, input, summary, details, label, a, select, form'))) { doShare(); return; }
   if (!state.running || !state.tapToTalk) return;
   if (e.target.closest && e.target.closest('button, input, summary, details, label, a, select, form')) return;
   const now = performance.now();
@@ -796,6 +832,7 @@ setRecording(RECORD, false);
 setCameraView(DEBUG, false);
 try {
   const lv = localStorage.getItem('va.level'); if (LEVELS.includes(lv)) engine.setLevel(lv);
+  const rt = parseFloat(localStorage.getItem('va.rate')); if (rt >= 0.6 && rt <= 1.1) { speaker.rate = rt; el.rate.textContent = `Speech speed: ${Math.round(rt * 100)}%`; }
   const un = localStorage.getItem('va.units'); if (UNIT_MODES.includes(un)) setUnits(un);
   const st = parseFloat(localStorage.getItem('va.step')); if (st) setStep(st);
   if (localStorage.getItem('va.tap') === '0') { state.tapToTalk = false; el.tap.setAttribute('aria-pressed', 'false'); el.tap.textContent = 'Tap anywhere to talk: off'; }
