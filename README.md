@@ -15,8 +15,8 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
   - "What is in front of me?" describes what the camera sees now, by side and distance, and says plainly when it sees nothing it recognises.
   - "Where am I?" says the street and area (free OpenStreetMap lookup).
   - "Save this place as home" (uses where you are now), or "save my home address as 25 Lakeside BS16 3EE" (the app reads back what it found and asks yes or no; it warns if the postcode differs). Then "take me home" (or any name). Places are kept on the phone only, never in the code.
-  - Distances are in **miles by default** ("50 yards", "a quarter of a mile"). Say "use metres" or "use steps", or tap the units button in More options. Steps: one step is taken as 70 cm; say "my step is 60 centimetres" or tap the step button to change it. Step counts are approximate.
-  - Distances and times are rounded on purpose ("about 8 minutes", "three quarters of a mile") so they are easy to take in.
+  - Distances are in **miles by default** ("50 yards", "0.3 miles"). Say "use metres" or "use steps", or tap the units button in More options. Steps: one step is taken as 70 cm; say "my step is 60 centimetres" or tap the step button to change it. Step counts are approximate.
+  - Distances and times are rounded on purpose ("about 8 minutes", "0.7 miles") so they are easy to take in.
   - "Battery" tells the charge. The app also warns once at 20, 10 and 5 percent while not charging, and logs battery level in the session log.
 - Voice commands: start, stop, repeat, help, plus the ones above.
 - Spoken errors: no silent failures.

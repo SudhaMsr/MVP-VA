@@ -1,10 +1,10 @@
 // How distances are spoken. Three modes:
-//   miles  - the default for UK walkers: yards for short distances, miles for long ("50 yards", "a quarter of a mile")
+//   miles  - the default for UK walkers: yards for short distances, miles for long ("50 yards", "0.3 miles")
 //   metres - metres and kilometres
 //   steps  - the walker's own steps (users in the research asked for steps). A step is taken as 70 cm unless the walker
 //            sets their own ("my step is 60 centimetres"), so step counts are always approximate.
 // One shared setting, so navigation prompts, hazard alerts and scene descriptions always agree.
-// Numbers are rounded on purpose: "three quarters of a mile" is easier to take in, and to trust, than "1118 metres".
+// Numbers are rounded on purpose: "0.7 miles" is easier to take in, and to trust, than "1118 metres".
 export const UNIT_MODES = ['miles', 'metres', 'steps'];
 export const DEFAULT_UNITS = 'miles';
 export const DEFAULT_STEP_METRES = 0.7;
@@ -25,28 +25,20 @@ export function setStep(metres) {
 }
 export const stepCm = () => Math.round(stepM * 100);
 
-const QUARTERS = ['', ' and a quarter', ' and a half', ' and three quarters'];
+// One decimal place, said as digits: "0.7 miles", "1.2 miles", "1 mile". Simple to hear and close to the real figure.
+const decimal = (x) => { const r = Math.round(x * 10) / 10; return Number.isInteger(r) ? String(r) : r.toFixed(1); };
 function milesPhrase(mi) {
-  if (mi < 0.375) return 'a quarter of a mile';
-  if (mi < 0.625) return 'half a mile';
-  if (mi < 0.875) return 'three quarters of a mile';
-  if (mi < 1.125) return 'a mile';
   if (mi >= 10) return `${Math.round(mi)} miles`;
-  const q = Math.round(mi * 4); // quarters of a mile
-  const whole = Math.floor(q / 4), frac = q % 4;
-  if (frac === 0) return `${whole} miles`; // 2 or more: a single mile is handled above
-  return whole === 1 ? `a mile${QUARTERS[frac]}` : `${whole}${QUARTERS[frac]} miles`;
+  const t = decimal(Math.max(mi, 0.1));
+  return t === '1' ? '1 mile' : `${t} miles`;
 }
 function kmPhrase(km) {
-  if (km < 1.25) return 'a kilometre';
   if (km >= 10) return `${Math.round(km)} kilometres`;
-  const h = Math.round(km * 2); // halves of a kilometre
-  const whole = Math.floor(h / 2);
-  if (h % 2 === 0) return `${whole} kilometres`;
-  return whole === 1 ? 'a kilometre and a half' : `${whole} and a half kilometres`;
+  const t = decimal(Math.max(km, 0.1));
+  return t === '1' ? '1 kilometre' : `${t} kilometres`;
 }
 
-// Route distances: "a few yards", "40 yards", "a quarter of a mile" / "a few metres", "350 metres", "a kilometre" / "60 steps".
+// Route distances: "a few yards", "40 yards", "0.3 miles" / "a few metres", "350 metres", "1.1 kilometres" / "60 steps".
 export function roundDistance(m) {
   if (mode === 'steps') {
     const s = m / stepM;

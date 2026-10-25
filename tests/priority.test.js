@@ -77,3 +77,30 @@ test('a nav prompt never cuts off an urgent alert or another nav prompt, and kee
   finish(); assert.equal(spoken.at(-1), 'In 40 metres, turn left.');
   finish(); assert.equal(spoken.at(-1), 'Turn left now.');
 });
+
+// ---- Talk: the app must stop speaking when the walker taps Talk ----
+test('hush stops a turn prompt or status message in progress at once, and says it again afterwards', () => {
+  const { sp, spoken, cancelled, finish } = fakeSpeaker();
+  sp.speak('In 40 metres, turn left.', 'nav'); // playing
+  sp.hush(); sp.hold(true);
+  assert.equal(cancelled.length, 1, 'speech stopped');
+  assert.equal(spoken.length, 1, 'nothing new spoken while held');
+  sp.hold(false);
+  assert.equal(spoken.at(-1), 'In 40 metres, turn left.', 'the cut-off prompt is not lost');
+  finish();
+});
+
+test('while held (listening), queued messages wait, but an urgent warning still gets through', () => {
+  const { sp, spoken } = fakeSpeaker();
+  sp.hold(true);
+  sp.speak('Route summary.', 'status'); sp.speak('Turn left now.', 'nav');
+  assert.equal(spoken.length, 0);
+  sp.speak('Danger, car.', 'urgent');
+  assert.deepEqual(spoken, ['Danger, car.']);
+});
+
+test('an urgent warning in progress is not cut off by Talk', () => {
+  const { sp, cancelled } = fakeSpeaker();
+  sp.speak('Danger, car.', 'urgent'); sp.hush();
+  assert.equal(cancelled.length, 0);
+});

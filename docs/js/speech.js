@@ -25,6 +25,7 @@ export class Speaker {
     this.supported = !!(synth && UtteranceCtor);
     this.voice = null;
     this.onSpoken = null;
+    this.held = false;
   }
 
   pickVoice() {
@@ -71,9 +72,21 @@ export class Speaker {
   // Quiet the app so the walker can speak: drop routine alerts and stop a routine message in progress.
   // Queued status, navigation and urgent messages are kept (an error or a route summary must not be lost); an urgent
   // or navigation message already playing finishes.
+  // The walker has tapped Talk: stop speaking at once so they can be heard (and the mic does not hear us).
+  // Anything cut off that matters (a turn prompt, a status message) goes back to the front and is spoken after, not lost.
   hush() {
     this.queue = this.queue.filter((q) => q.kind !== 'normal');
-    if (this.current && (this.current.kind === 'normal' || this.current.kind === 'status')) this._cancelCurrent();
+    const cur = this.current;
+    if (cur && cur.kind !== 'urgent') {
+      this._cancelCurrent();
+      if (cur.kind !== 'normal') this.queue.unshift(cur);
+    }
+  }
+
+  // While held, only urgent warnings are spoken; the rest wait in the queue. Release when listening ends.
+  hold(on) {
+    this.held = !!on;
+    if (!this.held) this._pump();
   }
 
   cancelAll() {
@@ -93,6 +106,12 @@ export class Speaker {
     if (this.current) return;
     const now = this.now();
     while (this.queue.length) {
+      if (this.held) {
+        const u = this.queue.findIndex((q) => q.kind === 'urgent');
+        if (u < 0) return;
+        this._start(this.queue.splice(u, 1)[0]);
+        return;
+      }
       const item = this.queue.shift();
       if (item.kind === 'normal' && now - item.t > this.staleMs) { this._log('dropped-stale', item.text); continue; }
       this._start(item);
