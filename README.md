@@ -80,3 +80,6 @@ Route data comes from Google (checked: spoken distances match Google's own figur
 
 ## Updating the live site
 After changing anything in `docs/js`, run `python3 tools/stamp.py` (a test fails if you forget). GitHub Pages lets browsers reuse scripts for up to 10 minutes, so without the stamp a phone can run old code right after an update. The stamp gives each script a version in its address. The version shows under More options > Supervisor tools, so a tester can confirm they have the latest.
+
+## More training pictures (Open Images V7)
+`python3 tools/fetch_openimages.py --out oi_vision --per-class 600` (run on your own computer or in Colab; the sandbox this was written in cannot reach those hosts). It picks the classes that matter for walking (stairs, bollards, poles and street lights, bins, benches, hydrants, post boxes, wheelchairs, prams, scooters, barriers, cones, doors and gates, pedestrian signals, plant pots, parking meters), drops groups and drawings and tiny boxes, and writes a YOLO dataset with a `manifest.csv` of licences (CC BY: keep it). Add `--dry-run` first to see how many pictures each class would give. It reports which classes Open Images does not have. Kerbs, step-downs, A-boards and e-scooters still need your own footage. Train with `tools/train_steps_colab.py` as a template, starting from `weights/rod_best.pt`.
