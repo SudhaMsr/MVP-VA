@@ -79,7 +79,7 @@ test('cooldown suppresses repeats, then allows again', () => {
   const eng = new AlertEngine();
   assert.ok(eng.next(approachingCarTracks(), W, H, 0));
   assert.equal(eng.next(approachingCarTracks(), W, H, 1000), null);
-  assert.ok(eng.next(approachingCarTracks(), W, H, CONFIG.cooldownMs[0] + 1));
+  assert.ok(eng.next(approachingCarTracks(), W, H, Math.max(CONFIG.cooldownMs[0], CONFIG.urgentGapMs) + 1));
 });
 
 test('hazards outrank information, and information is silent while hazards are in view', () => {

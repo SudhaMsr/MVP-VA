@@ -392,7 +392,7 @@ setInterval(() => {
   if (now - state.lastFrameOk > 5000 && now - state.lastWarnAt > 10000) {
     state.lastWarnAt = now;
     say('Detection has paused. Retrying.', 'status');
-  } else if (now - state.lastSpeechAt > CONFIG.heartbeatMs) {
+  } else if (engine.level !== 'quiet' && now - state.lastSpeechAt > CONFIG.heartbeatMs) { // quiet mode: silence means nothing new
     say('Still scanning, nothing recognised.', 'normal');
   }
 }, 1000);

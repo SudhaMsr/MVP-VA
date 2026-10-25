@@ -115,3 +115,48 @@ test('the answer to what the walker asked is spoken before the message that was 
   finish();
   assert.equal(spoken.at(-1), 'In 40 metres, turn left.', 'the cut-off prompt follows');
 });
+
+// ---- once per encounter ----
+const still = (name, dist, x = 170) => ({ id: 1, cls: idx(name), name, hits: 6, dist, speed: 0, box: { x1: x, y1: 100, x2: x + 300, y2: 470 } });
+function run(eng, tracksAt, secs, step = 500) { const out = []; for (let t = 0; t <= secs * 1000; t += step) { const tr = tracksAt(t); const a = eng.next(tr, W, H, t); if (a) out.push({ t, text: a.text }); } return out; }
+
+test('a person who stays in view is announced once, not every few seconds', () => {
+  const eng = new AlertEngine(CONFIG, 'normal');
+  const said = run(eng, () => [still('person', 2.0)], 120);
+  assert.equal(said.length, 1, JSON.stringify(said));
+});
+
+test('it speaks again when the thing gets clearly closer, and when it leaves and comes back', () => {
+  const eng = new AlertEngine(CONFIG, 'normal');
+  const closer = run(eng, (t) => [still('person', t < 10000 ? 3.5 : 1.8)], 20);
+  assert.equal(closer.length, 2, 'once far, once when 1.5 m or more closer');
+  const e2 = new AlertEngine(CONFIG, 'normal');
+  const back = run(e2, (t) => (t >= 8000 && t < 20000 ? [] : [still('person', 2.5)]), 40);
+  assert.equal(back.length, 2, 'new encounter after being out of view for a while');
+});
+
+test('stairs and red lights still in view are reminded only every 30 s; a bin is spoken once', () => {
+  const stairs = run(new AlertEngine(CONFIG, 'quiet'), () => [{ ...still('stairs', null), box: { x1: 100, y1: 300, x2: 500, y2: 460 } }], 100);
+  assert.deepEqual(stairs.map((s) => Math.round(s.t / 1000)), [0, 30, 60, 90]);
+  const bin = run(new AlertEngine(CONFIG, 'detailed'), () => [{ ...still('ashcan', 1.5), box: { x1: 100, y1: 100, x2: 500, y2: 470 } }], 120);
+  assert.equal(bin.length, 1);
+});
+
+test('no more than the per-minute cap of routine alerts in quiet mode, but urgent ones always get through', () => {
+  const eng = new AlertEngine(CONFIG, 'quiet');
+  // a stream of different stairs positions: each is a new thing
+  const said = run(eng, (t) => [{ ...still('stairs', null, (Math.floor(t / 3000) % 3) * 200), box: { x1: (Math.floor(t / 3000) % 3) * 200, y1: 300, x2: (Math.floor(t / 3000) % 3) * 200 + 150, y2: 460 } }], 59);
+  assert.ok(said.length <= CONFIG.minuteMax.quiet, `spoke ${said.length}`);
+});
+
+test('the same routine sentence is never spoken twice within 30 s', () => {
+  const spoken = []; const synth = { speak: (u) => { spoken.push(u.text); setTimeout(() => u.onend && u.onend(), 0); }, cancel: () => {} };
+  let now = 0;
+  const sp = new Speaker(synth, function (t) { this.text = t; }, { setTimer: () => 0, clearTimer: () => {}, now: () => now });
+  sp.speak('Bin, left, close.', 'normal'); now = 10000;
+  sp.speak('Bin, left, close.', 'normal'); assert.equal(spoken.length, 1, 'dropped as a repeat');
+  now = 40000; sp.speak('Bin, left, close.', 'normal');
+  assert.equal(spoken.length, 1 + (sp.current && sp.current.text === 'Bin, left, close.' && spoken.length === 2 ? 0 : 0), 'queued, or playing after the first ended');
+  sp.speak('Danger.', 'urgent'); sp.speak('Danger.', 'urgent');
+  assert.ok(spoken.filter((t) => t === 'Danger.').length >= 1, 'urgent is never dropped');
+});

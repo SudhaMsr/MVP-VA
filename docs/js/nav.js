@@ -233,7 +233,7 @@ export function locationMessage(err, prefix = 'I cannot find your location.') {
 }
 
 export class Navigator {
-  constructor({ say, fetchFn = (...a) => fetch(...a), providers, getPosition, watch, unwatch, warnMetres = 40, nowMetres = 8, offRouteMetres = 40, reassureMs = 45000, reassureMetres = 80, now = () => Date.now(), trace = null }) {
+  constructor({ say, fetchFn = (...a) => fetch(...a), providers, getPosition, watch, unwatch, warnMetres = 40, nowMetres = 8, offRouteMetres = 40, reassureMs = 90000, reassureMetres = 80, now = () => Date.now(), trace = null }) {
     this.providers = providers || makeProviders({ fetchFn });
     Object.assign(this, { say, fetchFn, getPosition, watch, unwatch, warnMetres, nowMetres, offRouteMetres, reassureMs, reassureMetres, now, trace });
     this.say = (t, k) => { this.lastSayAt = this.now(); say(t, k); }; // remember when we last spoke, for reassurance

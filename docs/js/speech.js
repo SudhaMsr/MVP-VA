@@ -36,6 +36,8 @@ export class Speaker {
     this.voice = null;
     this.onSpoken = null;
     this.held = false;
+    this.dupMs = opts.dupMs ?? 30000; // the same routine alert is never spoken twice within this time
+    this.said = new Map();
   }
 
   pickVoice() {
@@ -53,6 +55,10 @@ export class Speaker {
   speak(text, kind = 'normal') {
     if (!this.supported) { this._log('unsupported', text); return false; }
     const item = { text, kind, t: this.now() };
+    if (kind === 'normal') {
+      const was = this.said.get(text);
+      if (was != null && item.t - was < this.dupMs) { this._log('dropped-duplicate', text); return false; }
+    }
     if (kind === 'urgent') {
       // Drop queued routine alerts, jump the queue, and cut off a routine message in progress.
       this.queue = this.queue.filter((q) => q.kind !== 'normal');
@@ -146,6 +152,7 @@ export class Speaker {
     u.lang = this.lang;
     if (this.voice) u.voice = this.voice;
     this.current = item;
+    if (item.kind === 'normal') this.said.set(item.text, this.now());
     const finish = (why) => {
       if (this.current !== item) return; // already cancelled or replaced
       this.current = null;

@@ -114,28 +114,48 @@ export class AlertEngine {
   }
 
   // Returns {text, priority, urgent, key} or null.
-  // A thing that is still there is not news: each repeat of the same alert waits longer (1x, 2x, 3x, 4x the cooldown)
-  // unless it has got clearly closer. At most budgetMax routine alerts are spoken per budgetWindowMs; urgent ones are exempt.
+  // A thing that is still there is not news. Each object is spoken about once while it stays in view (an "encounter"):
+  // it is spoken again only if it gets clearly closer, or, for fall hazards and red lights, as a reminder every
+  // reminderMs. An encounter ends when the object has been out of view for forgetMs. Dangerous vehicles (priority 0) keep
+  // the old rule: repeats wait longer each time. Routine alerts are also capped per 10 s and per minute; urgent ones are exempt.
   next(tracks, frameW, frameH, tMs) {
     const c = this.cfg;
     let cands = this.candidates(tracks, frameW, frameH);
     if (cands.some((x) => x.priority <= 2)) cands = cands.filter((x) => x.priority <= 2);
     cands.sort((a, b) => a.priority - b.priority);
+    // Who is still in view? (done for every candidate first, because we stop at the first one we speak)
+    const forget = c.forgetMs ?? 4000;
+    const fresh = new Map();
+    for (const a of cands) {
+      const rec = this.last.get(a.key);
+      fresh.set(a.key, !rec || tMs - (rec.seen ?? rec.t) > forget);
+      if (rec) rec.seen = tMs;
+    }
     this.spokenAt = this.spokenAt.filter((t) => tMs - t < (c.budgetWindowMs ?? 10000));
+    this.spokenMin = (this.spokenMin || []).filter((t) => tMs - t < 60000);
+    const minuteMax = (c.minuteMax || {})[this.level] ?? 99;
     for (const a of cands) {
       const rec = this.last.get(a.key);
       const closer = rec && a.d != null && rec.d != null && rec.d - a.d >= (c.repeatCloserMetres ?? 1.5);
-      let n = rec && !closer && tMs - rec.t < 30000 ? rec.n : 0;
-      const base = a.still ? Math.max(c.cooldownMs[a.priority] ?? 10000, 6000) : (c.cooldownMs[a.priority] ?? 10000); // a near vehicle that is not closing in is not news every 3 s
-      const cd = base * (1 + Math.min(n, 3));
-      if (rec && !closer && tMs - rec.t < cd) continue;
-      if (a.priority > 0 && this.spokenAt.length >= (c.budgetMax ?? 3)) continue;
-      this.last.set(a.key, { t: tMs, d: a.d, n: rec && !closer ? n + 1 : 0 });
-      if (a.priority > 0) this.spokenAt.push(tMs);
+      const base = a.still ? Math.max(c.cooldownMs[a.priority] ?? 10000, 6000) : (c.cooldownMs[a.priority] ?? 10000);
+      if (rec) {
+        if (a.priority === 0) {
+          const n = !closer && tMs - rec.t < 30000 ? rec.n : 0;
+          if (tMs - rec.t < (c.urgentGapMs ?? 8000)) continue; // never twice in a few seconds, even if closer
+          if (!closer && tMs - rec.t < base * (1 + Math.min(n, 4))) continue;
+        } else if (fresh.get(a.key)) {
+          if (tMs - rec.t < base) continue; // flickering in and out of view is not a new encounter
+        } else if (!closer && !(a.priority === 1 && tMs - rec.t >= (c.reminderMs ?? 30000))) {
+          continue; // still there, not closer: not news
+        }
+      }
+      if (a.priority > 0 && (this.spokenAt.length >= (c.budgetMax ?? 3) || this.spokenMin.length >= minuteMax)) continue;
+      this.last.set(a.key, { t: tMs, d: a.d, n: rec && !closer ? rec.n + 1 : 0, seen: tMs });
+      if (a.priority > 0) { this.spokenAt.push(tMs); this.spokenMin.push(tMs); }
       return { ...a, urgent: a.priority === 0 };
     }
     return null;
   }
 
-  reset() { this.last.clear(); this.spokenAt = []; }
+  reset() { this.last.clear(); this.spokenAt = []; this.spokenMin = []; }
 }

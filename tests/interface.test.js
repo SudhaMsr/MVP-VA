@@ -106,11 +106,11 @@ test('on a long quiet straight the walker is reassured, once per interval', asyn
   cb({ lat: 51, lon: 0.0004, accuracy: 8 }); // orientation says "right way"
   said.length = 0;
   clock = 10000; cb({ lat: 51, lon: 0.0006, accuracy: 8 }); assert.equal(said.length, 0, 'too soon');
-  clock = 50000; cb({ lat: 51, lon: 0.0008, accuracy: 8 });
+  clock = 100000; cb({ lat: 51, lon: 0.0008, accuracy: 8 }); // reassurance is rare now: 90 seconds of quiet
   assert.match(said.at(-1), /Keep going\. You are on the route\. Your destination is about \d+ metres away\./);
-  const n = said.length; clock = 60000; cb({ lat: 51, lon: 0.001, accuracy: 8 });
+  const n = said.length; clock = 110000; cb({ lat: 51, lon: 0.001, accuracy: 8 });
   assert.equal(said.length, n, 'not repeated straight away');
   const n2 = said.length;
-  clock = 100000; cb({ lat: 51, lon: 0.0034, accuracy: 8 }); // ~40 m from the end: near, no reassurance
+  clock = 200000; cb({ lat: 51, lon: 0.0034, accuracy: 8 }); // ~40 m from the end: near, no reassurance
   assert.ok(!said.slice(n2).some((t) => /Keep going/.test(t)));
 });
