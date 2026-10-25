@@ -12,10 +12,11 @@ jobs:
           npm pack onnxruntime-web@1.17.3
           tar xzf onnxruntime-web-1.17.3.tgz
           mkdir -p docs/vendor/ort
+          ls package/dist
           cp package/dist/ort.min.js docs/vendor/ort/
-          cp package/dist/ort-wasm.wasm package/dist/ort-wasm-simd.wasm package/dist/ort-wasm-threaded.wasm package/dist/ort-wasm-simd-threaded.wasm docs/vendor/ort/
-          cp package/dist/ort-wasm-threaded.worker.js docs/vendor/ort/ 2>/dev/null || true
-          cp package/LICENSE docs/vendor/ort/LICENSE
+          cp package/dist/*.wasm docs/vendor/ort/
+          cp package/dist/ort-wasm*.worker.js docs/vendor/ort/ 2>/dev/null || true
+          cp package/LICENSE* docs/vendor/ort/ 2>/dev/null || true
           ls -la docs/vendor/ort
           rm -rf package onnxruntime-web-1.17.3.tgz
       - run: |
