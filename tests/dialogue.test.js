@@ -95,3 +95,13 @@ test('after the walker says yes, the start message is short', async () => {
   nav.begin({ lat: 51, lon: 0 }, { name: 'Cafe', lat: 51, lon: 0.004 }, { distance: 400, duration: 300, steps: st, source: 'x' }, true, true);
   assert.equal(said.at(-1), 'Starting. Walk along Mill Lane for 400 metres. I will tell you if you need to turn.');
 });
+
+test('asking to go somewhere you already are says so, instead of "NaN miles"', async () => {
+  const said = [];
+  const nav = { getPosition: async () => ({ lat: 51.45, lon: -2.58 }), plan: async () => ({ distance: 0, duration: 0, steps: [] }) };
+  const { Dialogue } = await import('../docs/js/dialogue.js');
+  const dlg = new Dialogue({ say: (t) => said.push(t), nav, onPrompt: () => {} });
+  await dlg.navigateToSaved({ name: 'work', lat: 51.45002, lon: -2.58001 });
+  assert.match(said[0], /already at your work/);
+  assert.doesNotMatch(said.join(' '), /NaN/);
+});

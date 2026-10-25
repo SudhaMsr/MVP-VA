@@ -86,6 +86,7 @@ export class Dialogue {
   async _preview(pos, dest) {
     const route = await this.nav.plan(pos, dest);
     if (!route) { if (!this.nav.active) this.say('I could not find a walking route there.', 'status'); return this._set('idle'); }
+    if (!(route.distance >= 25)) { this.say(`You are already at ${dest.name}, or very close to it.`, 'status'); return this._set('idle'); }
     const stairs = route.steps.some((s) => /stairs|steps/i.test(s.text || ''));
     this.say(`${dest.name}. ${roundMetres(route.distance)}, ${minutesText(route.duration)}.` +
       `${dest.large ? ' This is a large site, so I would head for its middle.' : ''}` +

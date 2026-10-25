@@ -194,7 +194,7 @@ export async function googleRoute(from, to, fetchFn, key) {
     };
   });
   steps.push({ distance: 0, name: '', text: 'you have arrived', maneuver: { type: 'arrive', location: [to.lon, to.lat] }, at: { lat: to.lat, lon: to.lon }, path: [] });
-  return { distance: r.distanceMeters, duration: parseInt(r.duration, 10) || 0, steps };
+  return { distance: r.distanceMeters || steps.reduce((a, s) => a + (s.distance || 0), 0), duration: parseInt(r.duration, 10) || 0, steps };
 }
 
 // Google first (better place search, street names), OpenStreetMap as the fallback so navigation never goes silent.
