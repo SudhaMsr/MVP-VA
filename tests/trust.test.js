@@ -126,3 +126,13 @@ test('the Google geocoder no longer says an address twice, and keeps the full ad
   assert.equal(r.name, '25 Lakeside');
   assert.equal(r.address, '25 Lakeside, Bristol BS16 3EE, UK');
 });
+
+import { locationMessage } from '../docs/js/nav.js';
+test('location problems are described by their real reason, not always "check permission"', () => {
+  assert.match(locationMessage({ code: 1 }), /blocked/);
+  assert.match(locationMessage({ code: 2 }), /location services/);
+  assert.doesNotMatch(locationMessage({ code: 2 }), /permission/i);
+  assert.match(locationMessage({ code: 3 }), /too long/);
+  assert.match(locationMessage(new Error('x')), /try again/);
+  assert.match(locationMessage({ code: 1 }, 'Could not save.'), /^Could not save\./);
+});

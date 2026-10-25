@@ -12,7 +12,7 @@ import { reverseLookup, describePlace, PlaceStore, normaliseName } from './place
 import { BatteryWatch } from './battery.js';
 import { Speaker } from './speech.js';
 import { parseCommand, HELP_TEXT } from './commands.js';
-import { Navigator, makeProviders } from './nav.js';
+import { Navigator, makeProviders, locationMessage } from './nav.js';
 import { Dialogue } from './dialogue.js';
 import { recogniseText, readingSpeech } from './reader.js';
 
@@ -93,21 +93,23 @@ const navigator_ = new Navigator({
   getPosition: () => new Promise((res, rej) => {
     if (!('geolocation' in navigator)) return rej(new Error('no geolocation'));
     const wait = setTimeout(() => say('Waiting for your location. If your phone asks, allow location.', 'status'), 4000);
-    let best = null, lastErr = null, id = null, done = false;
+    let best = null, lastErr = null, ids = [], done = false;
     const finish = () => {
       if (done) return; done = true; clearTimeout(wait); clearTimeout(limit);
-      try { navigator.geolocation.clearWatch(id); } catch (_) { /* ignore */ }
+      for (const i of ids) { try { navigator.geolocation.clearWatch(i); } catch (_) { /* ignore */ } }
       best ? res(best) : rej(lastErr || new Error('no location'));
     };
     const limit = setTimeout(finish, 10000);
-    id = navigator.geolocation.watchPosition(
-      (p) => {
-        const f = { lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy };
-        if (!best || f.accuracy < best.accuracy) best = f;
-        if (best.accuracy <= 25) finish();
-      },
-      (e) => { lastErr = e; if (e && e.code === 1) finish(); }, // permission refused: stop now
-      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+    const onFix = (p) => {
+      const f = { lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy };
+      if (!best || f.accuracy < best.accuracy) best = f;
+      if (best.accuracy <= 25) finish();
+    };
+    let failed = 0;
+    const onErr = (e) => { lastErr = lastErr && lastErr.code === 1 ? lastErr : e; if ((e && e.code === 1) || ++failed >= 2) finish(); };
+    // Two requests at once: precise GPS (phones) and the ordinary kind (laptops have no GPS, only Wi-Fi/network location).
+    ids.push(navigator.geolocation.watchPosition(onFix, onErr, { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }));
+    ids.push(navigator.geolocation.watchPosition(onFix, onErr, { enableHighAccuracy: false, maximumAge: 0, timeout: 15000 }));
   }),
   watch: (ok, err) => navigator.geolocation.watchPosition(
     (p) => ok({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy }), err,
@@ -532,7 +534,7 @@ function describeNow() {
 
 async function whereAmI() {
   let pos;
-  try { pos = await navigator_.getPosition(); } catch { say('I cannot find your location. Check location permission and try again.', 'status'); return; }
+  try { pos = await navigator_.getPosition(); } catch (e) { say(locationMessage(e), 'status'); return; }
   try {
     const text = describePlace(await reverseLookup(pos), pos.accuracy);
     logEvent('whereami', text);
@@ -546,7 +548,7 @@ async function whereAmI() {
 async function savePlace(rawName) {
   if (!normaliseName(rawName)) { say('Say save this place as, and a name. For example, save this place as home.', 'status'); return; }
   let pos;
-  try { pos = await navigator_.getPosition(); } catch { say('I cannot find your location, so I could not save this place. Check location permission and try again.', 'status'); return; }
+  try { pos = await navigator_.getPosition(); } catch (e) { say(locationMessage(e, 'I cannot find your location, so I could not save this place.'), 'status'); return; }
   const r = places.save(rawName, pos);
   if (!r) { say('I did not catch a name for this place.', 'status'); return; }
   logEvent('save-place', r.name);

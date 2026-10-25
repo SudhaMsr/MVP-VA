@@ -1,6 +1,6 @@
 // Spoken conversation for navigation: asks which place when several match, tells the distance, and waits for "yes".
 // Pure logic with injected dependencies, so it is tested without a browser.
-import { roundMetres, minutesText } from './nav.js';
+import { roundMetres, minutesText, locationMessage } from './nav.js';
 
 const YES = /^(yes|yeah|yep|yup|ok|okay|sure|go|go ahead|start|start now|correct|that is right|that's right|do it|please do)$/;
 const NO = /^(no|nope|nah|cancel|stop|do not|don't|never mind|nevermind|wrong|not that one)$/;
@@ -79,7 +79,7 @@ export class Dialogue {
   async navigateToSaved(place) {
     this._set('idle');
     let pos;
-    try { pos = await this.nav.getPosition(); } catch { this.say('I cannot find your location. Check location permission and try again.', 'status'); return; }
+    try { pos = await this.nav.getPosition(); } catch (e) { this.say(locationMessage(e), 'status'); return; }
     return this._preview(pos, { lat: place.lat, lon: place.lon, large: false, name: `your ${place.name}` });
   }
 

@@ -223,6 +223,15 @@ export function makeProviders({ googleKey, fetchFn = (...a) => fetch(...a), onFa
   };
 }
 
+// What to say when the location cannot be had. The reason matters: "check permission" is wrong when the permission is fine.
+export function locationMessage(err, prefix = 'I cannot find your location.') {
+  const code = err && err.code;
+  if (code === 1) return `${prefix} Location is blocked for this page. Tap the lock icon by the address, allow location, then try again.`;
+  if (code === 2) return `${prefix} The device could not work out where it is. Check that location services are on for the whole device, and for this browser, then try again. Indoors or on a laptop it can help to wait a little.`;
+  if (code === 3) return `${prefix} It took too long. Try again, near a window or outside if you can.`;
+  return `${prefix} Please try again.`;
+}
+
 export class Navigator {
   constructor({ say, fetchFn = (...a) => fetch(...a), providers, getPosition, watch, unwatch, warnMetres = 40, nowMetres = 8, offRouteMetres = 40, reassureMs = 45000, reassureMetres = 80, now = () => Date.now(), trace = null }) {
     this.providers = providers || makeProviders({ fetchFn });
@@ -236,7 +245,7 @@ export class Navigator {
     this.cancel(true);
     this.say(`Looking for ${query}.`, 'status');
     let pos;
-    try { pos = await this.getPosition(); } catch { this.say('I cannot find your location. Check location permission and try again.', 'status'); return false; }
+    try { pos = await this.getPosition(); } catch (e) { this.say(locationMessage(e), 'status'); return false; }
     let dest;
     try { dest = await this.providers.geocode(query, pos); } catch { this.say('I could not search for places. Check your internet connection.', 'status'); return false; }
     if (!dest) { this.say(`I could not find ${query}. Try a nearby street or a well known place.`, 'status'); return false; }
@@ -250,7 +259,7 @@ export class Navigator {
   async find(query) {
     this.cancel(true);
     let pos;
-    try { pos = await this.getPosition(); } catch { this.say('I cannot find your location. Check location permission and try again.', 'status'); return null; }
+    try { pos = await this.getPosition(); } catch (e) { this.say(locationMessage(e), 'status'); return null; }
     let results;
     try { results = await this.providers.search(query, pos); } catch { this.say('I could not search for places. Check your internet connection.', 'status'); return null; }
     if (!results.length) { this.say(`I could not find ${query}. Try a nearby street or a well known place.`, 'status'); return null; }
