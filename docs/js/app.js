@@ -88,13 +88,26 @@ const navigator_ = new Navigator({
     googleKey: new URLSearchParams(location.search).get('maps') === 'osm' ? '' : GOOGLE_KEY,
     onFallback: (what, e) => session.events.push({ t: Date.now(), kind: 'nav-fallback', text: `${what}: ${e && e.message}` }),
   }),
+  // The first fix Chrome gives is often a rough network guess (it can be streets out). So wait up to 10 seconds for a
+  // proper GPS fix (25 m or better) and use the best one seen.
   getPosition: () => new Promise((res, rej) => {
     if (!('geolocation' in navigator)) return rej(new Error('no geolocation'));
     const wait = setTimeout(() => say('Waiting for your location. If your phone asks, allow location.', 'status'), 4000);
-    navigator.geolocation.getCurrentPosition(
-      (p) => { clearTimeout(wait); res({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy }); },
-      (e) => { clearTimeout(wait); rej(e); },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 });
+    let best = null, lastErr = null, id = null, done = false;
+    const finish = () => {
+      if (done) return; done = true; clearTimeout(wait); clearTimeout(limit);
+      try { navigator.geolocation.clearWatch(id); } catch (_) { /* ignore */ }
+      best ? res(best) : rej(lastErr || new Error('no location'));
+    };
+    const limit = setTimeout(finish, 10000);
+    id = navigator.geolocation.watchPosition(
+      (p) => {
+        const f = { lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy };
+        if (!best || f.accuracy < best.accuracy) best = f;
+        if (best.accuracy <= 25) finish();
+      },
+      (e) => { lastErr = e; if (e && e.code === 1) finish(); }, // permission refused: stop now
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
   }),
   watch: (ok, err) => navigator.geolocation.watchPosition(
     (p) => ok({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy }), err,
