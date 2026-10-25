@@ -22,13 +22,13 @@ test('miles is the default, with yards for short distances and simple fractions 
   assert.equal(say(36), '40 yards');
   assert.equal(say(150), '150 yards');
   assert.equal(say(260), '300 yards');
-  assert.equal(say(500), 'a quarter of a mile');
-  assert.equal(say(800), 'half a mile');
-  assert.equal(say(1118), 'three quarters of a mile'); // the real Queen Square to Temple Meads walk
-  assert.equal(say(1609), 'a mile');
-  assert.equal(say(2000), 'a mile and a quarter');
-  assert.equal(say(4000), '2 and a half miles');
-  assert.equal(say(16000), '10 miles');
+  assert.equal(say(500), '0.3 miles');
+  assert.equal(say(800), '0.5 miles');
+  assert.equal(say(1118), '0.7 miles'); // the real Queen Square to Temple Meads walk
+  assert.equal(say(1609), '1 mile');
+  assert.equal(say(2000), '1.2 miles');
+  assert.equal(say(4000), '2.5 miles');
+  assert.equal(say(16100), '10 miles');
   assert.equal(nearDistance(1), 'very close');
   assert.equal(nearDistance(2), 'about 2 yards');
   assert.equal(nearDistance(3.4), 'about 4 yards');
@@ -40,9 +40,9 @@ test('metres mode: metres and simple kilometres', () => {
     assert.equal(roundDistance(8), 'a few metres');
     assert.equal(roundDistance(43), '40 metres');
     assert.equal(roundDistance(260), '250 metres');
-    assert.equal(roundDistance(1118), 'a kilometre');
-    assert.equal(roundDistance(1700), 'a kilometre and a half');
-    assert.equal(roundDistance(2700), '2 and a half kilometres');
+    assert.equal(roundDistance(1118), '1.1 kilometres');
+    assert.equal(roundDistance(1700), '1.7 kilometres');
+    assert.equal(roundDistance(2700), '2.7 kilometres');
     assert.equal(nearDistance(2), 'about 2 metres');
   } finally { setUnits('miles'); }
 });
@@ -57,7 +57,7 @@ test('steps: use the walker\'s step length, round simply, and give way to miles 
     assert.equal(roundDistance(40), '60 steps'); // 57 steps
     assert.equal(roundDistance(100), '150 steps'); // 143 steps
     assert.equal(roundDistance(400), '600 steps'); // 571 steps
-    assert.equal(roundDistance(1118), 'three quarters of a mile', 'nobody counts 1600 steps');
+    assert.equal(roundDistance(1118), '0.7 miles', 'nobody counts 1600 steps');
     assert.equal(nearDistance(1), 'very close');
     assert.equal(nearDistance(2), 'about 3 steps');
     assert.equal(roundMetres(40), '60 steps', 'navigation uses the same setting');
@@ -197,7 +197,7 @@ test('take me home: a saved place goes straight to distance and yes/no, then sta
   const nav = { getPosition: async () => ({ lat: 51, lon: -2 }), plan: async () => route, begin: (...a) => { began = a; }, active: false };
   const d = new Dialogue({ say: (t) => said.push(t), nav });
   await d.navigateToSaved({ name: 'home', lat: 51.01, lon: -2 });
-  assert.match(said.at(-1), /^your home\. half a mile, about 10 minutes\. Shall I start\? Say yes or no\.$/i);
+  assert.match(said.at(-1), /^your home\. 0\.5 miles, about 10 minutes\. Shall I start\? Say yes or no\.$/i);
   assert.equal(d.answer('yes'), true);
   assert.equal(began[1].name, 'your home');
   assert.equal(began[1].lat, 51.01);
