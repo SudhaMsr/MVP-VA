@@ -80,19 +80,16 @@ test('missing audio or vibration support never throws', () => {
 });
 
 // ---- hush ----
-test('hush drops routine speech but keeps turn prompts, urgent alerts and queued status messages', () => {
-  const spoken = []; let last; let cancelled = 0;
-  const synth = { speak: (u) => { last = u; spoken.push(u.text); }, cancel: () => { cancelled++; } };
+test('hush drops routine speech and stops what is playing, but keeps turn prompts and status messages queued', () => {
+  const spoken = []; let cancelled = 0;
+  const synth = { speak: (u) => { spoken.push(u.text); }, cancel: () => { cancelled++; } };
   const sp = new Speaker(synth, function (t) { this.text = t; }, { setTimer: () => 0, clearTimer: () => {} });
   sp.speak('Person, ahead, about 3 metres.', 'normal'); // playing
   sp.speak('Bin, left, close.', 'normal'); sp.speak('Turn left now.', 'nav'); sp.speak('Route summary.', 'status');
   sp.hush();
-  assert.equal(cancelled, 1, 'routine alert in progress stopped');
-  assert.equal(sp.current.text, 'Turn left now.', 'the turn prompt is the one playing');
-  assert.deepEqual(sp.queue.map((q) => q.text), ['Route summary.'], 'routine alert dropped, status kept');
-  sp.speak('Another routine alert.', 'normal'); sp.hush();
-  assert.equal(sp.current.text, 'Turn left now.', 'hush never cuts off a turn prompt');
-  assert.deepEqual(sp.queue.map((q) => q.text), ['Route summary.']);
+  assert.ok(cancelled >= 1, 'speech stopped');
+  assert.equal(sp.current, null, 'nothing is playing after Talk is tapped');
+  assert.deepEqual(sp.queue.map((q) => q.text), ['Turn left now.', 'Route summary.'], 'routine dropped, the rest kept in order');
 });
 
 // ---- reassurance ----

@@ -436,6 +436,7 @@ async function start() {
 }
 
 function stopInternal() {
+  speaker.hold(false);
   state.running = false;
   state.starting = false;
   if (state.timer) clearTimeout(state.timer);
@@ -473,6 +474,7 @@ function talk() {
   if (!state.running) { start(); return; }
   cues.unlock();
   speaker.hush();
+  speaker.hold(true);
   state.talkUntil = performance.now() + TALK_WINDOW_MS;
   state.talkHeard = false;
   cues.play('listen');
@@ -480,6 +482,7 @@ function talk() {
   setStatus('Listening');
   clearTimeout(talkTimer);
   talkTimer = setTimeout(() => {
+    speaker.hold(false);
     if (!state.talkHeard && state.running) { cues.play('huh'); setStatus('Running'); logEvent('talk-timeout', ''); }
   }, TALK_WINDOW_MS);
   logEvent('talk', '');
@@ -638,7 +641,7 @@ function handleTranscript(text) {
   logEvent('heard', text);
   const inTalk = performance.now() < state.talkUntil;
   if (!inTalk && isEcho(text)) { logEvent('ignored-echo', text); return; } // we hushed the app, so nothing we said is an echo
-  if (inTalk) { state.talkHeard = true; state.talkUntil = 0; clearTimeout(talkTimer); if (state.running) setStatus('Running'); }
+  if (inTalk) { speaker.hold(false); state.talkHeard = true; state.talkUntil = 0; clearTimeout(talkTimer); if (state.running) setStatus('Running'); }
   if (dialogue.answer(text)) { cues.play('ok'); return; } // an answer to a question we asked
   const cmd = parseCommand(text);
   if (cmd.type) cues.play('ok'); else if (inTalk) cues.play('huh');
