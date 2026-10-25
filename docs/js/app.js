@@ -13,7 +13,8 @@ import { BatteryWatch } from './battery.js';
 import { Speaker } from './speech.js';
 import { parseCommand, HELP_TEXT } from './commands.js';
 import { Navigator, makeProviders, locationMessage } from './nav.js';
-import { Dialogue } from './dialogue.js';
+import { looksLikeEcho, isBargeIn } from './barge.js';
+import { Dialogue, parseAnswer } from './dialogue.js';
 import { recogniseText, readingSpeech } from './reader.js';
 
 const params = new URLSearchParams(location.search);
@@ -645,17 +646,34 @@ document.addEventListener('visibilitychange', () => {
 // after (recognition results arrive about a second late), and only if every word was in what we said.
 // A real command said after that window always goes through, including "stop" during alerts.
 function isEcho(text) {
-  const words = text.toLowerCase().replace(/[^a-z ]/g, ' ').split(/\s+/).filter(Boolean);
-  if (!words.length) return true;
   const recent = speaker.busy() || Date.now() - speaker.lastEnd < 1200;
   if (!recent) return false;
-  return spokenHistory.slice(-3).some((h) => words.every((w) => h.text.includes(w)));
+  return looksLikeEcho(text, spokenHistory.map((h) => h.text));
+}
+
+// The walker starts talking over the app: stop speaking and listen (like tapping Talk), without waiting for them to finish.
+function bargeIn(text) {
+  if (!state.running || performance.now() < state.talkUntil) return;
+  const cur = speaker.current;
+  if (!cur || cur.kind === 'urgent') return; // only interrupt when we are speaking, and never a danger warning
+  const answering = dialogue.waiting && parseAnswer(text).type;
+  const isCommand = !!parseCommand(text).type;
+  if (!isBargeIn(text, spokenHistory.map((h) => h.text), { isAnswer: !!answering, isCommand })) return;
+  logEvent('barge-in', text);
+  if (dialogue.waiting) speaker.skip(); else speaker.hush(); // an answer means stop reading the question; otherwise say it again later
+  speaker.hold(true);
+  state.talkUntil = performance.now() + TALK_WINDOW_MS;
+  state.talkHeard = false;
+  clearTimeout(talkTimer);
+  talkTimer = setTimeout(() => { speaker.hold(false); }, TALK_WINDOW_MS);
 }
 
 function handleTranscript(text) {
   logEvent('heard', text);
   const inTalk = performance.now() < state.talkUntil;
-  if (!inTalk && isEcho(text)) { logEvent('ignored-echo', text); return; } // we hushed the app, so nothing we said is an echo
+  const answering = dialogue.waiting && !!parseAnswer(text).type; // an answer to our question always counts, even over our own voice
+  if (!inTalk && !answering && isEcho(text)) { logEvent('ignored-echo', text); return; }
+  if (answering) speaker.skip(); // stop reading the question out
   if (inTalk) { setTimeout(() => speaker.hold(false), 150); /* after the command's own reply is queued, so the answer comes first */ state.talkHeard = true; state.talkUntil = 0; clearTimeout(talkTimer); if (state.running) setStatus('Running'); }
   if (dialogue.answer(text)) { cues.play('ok'); return; } // an answer to a question we asked
   const cmd = parseCommand(text);
@@ -693,11 +711,12 @@ function startListening() {
   if (state.listening) return;
   recognition = new SR();
   recognition.continuous = true;
-  recognition.interimResults = false;
+  recognition.interimResults = true; // partial text lets us stop speaking as soon as the walker starts to talk
   recognition.lang = CONFIG.speechLang;
   recognition.onresult = (e) => {
     for (let i = e.resultIndex; i < e.results.length; i++) {
-      if (e.results[i].isFinal) handleTranscript(e.results[i][0].transcript);
+      const t = e.results[i][0].transcript;
+      if (e.results[i].isFinal) handleTranscript(t); else bargeIn(t);
     }
   };
   recognition.onerror = (e) => {

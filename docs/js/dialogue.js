@@ -4,6 +4,7 @@ import { roundMetres, minutesText, locationMessage } from './nav.js';
 
 const YES = /^(yes|yeah|yep|yup|ok|okay|sure|go|go ahead|start|start now|correct|that is right|that's right|do it|please do)$/;
 const NO = /^(no|nope|nah|cancel|stop|do not|don't|never mind|nevermind|wrong|not that one)$/;
+const REPEAT = /^(repeat|repeat that|say that again|say again|again|what|pardon|sorry)$/;
 const NUMBERS = { one: 1, first: 1, '1': 1, two: 2, second: 2, '2': 2, three: 3, third: 3, '3': 3 };
 
 export function parseAnswer(raw) {
@@ -11,6 +12,7 @@ export function parseAnswer(raw) {
   const t = raw.toLowerCase().replace(/[.,!?;:]/g, ' ').replace(/\b(please|thanks|thank you)\b/g, ' ').replace(/\s+/g, ' ').trim();
   if (YES.test(t)) return { type: 'yes' };
   if (NO.test(t)) return { type: 'no' };
+  if (REPEAT.test(t)) return { type: 'repeat' };
   const m = t.match(/^(?:number |option |the )?(one|two|three|first|second|third|1|2|3)(?: one)?$/);
   if (m) return { type: 'choice', n: NUMBERS[m[1]] };
   return { type: null };
@@ -20,13 +22,28 @@ export function parseAnswer(raw) {
 const UK_POSTCODE = /\b([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\b/i;
 const postcodeOf = (text) => { const m = String(text || '').match(UK_POSTCODE); return m ? (m[1] + m[2]).toUpperCase() : null; };
 
+// "PureGym, Bond Street": the name and the first part of the address that is not the name. The full address is too long to listen to.
+export function shortName(r) {
+  const seen = new Set();
+  const parts = [...String(r.name || '').split(','), ...String(r.address || '').split(',')].map((x) => x.replace(/\b[A-Z]{1,2}\d[A-Z\d]?\s*\d[A-Z]{2}\b/i, '').trim()).filter((x, i) => {
+    const k = x.toLowerCase();
+    if (!x || seen.has(k) || (i > 0 && (/^\d/.test(x) || /^[A-Z]{1,2}\d/.test(x)))) return false;
+    seen.add(k); return true;
+  });
+  return parts.slice(0, 2).join(', ');
+}
+
 export class Dialogue {
-  constructor({ say, nav, places = null, onPrompt = () => {}, timeoutMs = 40000 }) {
-    Object.assign(this, { say, nav, places, onPrompt, timeoutMs });
+  constructor({ say, nav, places = null, onPrompt = () => {}, timeoutMs = 40000, chooseTimeoutMs = 75000 }) {
+    Object.assign(this, { say, nav, places, onPrompt, timeoutMs, chooseTimeoutMs });
+    this.lastAsk = '';
     this.state = 'idle'; // idle | choose | confirm | savecheck
     this.misses = 0;
     this.timer = null;
   }
+
+  // Say a question, and remember it so "repeat" can ask it again.
+  _ask(text) { this.lastAsk = text; this.say(text, 'status'); }
 
   get waiting() { return this.state !== 'idle'; }
 
@@ -35,7 +52,7 @@ export class Dialogue {
     clearTimeout(this.timer);
     if (state === 'idle') { this.pending = null; this.onPrompt(null); return; }
     this.onPrompt(options);
-    this.timer = setTimeout(() => { this.say('I will cancel that. Say navigate to, and a place, to start again.', 'status'); this._set('idle'); }, this.timeoutMs);
+    this.timer = setTimeout(() => { this.say('I will cancel that. Say navigate to, and a place, to start again.', 'status'); this._set('idle'); }, state === 'choose' ? this.chooseTimeoutMs : this.timeoutMs);
   }
 
   async navigateTo(query) {
@@ -49,8 +66,8 @@ export class Dialogue {
     const results = found.results.filter((r) => { const k = r.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
     if (results.length === 1) return this._preview(pos, results[0]);
     this.pending = { pos, results };
-    const spoken = results.map((r, i) => `${['One', 'Two', 'Three'][i]}, ${r.name}.`).join(' ');
-    this.say(`I found ${results.length} places. ${spoken} Which one? Say one, two or three. Or say cancel.`, 'status');
+    const spoken = results.map((r, i) => `${['One', 'Two', 'Three'][i]}, ${shortName(r)}.`).join(' ');
+    this._ask(`I found ${results.length} places. ${spoken} Say one, two or three.`);
     this._set('choose', results.map((r, i) => ({ label: `${i + 1}. ${r.name}`, value: String(i + 1) })));
     this.pending = { pos, results };
   }
@@ -70,7 +87,7 @@ export class Dialogue {
     const asked = postcodeOf(address), got = postcodeOf(found);
     const warn = asked && got && asked !== got ? ' That is in a different postcode from the one you gave, so please check it.'
       : asked && !got ? ' I could not check the postcode.' : '';
-    this.say(`I found ${found}.${warn} Save it as ${name}? Say yes or no.`, 'status');
+    this._ask(`I found ${found}.${warn} Save it as ${name}? Say yes or no.`);
     this._set('savecheck', [{ label: 'Yes, save it', value: 'yes' }, { label: 'No', value: 'no' }]);
     this.pending = { name, dest, found };
   }
@@ -83,14 +100,14 @@ export class Dialogue {
     return this._preview(pos, { lat: place.lat, lon: place.lon, large: false, name: `your ${place.name}` });
   }
 
-  async _preview(pos, dest) {
+  async _preview(pos, dest, lead = '') {
     const route = await this.nav.plan(pos, dest);
     if (!route) { if (!this.nav.active) this.say('I could not find a walking route there.', 'status'); return this._set('idle'); }
     if (!(route.distance >= 25)) { this.say(`You are already at ${dest.name}, or very close to it.`, 'status'); return this._set('idle'); }
     const stairs = route.steps.some((s) => /stairs|steps/i.test(s.text || ''));
-    this.say(`${dest.name}. ${roundMetres(route.distance)}, ${minutesText(route.duration)}.` +
+    this._ask(`${lead}${dest.name}. ${roundMetres(route.distance)}, ${minutesText(route.duration)}.` +
       `${dest.large ? ' This is a large site, so I would head for its middle.' : ''}` +
-      `${stairs ? ' The route includes stairs.' : ''} Shall I start? Say yes or no.`, 'status');
+      `${stairs ? ' The route includes stairs.' : ''} Shall I start? Say yes or no.`);
     this._set('confirm', [{ label: 'Yes, start', value: 'yes' }, { label: 'No', value: 'no' }]);
     this.pending = { pos, dest, route };
   }
@@ -99,6 +116,7 @@ export class Dialogue {
   answer(text) {
     if (!this.waiting) return false;
     const a = parseAnswer(text);
+    if (a.type === 'repeat' && this.lastAsk) { this.say(this.lastAsk, 'status'); return true; }
     if (this.state === 'savecheck') {
       if (a.type === 'yes') {
         const { name, dest, found } = this.pending; this._set('idle');
@@ -119,7 +137,7 @@ export class Dialogue {
     if (this.state === 'choose' && a.type === 'choice') {
       const { pos, results } = this.pending;
       const dest = results[a.n - 1];
-      if (dest) { this._set('idle'); this._preview(pos, dest); return true; }
+      if (dest) { this._set('idle'); this._preview(pos, dest, `Number ${a.n}. `); return true; }
     }
     if (this.state === 'choose' && a.type === 'yes') { this.say('Which one? Say one, two or three.', 'status'); return true; }
     if (!a.type) return this._miss();
@@ -129,7 +147,7 @@ export class Dialogue {
   _miss() {
     this.misses += 1;
     if (this.misses >= 2) { this.say('I did not catch that, so I have cancelled. Say navigate to, and a place, to try again.', 'status'); this._set('idle'); return true; }
-    this.say(this.state === 'confirm' || this.state === 'savecheck' ? 'Please say yes or no.' : 'Please say one, two or three.', 'status');
+    this.say(this.state === 'confirm' || this.state === 'savecheck' ? 'Please say yes or no.' : 'Please say one, two or three. Or say repeat.', 'status');
     return true;
   }
 

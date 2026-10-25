@@ -85,6 +85,14 @@ export class Speaker {
     }
   }
 
+  // The walker answered a question the app was still asking: stop reading it out and do not come back to it.
+  // Turn prompts and urgent warnings are kept.
+  skip() {
+    this.queue = this.queue.filter((q) => q.kind !== 'normal' && q.kind !== 'status');
+    if (this.current && this.current.kind !== 'urgent' && this.current.kind !== 'nav') this._cancelCurrent();
+    this._pump();
+  }
+
   // While held, only urgent warnings are spoken; the rest wait in the queue. Release when listening ends.
   hold(on) {
     this.held = !!on;
