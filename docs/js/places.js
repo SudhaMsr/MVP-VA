@@ -55,12 +55,12 @@ export class PlaceStore {
     try { if (this.storage) { this.storage.setItem(this.key, JSON.stringify(all)); return true; } } catch (_) { /* kept in memory for this visit */ }
     return false; // not stored on the phone: only remembered until the page is closed
   }
-  save(rawName, pos) {
+  save(rawName, pos, extra = {}) {
     const name = normaliseName(rawName);
     if (!name) return null;
     const all = this._load();
     const replaced = !!all[name];
-    all[name] = { name, lat: pos.lat, lon: pos.lon, savedAt: Date.now() };
+    all[name] = { name, lat: pos.lat, lon: pos.lon, ...extra, savedAt: Date.now() };
     const persisted = this._save(all);
     return { name, replaced, persisted };
   }

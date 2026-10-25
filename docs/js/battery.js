@@ -26,8 +26,7 @@ export class BatteryWatch {
     const check = () => this._check();
     this.battery.addEventListener('levelchange', check);
     this.battery.addEventListener('chargingchange', check);
-    this.log(this.battery.level, this.battery.charging);
-    // Starting low is worth saying straight away (once).
+    // Starting low is worth saying straight away (once). _check also logs the level.
     this._check();
     return true;
   }
@@ -43,7 +42,7 @@ export class BatteryWatch {
     const lowest = Math.min(...reached);
     if (this.announced.has(lowest)) return;
     for (const s of reached) this.announced.add(s);
-    this.say(batteryText(b.level, false), lowest <= 5 ? 'nav' : 'status');
+    this.say(batteryText(b.level, false), 'status'); // in order: a 5 percent warning must never overtake the 10 percent one
   }
 
   // For "what is my battery".

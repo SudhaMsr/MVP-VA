@@ -6,7 +6,7 @@ import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
 import { AlertEngine, LEVELS } from './alerts.js';
 import { Cues } from './cues.js';
-import { getUnits, setUnits, STEP_METRES } from './units.js';
+import { getUnits, setUnits, getStep, setStep, stepCm, UNIT_MODES } from './units.js';
 import { describeScene, NO_CAMERA } from './describe.js';
 import { reverseLookup, describePlace, PlaceStore, normaliseName } from './places.js';
 import { BatteryWatch } from './battery.js';
@@ -20,15 +20,15 @@ const params = new URLSearchParams(location.search);
 const SIZE = params.get('size') === '416' ? 416 : CONFIG.inputSize;
 const MODEL_KEY = MODELS[params.get('model')] ? params.get('model') : DEFAULT_MODEL;
 const MODEL = MODELS[MODEL_KEY];
-const DEBUG = params.has('debug');
-const RECORD = params.has('record'); // supervisor option: record raw video + per-frame detections for review
+let DEBUG = params.has('debug'); // supervisor: show the camera view and boxes. ?debug still works, but there is a switch in More options
+let RECORD = params.has('record'); // supervisor: record raw video + per-frame detections for review (switch in More options too)
 const EP = params.get('ep') || 'wasm';
 
 const $ = (id) => document.getElementById(id);
 const el = {
   start: $('startBtn'), stop: $('stopBtn'), repeat: $('repeatBtn'), mic: $('micBtn'),
   status: $('status'), last: $('lastAlert'), stats: $('stats'), video: $('video'), overlay: $('overlay'),
-  dl: $('logBtn'), saveRec: $('saveRecBtn'), level: $('levelBtn'), tap: $('tapBtn'), units: $('unitsBtn'),
+  dl: $('logBtn'), saveRec: $('saveRecBtn'), level: $('levelBtn'), tap: $('tapBtn'), units: $('unitsBtn'), step: $('stepBtn'), dbg: $('debugBtn'), rec: $('recordBtn'),
 };
 
 const FULL_DISCLAIMER =
@@ -80,8 +80,10 @@ function say(text, kind = 'status') {
   speaker.speak(text, kind);
 }
 
+let lastTraceAt = 0;
 const navigator_ = new Navigator({
   say: (t, k) => say(t, k),
+  trace: (f) => { const n = Date.now(); if (n - lastTraceAt < 3000) return; lastTraceAt = n; logEvent('fix', JSON.stringify(f)); },
   providers: makeProviders({
     googleKey: new URLSearchParams(location.search).get('maps') === 'osm' ? '' : GOOGLE_KEY,
     onFallback: (what, e) => session.events.push({ t: Date.now(), kind: 'nav-fallback', text: `${what}: ${e && e.message}` }),
@@ -104,6 +106,7 @@ const answerRow = document.getElementById('answerRow');
 const dialogue = new Dialogue({
   say: (t, k) => say(t, k),
   nav: navigator_,
+  places,
   onPrompt: (options) => {
     answerRow.textContent = '';
     answerRow.hidden = !options;
@@ -120,6 +123,8 @@ document.getElementById('navForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const q = document.getElementById('navInput').value.trim();
   if (!q) { say('Type or say where you want to go.', 'status'); return; }
+  const typed = parseCommand(q);
+  if (typed.type === 'saveAddress') { dialogue.saveAddress(typed.name, typed.arg); return; }
   const saved = places.get(q);
   if (saved) dialogue.navigateToSaved(saved); else navigator_.start(q);
 });
@@ -366,6 +371,7 @@ function sessionBlob() {
 
 // ---------- health checks ----------
 setInterval(() => {
+  navigator_.tick(); // speaks if location updates stop, even when the camera side is not running
   if (!state.running) return;
   const now = performance.now();
   if (now - state.lastFrameOk > 5000 && now - state.lastWarnAt > 10000) {
@@ -541,11 +547,45 @@ function goTo(query) {
   dialogue.navigateTo(query);
 }
 
+const UNIT_SAY = {
+  miles: 'Okay, distances in yards and miles.',
+  metres: 'Okay, distances in metres.',
+};
 function changeUnits(mode, speak = true) {
   setUnits(mode);
   el.units.textContent = `Distances in: ${getUnits()}`;
   try { localStorage.setItem('va.units', getUnits()); } catch (_) { /* storage can be unavailable */ }
-  if (speak) say(getUnits() === 'steps' ? `Okay, distances in steps. One step is about ${Math.round(STEP_METRES * 100)} centimetres, so they are approximate.` : 'Okay, distances in metres.', 'status');
+  if (!speak) return;
+  say(getUnits() === 'steps'
+    ? `Okay, distances in steps. One step is about ${stepCm()} centimetres, so they are approximate. Say my step is, and a length, to change that.`
+    : UNIT_SAY[getUnits()], 'status');
+}
+
+// "my step is 60 centimetres", "my steps are shorter", or the Step length button (cycles 50 to 90 cm).
+function changeStep(arg, speak = true) {
+  const target = arg === 'shorter' ? getStep() - 0.05 : arg === 'longer' ? getStep() + 0.05 : arg;
+  if (setStep(target) == null) { say('That does not sound like a step. Try a length between 30 and 120 centimetres, or 1 to 4 feet.', 'status'); return; }
+  el.step.textContent = `Step length: ${stepCm()} cm`;
+  try { localStorage.setItem('va.step', String(getStep())); } catch (_) { /* storage can be unavailable */ }
+  if (speak) say(`Okay. One step is about ${stepCm()} centimetres.${getUnits() === 'steps' ? '' : ' Say use steps to hear distances in steps.'}`, 'status');
+}
+function cycleStep() { const next = [50, 60, 70, 80, 90].find((c) => c > stepCm()) ?? 50; changeStep(next / 100); }
+
+// Supervisor switches (one address for everyone: no need for ?debug or ?record in the web address).
+function setCameraView(on, speak = true) {
+  DEBUG = on;
+  document.body.classList.toggle('debug', on);
+  el.dbg.setAttribute('aria-pressed', String(on));
+  el.dbg.textContent = `Camera view: ${on ? 'on' : 'off'}`;
+  if (!on) { try { const c = el.overlay; c.getContext('2d').clearRect(0, 0, c.width, c.height); } catch (_) { /* ignore */ } }
+  if (speak) say(on ? 'Camera view on.' : 'Camera view off.', 'status');
+}
+function setRecording(on, speak = true) {
+  RECORD = on;
+  el.rec.setAttribute('aria-pressed', String(on));
+  el.rec.textContent = `Record session: ${on ? 'on' : 'off'}`;
+  el.saveRec.hidden = !on;
+  if (speak) say(on ? (state.running ? 'Recording is on. It starts the next time you tap start.' : 'Recording is on. It starts when you tap start.') : 'Recording is off.', 'status');
 }
 
 const battery = new BatteryWatch({
@@ -607,6 +647,8 @@ function handleTranscript(text) {
     case 'whereami': whereAmI(); break;
     case 'save': savePlace(cmd.arg); break;
     case 'units': changeUnits(cmd.arg); break;
+    case 'stepLength': changeStep(cmd.arg); break;
+    case 'saveAddress': dialogue.saveAddress(cmd.name, cmd.arg); break;
     case 'battery': say(battery.ask(), 'status'); if (!batteryStarted) startBatteryWatch(); break;
     case 'level':
       if (cmd.arg === 'less') stepLevel(-1); else if (cmd.arg === 'more') stepLevel(1); else setLevel(cmd.arg, true, false);
@@ -673,7 +715,10 @@ function updateMic() {
 
 // ---------- buttons ----------
 el.start.addEventListener('click', () => { cues.unlock(); if (state.running) talk(); else start(); });
-el.units.addEventListener('click', () => changeUnits(getUnits() === 'metres' ? 'steps' : 'metres'));
+el.units.addEventListener('click', () => changeUnits(UNIT_MODES[(UNIT_MODES.indexOf(getUnits()) + 1) % UNIT_MODES.length]));
+el.step.addEventListener('click', cycleStep);
+el.dbg.addEventListener('click', () => setCameraView(!DEBUG));
+el.rec.addEventListener('click', () => setRecording(!RECORD));
 el.level.addEventListener('click', () => setLevel(LEVELS[(LEVELS.indexOf(engine.level) + 1) % LEVELS.length]));
 el.tap.addEventListener('click', () => {
   state.tapToTalk = !state.tapToTalk;
@@ -709,17 +754,19 @@ el.saveRec.addEventListener('click', () => {
   setTimeout(() => download(sessionBlob(), `vision-assist-log-${stamp}.json`), 1000);
   say('Saving the video and the log.', 'status');
 });
-el.saveRec.hidden = !RECORD;
+setRecording(RECORD, false);
 
-if (DEBUG) document.body.classList.add('debug');
+setCameraView(DEBUG, false);
 try {
   const lv = localStorage.getItem('va.level'); if (LEVELS.includes(lv)) engine.setLevel(lv);
-  const un = localStorage.getItem('va.units'); if (un) setUnits(un);
+  const un = localStorage.getItem('va.units'); if (UNIT_MODES.includes(un)) setUnits(un);
+  const st = parseFloat(localStorage.getItem('va.step')); if (st) setStep(st);
   if (localStorage.getItem('va.tap') === '0') { state.tapToTalk = false; el.tap.setAttribute('aria-pressed', 'false'); el.tap.textContent = 'Tap anywhere to talk: off'; }
 } catch (_) { /* storage can be unavailable */ }
 el.level.textContent = `How much I say: ${engine.level}`;
 el.units.textContent = `Distances in: ${getUnits()}`;
+el.step.textContent = `Step length: ${stepCm()} cm`;
 updateMain();
 updateMic();
-window.__va = { state, speaker, session, tracker, engine, cues, places, battery, start, stop, talk, setLevel, describeNow, whereAmI, savePlace, changeUnits,
+window.__va = { state, speaker, session, tracker, engine, cues, places, battery, start, stop, talk, setLevel, describeNow, whereAmI, savePlace, changeUnits, changeStep, setCameraView, setRecording, dialogue,
   rec: () => ({ size: recBlob ? recBlob.size : null, mime: recMime, frames: frameLog.length }) };

@@ -16,10 +16,14 @@ export function parseAnswer(raw) {
   return { type: null };
 }
 
+// UK postcode, e.g. "BS16 3EE" or "bs163ee": used to catch a mis-heard postcode before an address is saved.
+const UK_POSTCODE = /\b([A-Z]{1,2}\d[A-Z\d]?)\s*(\d[A-Z]{2})\b/i;
+const postcodeOf = (text) => { const m = String(text || '').match(UK_POSTCODE); return m ? (m[1] + m[2]).toUpperCase() : null; };
+
 export class Dialogue {
-  constructor({ say, nav, onPrompt = () => {}, timeoutMs = 25000 }) {
-    Object.assign(this, { say, nav, onPrompt, timeoutMs });
-    this.state = 'idle'; // idle | choose | confirm
+  constructor({ say, nav, places = null, onPrompt = () => {}, timeoutMs = 40000 }) {
+    Object.assign(this, { say, nav, places, onPrompt, timeoutMs });
+    this.state = 'idle'; // idle | choose | confirm | savecheck
     this.misses = 0;
     this.timer = null;
   }
@@ -51,6 +55,26 @@ export class Dialogue {
     this.pending = { pos, results };
   }
 
+  // "Save my home address as ...": look the address up, read back what was found, and save it only after a yes.
+  // The walker cannot see a map, so the read-back (and a postcode check) is their only chance to catch a wrong match.
+  async saveAddress(name, address) {
+    this._set('idle');
+    if (!this.places) return;
+    this.say(`Looking for ${address}.`, 'status');
+    let pos = null;
+    try { pos = await Promise.race([this.nav.getPosition(), new Promise((r) => setTimeout(() => r(null), 3000))]); } catch { /* the bias is optional */ }
+    let dest;
+    try { dest = await this.nav.lookup(address, pos); } catch { this.say('I could not look that address up. Check your internet connection and try again.', 'status'); return; }
+    if (!dest) { this.say(`I could not find ${address}. Try again with the street, the number and the postcode.`, 'status'); return; }
+    const found = (dest.address || dest.name || '').replace(/,\s*(UK|United Kingdom)$/i, '');
+    const asked = postcodeOf(address), got = postcodeOf(found);
+    const warn = asked && got && asked !== got ? ' That is in a different postcode from the one you gave, so please check it.'
+      : asked && !got ? ' I could not check the postcode.' : '';
+    this.say(`I found ${found}.${warn} Save it as ${name}? Say yes or no.`, 'status');
+    this._set('savecheck', [{ label: 'Yes, save it', value: 'yes' }, { label: 'No', value: 'no' }]);
+    this.pending = { name, dest, found };
+  }
+
   // A place the walker saved earlier ("take me home"): no search, go straight to the distance and the yes/no.
   async navigateToSaved(place) {
     this._set('idle');
@@ -74,6 +98,17 @@ export class Dialogue {
   answer(text) {
     if (!this.waiting) return false;
     const a = parseAnswer(text);
+    if (this.state === 'savecheck') {
+      if (a.type === 'yes') {
+        const { name, dest, found } = this.pending; this._set('idle');
+        const r = this.places.save(name, { lat: dest.lat, lon: dest.lon }, { address: found });
+        this.say(`Saved as ${name}. To come back, say take me ${name === 'home' ? 'home' : `to ${name}`}.` +
+          `${r && !r.persisted ? ' I could not store it on this phone, so I will only remember it until you close the page.' : ''}`, 'status');
+        return true;
+      }
+      if (a.type === 'no') { this.say('Okay, I have not saved it. Say save my home address as, and the address, to try again.', 'status'); this._set('idle'); return true; }
+      return this._miss();
+    }
     if (a.type === 'no') { this.say('Okay, cancelled.', 'status'); this._set('idle'); return true; }
     if (this.state === 'confirm' && a.type === 'yes') {
       const { pos, dest, route } = this.pending; this._set('idle');
@@ -93,7 +128,7 @@ export class Dialogue {
   _miss() {
     this.misses += 1;
     if (this.misses >= 2) { this.say('I did not catch that, so I have cancelled. Say navigate to, and a place, to try again.', 'status'); this._set('idle'); return true; }
-    this.say(this.state === 'confirm' ? 'Please say yes or no.' : 'Please say one, two or three.', 'status');
+    this.say(this.state === 'confirm' || this.state === 'savecheck' ? 'Please say yes or no.' : 'Please say one, two or three.', 'status');
     return true;
   }
 

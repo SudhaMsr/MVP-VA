@@ -23,10 +23,11 @@
   #status { font-size:1.4rem; font-weight:700; margin: 8px 0 4px; }
   #lastAlert { font-size:1.3rem; color: var(--accent); min-height: 1.6em; margin:4px 0 12px; }
   #stats { font-size: .95rem; opacity:.85; margin-top: 8px; }
-  details#more { margin: 8px 0 12px; }
-  details#more summary { display:flex; align-items:center; justify-content:center; min-height: 72px; font-size:1.4rem; cursor:pointer; list-style:none; }
-  details#more summary::-webkit-details-marker { display:none; }
-  details#more[open] summary { margin-bottom: 12px; }
+  details { margin: 8px 0 12px; }
+  details summary { display:flex; align-items:center; justify-content:center; min-height: 72px; font-size:1.4rem; cursor:pointer; list-style:none; }
+  details summary::-webkit-details-marker { display:none; }
+  details[open] > summary { margin-bottom: 12px; }
+  details details summary { min-height: 56px; font-size: 1.1rem; }
   .row { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   .row button { margin:0 0 12px; font-size:1.3rem; }
   .preview { position:relative; margin-top: 12px; aspect-ratio: 4 / 3; overflow:hidden; border-radius:12px; background:#111; }
@@ -55,7 +56,8 @@
     </div>
     <button id="micBtn" type="button" aria-label="Voice commands" aria-pressed="false">Voice commands off</button>
     <button id="tapBtn" type="button" aria-label="Tap anywhere to talk" aria-pressed="true">Tap anywhere to talk: on</button>
-    <button id="unitsBtn" type="button" aria-label="Distances in metres or steps. Tap to change.">Distances in: metres</button>
+    <button id="unitsBtn" type="button" aria-label="Distances in miles, metres or steps. Tap to change.">Distances in: miles</button>
+    <button id="stepBtn" type="button" aria-label="Your step length, used when distances are in steps. Tap to change.">Step length: 70 cm</button>
     <button id="readBtn" hidden type="button" aria-label="Read the text in front of the camera aloud">Read</button>
 
     <form id="navForm" style="margin:0 0 12px">
@@ -67,8 +69,13 @@
       </div>
     </form>
 
-    <button id="saveRecBtn" type="button" hidden disabled aria-label="Save the recording and log" style="min-height:64px;font-size:1.1rem">Save recording</button>
-    <button id="logBtn" type="button" aria-label="Save session log" style="min-height:56px;font-size:1rem">Save session log</button>
+    <details id="sup">
+      <summary>Supervisor tools</summary>
+      <button id="debugBtn" type="button" aria-pressed="false">Camera view: off</button>
+      <button id="recordBtn" type="button" aria-pressed="false">Record session: off</button>
+      <button id="saveRecBtn" type="button" hidden disabled aria-label="Save the recording and log" style="min-height:64px;font-size:1.1rem">Save recording</button>
+      <button id="logBtn" type="button" aria-label="Save session log" style="min-height:56px;font-size:1rem">Save session log</button>
+    </details>
   </details>
 
   <p id="stats" aria-hidden="true"></p>

@@ -14,8 +14,9 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
 - **Ask the app:**
   - "What is in front of me?" describes what the camera sees now, by side and distance, and says plainly when it sees nothing it recognises.
   - "Where am I?" says the street and area (free OpenStreetMap lookup).
-  - "Save this place as home", then "take me home" (or any name). Places are kept on the phone.
-  - "Use steps" / "use metres" changes every spoken distance (one step is taken as 0.7 m, so step counts are approximate).
+  - "Save this place as home" (uses where you are now), or "save my home address as 25 Lakeside BS16 3EE" (the app reads back what it found and asks yes or no; it warns if the postcode differs). Then "take me home" (or any name). Places are kept on the phone only, never in the code.
+  - Distances are in **miles by default** ("50 yards", "a quarter of a mile"). Say "use metres" or "use steps", or tap the units button in More options. Steps: one step is taken as 70 cm; say "my step is 60 centimetres" or tap the step button to change it. Step counts are approximate.
+  - Distances and times are rounded on purpose ("about 8 minutes", "three quarters of a mile") so they are easy to take in.
   - "Battery" tells the charge. The app also warns once at 20, 10 and 5 percent while not charging, and logs battery level in the session log.
 - Voice commands: start, stop, repeat, help, plus the ones above.
 - Spoken errors: no silent failures.
@@ -36,13 +37,14 @@ Poco M2 Pro (Android, Chrome).
 ## How to try it
 The app is a web page in `docs/`, published with GitHub Pages at https://sudhamsr.github.io/MVP-VA/ (turn on once: Settings > Pages > Deploy from a branch > `main` / `docs`).
 Open it in Chrome on the phone, tap **Start**, allow camera and microphone.
-- `?debug` shows the camera view and boxes (for the supervisor).
+- One link is enough: https://sudhamsr.github.io/MVP-VA/ . Supervisor tools (camera view with boxes, recording, saving the session log) are under More options > Supervisor tools. The `?debug` and `?debug&record` links still work and just switch those on at start.
+- `coi-sw.js` is a helper file for the optional speed experiment (`?mt=1`). It is not a page; ignore it.
 - `?size=416` uses the larger fast-lane model (slower, sees smaller things).
 - `?lane=off` turns the stairs/manhole lane off (for speed tests). `?model=rod` runs the ROD model alone.
 - The line "Speed check" on screen shows frame time on the phone. Send it to the developer.
 
 ## Recording a test session (supervisor)
-Open `https://sudhamsr.github.io/MVP-VA/?debug&record`, tap **Start**, do the walk, say or tap **Stop**, then tap **Save recording**.
+Open the app, then More options > Supervisor tools > turn on **Record session** (or open `…/?debug&record`), tap **Start**, do the walk, say or tap **Stop**, then tap **Save recording**.
 Two files download: the raw camera video and a log of what the app saw, said and how fast it ran. Send both to the developer.
 Collect training frames: `python3 tools/extract_frames.py frames VIDEO... --every 15`. Training recipe: `tools/train_steps_colab.py`.
 Offline review: `python3 tools/analyze_session.py VIDEO LOG.json` replays the video through both models and writes `analysis/summary.txt` and `analysis/annotated.mp4`.
@@ -63,3 +65,9 @@ Built: two-lane hazard detection, calm spoken alerts, spoken walking navigation 
 
 ## Security
 Never commit API keys or service-account files. Use environment variables.
+
+## Privacy note
+The session log now includes location fixes (about every 3 seconds while navigating) so walks can be reviewed. Treat saved logs as personal data and delete them after review. Saved places stay in the phone's own storage.
+
+## Navigation trust
+Route data comes from Google (checked: spoken distances match Google's own figures). Position is the phone's raw GPS, so it can be 10 to 50 m out. The app says when the signal is weak or has stopped, ignores very imprecise fixes, and tolerates more drift before calling "off route". The voice wizard waits 40 seconds for a yes or no.
