@@ -28,42 +28,20 @@ function setup(results) {
 const A = { name: 'Tesco, Gloucester Road', lat: 1, lon: 1 };
 const B = { name: 'Tesco Express, Cheltenham Road', lat: 2, lon: 2 };
 
-test('one match: tells distance, waits for yes, then starts', async () => {
-  const { d, said, calls } = setup([A]);
-  await d.navigateTo('tesco');
-  assert.match(said.at(-1), /^Tesco, Gloucester Road\. /);
-  assert.match(said.at(-1), /Shall I start\?/);
-  assert.equal(calls.length, 0);
-  assert.equal(d.answer('yes'), true);
-  assert.equal(calls.length, 1);
-  assert.equal(calls[0][1].name, A.name);
-  assert.equal(d.waiting, false);
-});
-
-test('several matches: asks which, then confirms the chosen one', async () => {
+test('goes straight to the best match, with no questions', async () => {
   const { d, said, calls } = setup([A, B]);
   await d.navigateTo('tesco');
-  assert.match(said.at(-1), /I found 2 places\. One, Tesco, Gloucester Road\. Two, Tesco Express/);
-  assert.equal(d.state, 'choose');
-  d.answer('two');
-  await new Promise((r) => setTimeout(r, 5));
-  assert.match(said.at(-1), /Tesco Express, Cheltenham Road/);
-  assert.equal(d.state, 'confirm');
-  d.answer('yes');
-  assert.equal(calls[0][1].name, B.name);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1].name, A.name);
+  assert.equal(calls[0][4], false); // full start message: place, distance, time
+  assert.equal(d.waiting, false);
+  assert.doesNotMatch(said.join(' '), /Shall I start|I found \d places/);
 });
 
-test('no cancels; misheard twice cancels; timeout cancels', async () => {
-  let s = setup([A]); await s.d.navigateTo('x'); s.d.answer('no');
-  assert.equal(s.said.at(-1), 'Okay, cancelled.'); assert.equal(s.d.waiting, false);
-
-  s = setup([A]); await s.d.navigateTo('x');
-  s.d.answer('banana'); assert.equal(s.said.at(-1), 'Please say yes or no.');
-  s.d.answer('mango'); assert.match(s.said.at(-1), /cancelled/); assert.equal(s.d.waiting, false);
-
-  s = setup([A]); await s.d.navigateTo('x');
-  await new Promise((r) => setTimeout(r, 90));
-  assert.match(s.said.at(-1), /I will cancel that/); assert.equal(s.d.waiting, false);
+test('nothing is said twice when navigating', async () => {
+  const { d, said } = setup([A, B]);
+  await d.navigateTo('tesco');
+  assert.equal(new Set(said).size, said.length);
 });
 
 test('words are ignored when nothing was asked', () => {
@@ -71,17 +49,18 @@ test('words are ignored when nothing was asked', () => {
   assert.equal(d.answer('yes'), false);
 });
 
-test('duplicate names collapse to one question', async () => {
-  const { d, said } = setup([A, { ...A }]);
-  await d.navigateTo('tesco');
-  assert.match(said.at(-1), /Shall I start\?/);
-});
-
-test('stairs on the route are mentioned', async () => {
-  const s = setup([A]);
-  s.d.nav.plan = async () => ({ ...route, steps: [{ text: 'walk ahead' }, { text: 'turn right, then take the stairs' }] });
-  await s.d.navigateTo('x');
-  assert.match(s.said.at(-1), /The route includes stairs\./);
+test('stairs on the route are mentioned in the start message', async () => {
+  const { Navigator } = await import('../docs/js/nav.js');
+  const said = [];
+  const st = [
+    { distance: 400, text: 'walk ahead', maneuver: { type: 'depart', location: [0, 51] }, at: { lat: 51, lon: 0 }, path: [] },
+    { distance: 10, text: 'turn right, then take the stairs', maneuver: { type: 'turn', location: [0.003, 51] }, at: { lat: 51, lon: 0.003 }, path: [] },
+    { distance: 0, text: 'you have arrived', maneuver: { type: 'arrive', location: [0.004, 51] }, at: { lat: 51, lon: 0.004 }, path: [] },
+  ];
+  const r = { distance: 410, duration: 300, steps: st, source: 'x' };
+  const nav = new Navigator({ say: (t) => said.push(t), providers: { route: async () => r }, getPosition: async () => ({ lat: 51, lon: 0 }), watch: () => 1, unwatch: () => {} });
+  nav.begin({ lat: 51, lon: 0 }, { name: 'Cafe', lat: 51, lon: 0.004 }, r, true, false);
+  assert.match(said.at(-1), /The route includes stairs\./);
 });
 
 test('after the walker says yes, the start message is short', async () => {

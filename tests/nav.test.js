@@ -196,3 +196,11 @@ test('arrival warning says destination, not "turn"', async () => {
   t.fix(t.P(150, 100)); t.fix(t.P(150, 120)); t.fix(t.P(150, 190));
   assert.match(t.said.join(' | '), /Your destination is in \d+ metres\./);
 });
+
+test('Google search aims at the entrance nearest the walker', async () => {
+  const { googleGeocodeMany } = await import('../docs/js/nav.js');
+  const fetchFn = async () => ({ ok: true, json: async () => ({ places: [{ displayName: { text: 'University of Bristol' }, formattedAddress: 'Beacon House, Queens Rd, Bristol', location: { latitude: 51.4585, longitude: -2.6022 },
+    navigationPoints: [{ location: { latitude: 51.4590, longitude: -2.6025 } }, { location: { latitude: 51.4560, longitude: -2.6012 } }] }] }) });
+  const [r] = await googleGeocodeMany('University of Bristol', { lat: 51.4545, lon: -2.5879 }, fetchFn, 'k');
+  assert.equal(r.lat, 51.4560); assert.equal(r.entrance, true);
+});

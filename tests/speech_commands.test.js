@@ -110,3 +110,8 @@ test('read commands', async () => {
   }
   assert.notEqual(parseCommand('repeat').type, 'read');
 });
+
+test('navigate phrases keep only the place', () => {
+  for (const s of ['navigate me to university of bristol', 'can you navigate me to university of bristol please', 'guide me to university of bristol', 'how do I get to university of bristol', 'I want to go to university of bristol', 'find a route to university of bristol', 'directions to university of bristol now'])
+    assert.deepEqual(parseCommand(s), { type: 'navigate', arg: 'university of bristol' }, s);
+});

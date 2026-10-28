@@ -57,22 +57,6 @@ test('skip stops reading a question out and never comes back to it, but keeps tu
   assert.equal(f.cancelled.length, 0, 'an urgent warning is never cut off');
 });
 
-test('while choosing, "repeat" reads the list again and answering during it works', async () => {
-  const said = [];
-  const nav = { getPosition: async () => ({ lat: 51.45, lon: -2.58 }), find: async () => ({ pos: { lat: 51.45, lon: -2.58 }, results: [
-    { name: 'PureGym Bond Street', address: 'Bond Street, Bristol', lat: 51.46, lon: -2.58 }, { name: 'PureGym Broadmead', address: 'Broadmead, Bristol', lat: 51.46, lon: -2.59 }] }),
-    plan: async () => ({ distance: 600, duration: 450, steps: [] }) };
-  const dlg = new Dialogue({ say: (t) => said.push(t), nav, onPrompt: () => {} });
-  await dlg.navigateTo('puregym');
-  assert.match(said.at(-1), /^I found 2 places\. One, PureGym Bond Street, Bond Street\. Two, PureGym Broadmead, Broadmead\. Say one, two or three\.$/);
-  const list = said.at(-1);
-  assert.equal(dlg.answer('repeat'), true); assert.equal(said.at(-1), list);
-  assert.equal(dlg.answer('1'), true); await new Promise((r) => setTimeout(r, 5));
-  assert.match(said.at(-1), /^Number 1\. PureGym Bond Street\. 600 metres, about 8 minutes\. Shall I start\? Say yes or no\.$/);
-  assert.equal(dlg.answer('repeat'), true); assert.match(said.at(-1), /^Number 1\./, 'repeat works for the yes/no question too');
-  dlg.cancel();
-});
-
 import { parseCommand } from '../docs/js/commands.js';
 import { stepRate, RATES } from '../docs/js/speech.js';
 test('speech speed, share my location and "I am lost" commands', () => {

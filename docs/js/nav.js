@@ -147,7 +147,7 @@ export async function googleGeocodeMany(query, pos, fetchFn, key, max = 3) {
   if (pos) body.locationBias = { circle: { center: { latitude: pos.lat, longitude: pos.lon }, radius: 15000 } };
   const res = await fetchFn('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location' },
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'places.displayName,places.formattedAddress,places.location,places.navigationPoints' },
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error('google places ' + res.status);
@@ -156,7 +156,14 @@ export async function googleGeocodeMany(query, pos, fetchFn, key, max = 3) {
     const street = (p.formattedAddress || '').split(',')[0];
     const parts = [p.displayName?.text, street].filter(Boolean);
     const name = parts.filter((x, i) => parts.findIndex((y) => y.toLowerCase() === x.toLowerCase()) === i).join(', '); // "25 Lakeside" not "25 Lakeside, 25 Lakeside"
-    return { large: false, address: p.formattedAddress || '', lat: p.location.latitude, lon: p.location.longitude, name };
+    // Big places (a university, a hospital, a station) list their entrances. Aim for the one nearest the walker, not the middle of the site.
+    let { latitude: lat, longitude: lon } = p.location;
+    const gates = (p.navigationPoints || []).map((n) => n.location).filter(Boolean);
+    if (pos && gates.length) {
+      const near = gates.map((g) => ({ g, d: haversine(pos, { lat: g.latitude, lon: g.longitude }) })).sort((x, y) => x.d - y.d)[0].g;
+      lat = near.latitude; lon = near.longitude;
+    }
+    return { large: false, entrance: gates.length > 0, address: p.formattedAddress || '', lat, lon, name };
   });
 }
 
@@ -287,7 +294,7 @@ export class Navigator {
     this.say(first && this.brief
       ? `Starting. ${cap(instructionText(first0))} for ${roundMetres(first0.distance)}. I will tell you if you need to turn.`
       : first
-      ? `Going to ${dest.name}. ${roundMetres(route.distance)}, ${minutesText(route.duration)}.${this.large && first ? ' This is a large site, so I am heading for its middle. For a particular building, say its name.' : ''} Say cancel to stop. First, ${instructionText(first0)} for ${roundMetres(first0.distance)}. Start walking and I will tell you if you need to turn.`
+      ? `Going to ${dest.name}. ${roundMetres(route.distance)}, ${minutesText(route.duration)}.${this.large && first ? ' This is a large site, so I am heading for its middle. For a particular building, say its name.' : ''} ${route.steps.some((x) => /stairs|steps/i.test(x.text || '')) ? 'The route includes stairs. ' : ''}Say cancel to stop. First, ${instructionText(first0)} for ${roundMetres(first0.distance)}. Start walking and I will tell you if you need to turn.`
       : `New route. ${instructionText(first0)} for ${roundMetres(first0.distance)}.`, 'status');
     this.watchId = this.watch((p) => this.onPosition(p), () => this.say('I lost your location signal.', 'status'));
     return true;

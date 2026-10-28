@@ -191,16 +191,15 @@ test('saved places still work, and say so, when storage is blocked', () => {
   assert.equal(s.get('home').lat, 1, 'but it is remembered for this visit');
 });
 
-test('take me home: a saved place goes straight to distance and yes/no, then starts', async () => {
+test('take me home: a saved place starts straight away', async () => {
   const said = []; let began = null;
   const route = { distance: 800, duration: 600, steps: [{ text: 'walk ahead', distance: 800 }] };
   const nav = { getPosition: async () => ({ lat: 51, lon: -2 }), plan: async () => route, begin: (...a) => { began = a; }, active: false };
   const d = new Dialogue({ say: (t) => said.push(t), nav });
   await d.navigateToSaved({ name: 'home', lat: 51.01, lon: -2 });
-  assert.match(said.at(-1), /^your home\. 0\.5 miles, about 10 minutes\. Shall I start\? Say yes or no\.$/i);
-  assert.equal(d.answer('yes'), true);
   assert.equal(began[1].name, 'your home');
   assert.equal(began[1].lat, 51.01);
+  assert.equal(d.waiting, false);
 });
 
 test('take me home with no GPS is spoken, not silent', async () => {

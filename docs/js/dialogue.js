@@ -60,16 +60,8 @@ export class Dialogue {
     this.say(`Looking for ${query}.`, 'status');
     const found = await this.nav.find(query);
     if (!found) return;
-    const { pos } = found;
-    // Same place listed twice by the search: keep one.
-    const seen = new Set();
-    const results = found.results.filter((r) => { const k = r.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
-    if (results.length === 1) return this._preview(pos, results[0]);
-    this.pending = { pos, results };
-    const spoken = results.map((r, i) => `${['One', 'Two', 'Three'][i]}, ${shortName(r)}.`).join(' ');
-    this._ask(`I found ${results.length} places. ${spoken} Say one, two or three.`);
-    this._set('choose', results.map((r, i) => ({ label: `${i + 1}. ${r.name}`, value: String(i + 1) })));
-    this.pending = { pos, results };
+    // Like Google Maps: take the best match and go. Asking "which one?" and "shall I start?" made blind walkers wait and repeat themselves.
+    return this._preview(found.pos, found.results[0]);
   }
 
   // "Save my home address as ...": look the address up, read back what was found, and save it only after a yes.
@@ -100,16 +92,12 @@ export class Dialogue {
     return this._preview(pos, { lat: place.lat, lon: place.lon, large: false, name: `your ${place.name}` });
   }
 
-  async _preview(pos, dest, lead = '') {
+  // Plan the route and start walking straight away. The start message gives the distance and time, and "cancel" stops it.
+  async _preview(pos, dest) {
     const route = await this.nav.plan(pos, dest);
     if (!route) { if (!this.nav.active) this.say('I could not find a walking route there.', 'status'); return this._set('idle'); }
     if (!(route.distance >= 25)) { this.say(`You are already at ${dest.name}, or very close to it.`, 'status'); return this._set('idle'); }
-    const stairs = route.steps.some((s) => /stairs|steps/i.test(s.text || ''));
-    this._ask(`${lead}${dest.name}. ${roundMetres(route.distance)}, ${minutesText(route.duration)}.` +
-      `${dest.large ? ' This is a large site, so I would head for its middle.' : ''}` +
-      `${stairs ? ' The route includes stairs.' : ''} Shall I start? Say yes or no.`);
-    this._set('confirm', [{ label: 'Yes, start', value: 'yes' }, { label: 'No', value: 'no' }]);
-    this.pending = { pos, dest, route };
+    this.nav.begin(pos, dest, route, true, false);
   }
 
   // Returns true when the words were an answer to a question we asked (so they are not treated as commands).
