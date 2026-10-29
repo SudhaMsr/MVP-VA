@@ -41,11 +41,11 @@ test('a kind of place offers the nearest options, and a number starts the walk',
   const far = { name: 'Aldi, Far Road', lat: 1.2, lon: 1.2 };
   const { d, said, calls } = setup([far, A, B]);
   await d.navigateTo('grocery stores');
-  assert.match(said.at(-1), /^I found 3 places\. One, Tesco, Gloucester Road\. Two, Tesco Express, Cheltenham Road\. Three, Aldi, Far Road\. Say one, two or three\.$/);
+  assert.match(said.at(-1), /^I found 3 places\. One, Tesco, Gloucester Road\. Two, Aldi, Far Road\. Three, Tesco Express, Cheltenham Road\. Say one, two or three\.$/);
   assert.equal(d.state, 'choose');
   d.answer('two');
   await new Promise((r) => setTimeout(r, 5));
-  assert.equal(calls[0][1].name, B.name);
+  assert.equal(calls[0][1].name, far.name); // sorted nearest first
   assert.equal(d.waiting, false);
 });
 
