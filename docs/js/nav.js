@@ -216,9 +216,9 @@ export function makeProviders({ googleKey, fetchFn = (...a) => fetch(...a), onFa
     },
     async search(query, pos) {
       if (googleKey) {
-        try { const g = await googleGeocodeMany(query, pos, fetchFn, googleKey, 3); if (g.length) return g.map((d) => ({ ...d, source: 'google' })); } catch (e) { onFallback('place search', e); }
+        try { const g = await googleGeocodeMany(query, pos, fetchFn, googleKey, 5); if (g.length) return g.map((d) => ({ ...d, source: 'google' })); } catch (e) { onFallback('place search', e); }
       }
-      return (await geocodeMany(query, pos, fetchFn, 3)).map((d) => ({ ...d, source: 'osm' }));
+      return (await geocodeMany(query, pos, fetchFn, 5)).map((d) => ({ ...d, source: 'osm' }));
     },
     async route(from, to) {
       if (googleKey) {

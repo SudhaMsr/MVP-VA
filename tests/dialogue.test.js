@@ -28,14 +28,33 @@ function setup(results) {
 const A = { name: 'Tesco, Gloucester Road', lat: 1, lon: 1 };
 const B = { name: 'Tesco Express, Cheltenham Road', lat: 2, lon: 2 };
 
-test('goes straight to the best match, with no questions', async () => {
-  const { d, said, calls } = setup([A, B]);
-  await d.navigateTo('tesco');
+test('a named place goes straight there, with no questions', async () => {
+  const { d, said, calls } = setup([{ name: 'University of Bristol, Beacon House', address: 'Queens Rd, Bristol', lat: 1, lon: 1 }, B]);
+  await d.navigateTo('university of bristol');
   assert.equal(calls.length, 1);
-  assert.equal(calls[0][1].name, A.name);
-  assert.equal(calls[0][4], false); // full start message: place, distance, time
+  assert.equal(calls[0][4], false);
   assert.equal(d.waiting, false);
   assert.doesNotMatch(said.join(' '), /Shall I start|I found \d places/);
+});
+
+test('a kind of place offers the nearest options, and a number starts the walk', async () => {
+  const far = { name: 'Aldi, Far Road', lat: 1.2, lon: 1.2 };
+  const { d, said, calls } = setup([far, A, B]);
+  await d.navigateTo('grocery stores');
+  assert.match(said.at(-1), /^I found 3 places\. One, Tesco, Gloucester Road\. Two, Tesco Express, Cheltenham Road\. Three, Aldi, Far Road\. Say one, two or three\.$/);
+  assert.equal(d.state, 'choose');
+  d.answer('two');
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(calls[0][1].name, B.name);
+  assert.equal(d.waiting, false);
+});
+
+test('isSpecific tells names from kinds of place', async () => {
+  const { isSpecific } = await import('../docs/js/dialogue.js');
+  assert.equal(isSpecific('university of bristol', { name: 'University of Bristol, Beacon House' }), true);
+  assert.equal(isSpecific('senate house', { name: 'Bristol SU, Senate House' }), true);
+  assert.equal(isSpecific('grocery stores', { name: 'Tesco Express, Gloucester Road' }), false);
+  assert.equal(isSpecific('the nearest pharmacy', { name: 'Boots, Broadmead' }), false);
 });
 
 test('nothing is said twice when navigating', async () => {

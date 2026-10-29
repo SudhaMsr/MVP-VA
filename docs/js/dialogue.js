@@ -1,6 +1,6 @@
 // Spoken conversation for navigation: asks which place when several match, tells the distance, and waits for "yes".
 // Pure logic with injected dependencies, so it is tested without a browser.
-import { roundMetres, minutesText, locationMessage } from './nav.js';
+import { roundMetres, minutesText, locationMessage, haversine } from './nav.js';
 
 const YES = /^(yes|yeah|yep|yup|ok|okay|sure|go|go ahead|start|start now|correct|that is right|that's right|do it|please do)$/;
 const NO = /^(no|nope|nah|cancel|stop|do not|don't|never mind|nevermind|wrong|not that one)$/;
@@ -33,6 +33,17 @@ export function shortName(r) {
   return parts.slice(0, 2).join(', ');
 }
 
+// Is this a particular place (its name appears in the top result) or a kind of place ("grocery stores")?
+const FILLER = new Set(['the', 'a', 'an', 'to', 'me', 'nearest', 'closest', 'nearby', 'near', 'any', 'some', 'find', 'a', 'in', 'at', 'of', 'for', 'and', 'on']);
+export function isSpecific(query, top) {
+  if (!top) return false;
+  const words = String(query).toLowerCase().replace(/[^a-z0-9\s']/g, ' ').split(/\s+/).filter((w) => w && !FILLER.has(w));
+  if (!words.length) return false;
+  const hay = `${top.name} ${top.address || ''}`.toLowerCase().replace(/[^a-z0-9\s']/g, ' ');
+  const stem = (w) => w.replace(/(ies|es|s)$/, '');
+  return words.every((w) => hay.includes(w) || hay.includes(stem(w)) && stem(w).length > 3);
+}
+
 export class Dialogue {
   constructor({ say, nav, places = null, onPrompt = () => {}, timeoutMs = 40000, chooseTimeoutMs = 75000 }) {
     Object.assign(this, { say, nav, places, onPrompt, timeoutMs, chooseTimeoutMs });
@@ -60,8 +71,19 @@ export class Dialogue {
     this.say(`Looking for ${query}.`, 'status');
     const found = await this.nav.find(query);
     if (!found) return;
-    // Like Google Maps: take the best match and go. Asking "which one?" and "shall I start?" made blind walkers wait and repeat themselves.
-    return this._preview(found.pos, found.results[0]);
+    const { pos } = found;
+    // Same place listed twice by the search: keep one.
+    const seen = new Set();
+    let results = found.results.filter((r) => { const k = r.name.toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+    // A named place ("University of Bristol", "Wills Memorial Building"): go straight there, like Google Maps.
+    if (results.length === 1 || isSpecific(query, results[0])) return this._preview(pos, results[0]);
+    // A kind of place ("grocery stores", "a pharmacy"): offer the nearest few.
+    results = results.map((r) => ({ r, d: haversine(pos, r) })).sort((a, b) => a.d - b.d).slice(0, 3).map((x) => x.r);
+    this.pending = { pos, results };
+    const spoken = results.map((r, i) => `${['One', 'Two', 'Three'][i]}, ${shortName(r)}.`).join(' ');
+    this._ask(`I found ${results.length} places. ${spoken} Say one, two or three.`);
+    this._set('choose', results.map((r, i) => ({ label: `${i + 1}. ${r.name}`, value: String(i + 1) })));
+    this.pending = { pos, results };
   }
 
   // "Save my home address as ...": look the address up, read back what was found, and save it only after a yes.
