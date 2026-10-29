@@ -103,3 +103,14 @@ test('asking to go somewhere you already are says so, instead of "NaN miles"', a
   assert.match(said[0], /already at your work/);
   assert.doesNotMatch(said.join(' '), /NaN/);
 });
+
+test('asking where to: the next words are the place', async () => {
+  const { d, said, calls } = setup([{ name: 'University of Bristol, Beacon House', address: 'Queens Rd', lat: 1, lon: 1 }]);
+  d.askWhere();
+  assert.equal(said.at(-1), 'Where to? Say the name of the place.');
+  assert.equal(d.answer('university of bristol'), true);
+  await new Promise((r) => setTimeout(r, 5));
+  assert.equal(calls.length, 1);
+  assert.equal(d.waiting, false);
+  d.askWhere(); d.answer('no'); assert.equal(d.waiting, false);
+});

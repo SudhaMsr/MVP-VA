@@ -48,7 +48,7 @@ export class Dialogue {
   constructor({ say, nav, places = null, onPrompt = () => {}, timeoutMs = 40000, chooseTimeoutMs = 75000 }) {
     Object.assign(this, { say, nav, places, onPrompt, timeoutMs, chooseTimeoutMs });
     this.lastAsk = '';
-    this.state = 'idle'; // idle | choose | confirm | savecheck
+    this.state = 'idle'; // idle | where | choose | confirm | savecheck
     this.misses = 0;
     this.timer = null;
   }
@@ -64,6 +64,12 @@ export class Dialogue {
     if (state === 'idle') { this.pending = null; this.onPrompt(null); return; }
     this.onPrompt(options);
     this.timer = setTimeout(() => { this.say('I will cancel that. Say navigate to, and a place, to start again.', 'status'); this._set('idle'); }, state === 'choose' ? this.chooseTimeoutMs : this.timeoutMs);
+  }
+
+  // "Navigate" with no place: ask once, and take the next thing said as the place.
+  askWhere() {
+    this._set('where', [{ label: 'Cancel', value: 'no' }]);
+    this._ask('Where to? Say the name of the place.');
   }
 
   async navigateTo(query) {
@@ -126,6 +132,12 @@ export class Dialogue {
   answer(text) {
     if (!this.waiting) return false;
     const a = parseAnswer(text);
+    if (this.state === 'where') {
+      if (a.type === 'no') { this.say('Okay, cancelled.', 'status'); this._set('idle'); return true; }
+      const q = String(text).toLowerCase().replace(/[.,!?;:]/g, ' ').replace(/^\s*(?:please\s+)?(?:(?:navigate|take|guide|bring|lead)\s+)?(?:me\s+)?(?:to\s+)?/, '').replace(/\s+/g, ' ').trim();
+      if (q.length < 2) return this._miss();
+      this._set('idle'); this.navigateTo(q); return true;
+    }
     if (a.type === 'repeat' && this.lastAsk) { this.say(this.lastAsk, 'status'); return true; }
     if (this.state === 'savecheck') {
       if (a.type === 'yes') {
@@ -157,7 +169,7 @@ export class Dialogue {
   _miss() {
     this.misses += 1;
     if (this.misses >= 2) { this.say('I did not catch that, so I have cancelled. Say navigate to, and a place, to try again.', 'status'); this._set('idle'); return true; }
-    this.say(this.state === 'confirm' || this.state === 'savecheck' ? 'Please say yes or no.' : 'Please say one, two or three. Or say repeat.', 'status');
+    this.say(this.state === 'confirm' || this.state === 'savecheck' ? 'Please say yes or no.' : this.state === 'where' ? 'Say the name of the place.' : 'Please say one, two or three. Or say repeat.', 'status');
     return true;
   }
 

@@ -56,7 +56,13 @@ export function parseCommand(raw) {
 
   // "navigate to X", "navigate me to X", "can you take me to X", "guide me to X", "how do I get to X", "I want to go to X"
   const nav = t.match(/\b(?:(?:navigate|take|guide|bring|lead|direct|walk|get|show|send)\s+me\s+(?:to|towards)|navigate to|navigate|directions? to|(?:find |get )?(?:me )?(?:a |the )?(?:walking )?route to|how (?:do|can) i get to|(?:i )?(?:want|need|would like|wanna) to (?:go|get|walk) to|walk to|go to)\s+(.+)$/);
-  if (nav && nav[1].trim()) return { type: 'navigate', arg: nav[1].replace(/\s+(?:now|from here|from my location)$/, '').trim() };
+  if (nav && nav[1].trim()) {
+    const arg = nav[1].replace(/\s+(?:now|from here|from my location)$/, '').trim();
+    // The recogniser often cuts the sentence after "navigate me" or "navigate me to": there is no place yet, so ask for one.
+    const empty = arg.replace(/\b(?:me|to|too|two|the|a|an|please|this|that|place|somewhere|there|my|i|ok|okay)\b/g, ' ').replace(/\s+/g, '').length < 2;
+    return empty ? { type: 'navigateAsk' } : { type: 'navigate', arg };
+  }
+  if (/^(?:navigate|take me|guide me|directions|navigation)(?: me)?(?: to)?$/.test(t)) return { type: 'navigateAsk' };
 
   if (/^(read|read this|read that|read it|read the sign|read the text|read aloud|what does (it|that|this) say|what does the sign say|what is written|what shop is this|what is this place|read again)$/.test(t)) return { type: 'read' };
 

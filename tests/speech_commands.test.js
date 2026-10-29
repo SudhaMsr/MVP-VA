@@ -115,3 +115,8 @@ test('navigate phrases keep only the place', () => {
   for (const s of ['navigate me to university of bristol', 'can you navigate me to university of bristol please', 'guide me to university of bristol', 'how do I get to university of bristol', 'I want to go to university of bristol', 'find a route to university of bristol', 'directions to university of bristol now'])
     assert.deepEqual(parseCommand(s), { type: 'navigate', arg: 'university of bristol' }, s);
 });
+
+test('"navigate me" with no place asks where, instead of searching for "me"', () => {
+  for (const s of ['navigate me', 'navigate me to', 'navigate to', 'take me to', 'navigate to me', 'navigate'])
+    assert.deepEqual(parseCommand(s), { type: 'navigateAsk' }, s);
+});

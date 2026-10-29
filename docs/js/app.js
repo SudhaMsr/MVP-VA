@@ -699,7 +699,7 @@ function bargeIn(text) {
 function handleTranscript(text) {
   logEvent('heard', text);
   const inTalk = performance.now() < state.talkUntil;
-  const answering = dialogue.waiting && !!parseAnswer(text).type; // an answer to our question always counts, even over our own voice
+  const answering = dialogue.waiting && (dialogue.state === 'where' || !!parseAnswer(text).type); // an answer to our question always counts, even over our own voice
   if (!inTalk && !answering && isEcho(text)) { logEvent('ignored-echo', text); return; }
   if (answering) speaker.skip(); // stop reading the question out
   if (inTalk) { setTimeout(() => speaker.hold(false), 150); /* after the command's own reply is queued, so the answer comes first */ state.talkHeard = true; state.talkUntil = 0; clearTimeout(talkTimer); if (state.running) setStatus('Running'); }
@@ -726,6 +726,7 @@ function handleTranscript(text) {
     case 'read': readText(); break;
     case 'help': say(HELP_TEXT, 'status'); break;
     case 'cancel': if (!navigator_.cancel()) say('No navigation is active.', 'status'); break;
+    case 'navigateAsk': dialogue.askWhere(); break;
     case 'navigate':
       goTo(cmd.arg);
       break;
