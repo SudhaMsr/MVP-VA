@@ -23,10 +23,17 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
   - "Battery" tells the charge. The app also warns once at 20, 10 and 5 percent while not charging, and logs battery level in the session log.
 - Voice commands: start, stop, repeat, help, plus the ones above. While it is asking a question you can answer at once, even over its voice; talking over it stops it.
 - Spoken errors: no silent failures.
-- Text reading (built, switched off until the core is tested; add ?read=1 to try it): say "read" or tap Read, runs on the phone.
+- **Walking corridor:** only things in the walker's path are spoken about; things to the side only when very close. The supervisor view (?debug) draws the corridor.
+- **Free-space hints:** when the way ahead is blocked the alert adds "Clearer on the left." or "No clear way. Stop."; "Clear ahead." follows once it opens. Smoothed so it does not flicker.
+- **Vibration:** urgent alerts, stairs, "Stop" and turns buzz the phone with different patterns. Say "vibration off" / "vibration on", or use the button.
+- **Route recording:** "record this route as the bus stop", "stop recording", "follow route bus stop", "take me back along route bus stop", "list my routes". Routes are kept on the phone only.
+- **What is around me:** starts with the state of the path ("The way ahead looks clear." / "Ahead is blocked. Clearer on the left."), then lists what the camera recognises.
+- **Crossing help:** "can I cross?" answers from the lights and crossings the camera sees. It is not a safety guarantee.
+- **Memory notes:** "remember the keys are in the drawer", "what do you remember?".
+- **Text reading:** on. Say "read" or tap Read; runs on the phone.
 
 ## Not in the MVP
-Text reading switched on by default, accounts, payments, kerb and steps detection (needs footage and training), iPhone, spatial audio, crossing warnings.
+Accounts, payments, kerb and steps detection (needs footage and training), more object classes (a pretrained COCO lane is planned), iPhone, spatial audio.
 
 ## Runtime
 The detection runtime (onnxruntime-web 1.17.3) is served from `docs/vendor/ort`, so the app does not depend on a CDN (the CDN is only a fallback). Licence: MIT.

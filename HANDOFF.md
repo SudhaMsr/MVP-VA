@@ -68,3 +68,5 @@ Paste this at the start of a new chat, together with the repo link.
 ## Added after the video research
 - Walking corridor filter, free-space hints ("Clearer on the left."), vibration for urgent alerts (voice: "vibration on/off"), route recording ("record this route as X", "stop recording", "follow route X", "take me back along route X"), and "what is around me" now opens with path status.
 - Overwhelm audit (busy street, 2 min simulation): quiet 8 alerts, normal 17, detailed 18; navigation start message shortened to destination, distance, time, first step.
+- Also built: memory notes, crossing help, text reading switched on (`FEATURES.read=true`). 165 tests pass. Latest commit is on main.
+- Next: outdoor navigation test on the Poco, misidentified-object log, street-name cleanup, COCO third lane (needs a Colab ONNX export), kerb detection from footage.
