@@ -28,7 +28,14 @@ export const NOTHING = 'I cannot see anything I recognise. That does not mean th
 export const NO_CAMERA = 'The camera is not on. Tap start first, then ask me again.';
 
 // tracks: from the tracker (box, name, dist, hits). Returns the sentence to speak.
-export function describeScene(tracks, frameW, { minHits = 2, maxItems = 5 } = {}) {
+// path: the free-space advice for the walker's way ahead ({text}), null when it is open, undefined when unknown.
+export function pathSentence(path) {
+  if (path === undefined) return '';
+  if (!path) return 'The way ahead looks clear.';
+  return path.stop ? 'No clear way ahead. Stop.' : `Ahead is blocked. ${path.text}`;
+}
+
+export function describeScene(tracks, frameW, { minHits = 2, maxItems = 5, path } = {}) {
   const seen = (tracks || []).filter((t) => NOUNS[t.name] && (t.hits ?? minHits) >= minHits);
   if (!seen.length) return NOTHING;
   // Group the same kind of thing on the same side: "2 people".
@@ -55,5 +62,5 @@ export function describeScene(tracks, frameW, { minHits = 2, maxItems = 5 } = {}
     parts.push(`${lead}: ${joined}.`);
   }
   const more = groups.size > kept.length ? ' There is more, but those are the main things.' : '';
-  return `${parts.join(' ')}${more}`;
+  return `${pathSentence(path)} ${parts.join(' ')}${more}`.trim();
 }

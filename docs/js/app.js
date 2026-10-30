@@ -533,7 +533,7 @@ function stepLevel(dir) {
 function describeNow() {
   if (!state.running || !state.scene) { say(NO_CAMERA, 'status'); return; }
   if (performance.now() - state.scene.t > 5000) { say('The camera view has not updated for a moment. Try again in a few seconds.', 'status'); return; }
-  const text = describeScene(state.scene.tracks, state.scene.w);
+  const text = describeScene(state.scene.tracks, state.scene.w, { path: engine.free.advice(true) });
   logEvent('describe', text);
   say(text, 'status');
   state.lastSpoken = text;

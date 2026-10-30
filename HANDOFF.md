@@ -64,3 +64,7 @@ Paste this at the start of a new chat, together with the repo link.
 ## Gotchas
 - GitHub Pages and Chrome cache old files for several minutes. Add `?v=N` to the address to force a refresh.
 - The sandbox has no PyPI, npm or CDN access, but GitHub works.
+
+## Added after the video research
+- Walking corridor filter, free-space hints ("Clearer on the left."), vibration for urgent alerts (voice: "vibration on/off"), route recording ("record this route as X", "stop recording", "follow route X", "take me back along route X"), and "what is around me" now opens with path status.
+- Overwhelm audit (busy street, 2 min simulation): quiet 8 alerts, normal 17, detailed 18; navigation start message shortened to destination, distance, time, first step.
