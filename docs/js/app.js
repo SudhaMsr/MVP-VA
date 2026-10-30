@@ -99,6 +99,9 @@ const navigator_ = new Navigator({
   // proper GPS fix (25 m or better) and use the best one seen.
   getPosition: () => new Promise((res, rej) => {
     if (!('geolocation' in navigator)) return rej(new Error('no geolocation'));
+    // A good fix from the last few seconds (the app asks for location when it opens) is used straight away, like a map app does.
+    const c = window.__lastFix;
+    if (c && Date.now() - c.t < 20000 && c.accuracy <= 50) return res({ lat: c.lat, lon: c.lon, accuracy: c.accuracy });
     const wait = setTimeout(() => say('Waiting for your location. If your phone asks, allow location.', 'status'), 4000);
     let best = null, lastErr = null, ids = [], done = false;
     const finish = () => {
@@ -109,6 +112,7 @@ const navigator_ = new Navigator({
     const limit = setTimeout(finish, 10000);
     const onFix = (p) => {
       const f = { lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy };
+      window.__lastFix = { ...f, t: Date.now() };
       if (!best || f.accuracy < best.accuracy) best = f;
       if (best.accuracy <= 25) finish();
     };
@@ -909,7 +913,7 @@ function askLocation() {
   locAsked = performance.now();
   try {
     navigator.geolocation.getCurrentPosition(
-      () => { if (state.locProblem) { state.locProblem = false; setStatus(state.running ? 'Running' : 'Ready. Tap start.'); } },
+      (p) => { window.__lastFix = { lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy, t: Date.now() }; if (state.locProblem) { state.locProblem = false; setStatus(state.running ? 'Running' : 'Ready. Tap start.'); } },
       (e) => {
         state.locProblem = true;
         logEvent('location-ask-error', String(e && e.code));
