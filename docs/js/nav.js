@@ -335,6 +335,7 @@ export class Navigator {
     }
     this.weakSince = 0;
     if (this.weakSaid) { this.weakSaid = false; this.say('Location signal is back.', 'status'); }
+    this.lastPos = p;
     this.checkOrientation(p);
     // GPS can jump (or the walker can be past a turn we never announced): if a later turn point is right here, go to it.
     const here = this.route.steps[this.idx];
@@ -394,6 +395,29 @@ export class Navigator {
         this.say(`Keep going. You are on the route. ${what} about ${roundMetres(d)} away.`, 'status');
       }
     }
+  }
+
+  // Walk questions while navigating: "how far", "what's next", "am I on the right route".
+  status(kind) {
+    if (!this.active || !this.route) return 'You are not navigating at the moment. Say navigate to, and a place.';
+    const p = this.lastPos;
+    if (!p) return 'I do not have your location yet. Keep walking slowly and ask again.';
+    const steps = this.route.steps, step = steps[this.idx];
+    if (!step) return 'You are nearly there.';
+    const toStep = haversine(p, step.at);
+    if (kind === 'next') {
+      return step.maneuver.type === 'arrive' ? `Next is your destination, in ${roundMetres(toStep)}.` : `In ${roundMetres(toStep)}, ${instructionText(step)}.`;
+    }
+    if (kind === 'onroute') {
+      const legs = [...(steps[this.idx - 1]?.path || []), ...step.path];
+      const off = legs.length ? distanceToPath(p, legs) : 0;
+      return off > Math.max(this.offRouteMetres, (p.accuracy || 0) * 1.5)
+        ? `You seem to be about ${roundMetres(off)} from the route. Keep listening; I will find a new way if you stay off it.`
+        : 'Yes. You are on the route.';
+    }
+    let left = toStep; for (let k = this.idx; k < steps.length; k++) left += steps[k].distance || 0;
+    const secs = this.route.distance > 0 ? (left / this.route.distance) * (this.route.duration || left / 1.2) : left / 1.2;
+    return `Your destination is about ${roundMetres(left)} away, ${minutesText(secs)}.`;
   }
 
   // Called about once a second by the app: the phone can simply stop sending locations without raising an error.

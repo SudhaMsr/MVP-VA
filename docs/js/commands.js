@@ -95,10 +95,16 @@ export function parseCommand(raw) {
   if (/^(read|read this|read that|read it|read the sign|read the text|read aloud|what does (it|that|this) say|what does the sign say|what is written|what shop is this|what is this place|read again)$/.test(t)) return { type: 'read' };
 
   // Talkativeness. Checked before 'stop' so "be quiet" changes the level instead of stopping the app.
+  // Walk questions during navigation
+  if (/\b(how far|how much further|how much farther|how long (?:is )?left|how long until|distance left)\b/.test(t)) return { type: 'navinfo', arg: 'far' };
+  if (/\b(what(?:'s| is) next|next (?:turn|instruction|step|direction)|what do i do next)\b/.test(t)) return { type: 'navinfo', arg: 'next' };
+  if (/\b(?:am i|are we) (?:on|going|walking|heading) (?:the )?(?:right|correct) (?:route|way|path|direction|track)\b|\bam i on (?:the )?route\b/.test(t)) return { type: 'navinfo', arg: 'onroute' };
+  // The walker reports a wrong alert: logged for tuning ("that was wrong", "false alarm", "there is no car")
+  if (/\b(that was wrong|that's wrong|thats wrong|wrong alert|false alarm|there is no (?:car|bus|person|one|thing)|nothing there)\b/.test(t)) return { type: 'wrong' };
   if (/\bquiet mode\b/.test(t)) return { type: 'level', arg: 'quiet' };
   if (/\bnormal mode\b/.test(t)) return { type: 'level', arg: 'normal' };
   if (/\b(detailed mode|detail mode|full detail)\b/.test(t)) return { type: 'level', arg: 'detailed' };
-  if (/\b(less (talk|talking|chat|detail|info)|talk less|quieter|be quiet|fewer alerts|fewer messages)\b/.test(t)) return { type: 'level', arg: 'less' };
+  if (/\b(less (talk|talking|chat|chatty|detail|info)|talk less|quieter|be quiet|fewer alerts|fewer messages)\b/.test(t)) return { type: 'level', arg: 'less' };
   if (/\b(more (detail|talk|alerts|info)|talk more|more messages)\b/.test(t)) return { type: 'level', arg: 'more' };
 
   if (/\b(cancel navigation|stop navigation|cancel route|cancel)\b/.test(t)) return { type: 'cancel' };
@@ -113,6 +119,7 @@ export const HELP_TEXT =
   'You can say: start, stop, repeat, or navigate to, followed by a place. ' +
   'Say what is in front of me, where am I, or battery. ' +
   'Say save this place as home, and later, take me home. ' +
+  'On a route, say how far, what is next, or am I on the right route. If a warning was wrong, say that was wrong. ' +
   'Say use miles, use metres or use steps for distances, and my step is, with a length, to set your step. ' +
   'Say save my home address as, and the address, to set home from an address. ' +
   'Say slower or faster to change how fast I speak. Say share my location to send where you are to someone. If you are lost, say I am lost. ' +

@@ -352,6 +352,7 @@ async function loop() {
       const hk = Haptics.kindFor(alert); if (hk) haptics.buzz(hk);
       speaker.speak(alert.text, alert.urgent ? 'urgent' : 'normal');
       logEvent('alert', `${alert.priority}|${alert.text}`);
+      state.lastAlertText = alert.text;
     }
     checkCamera(t);
     if (DEBUG) drawOverlay(tracks, width, height);
@@ -858,6 +859,8 @@ function handleTranscript(text) {
     case 'vibration': changeVibration(cmd.arg === 'on'); break;
     case 'rate': changeRate(cmd.arg === 'slower' ? -1 : 1); break;
     case 'share': prepareShare(); break;
+    case 'navinfo': say(navigator_.status(cmd.arg), 'status'); break;
+    case 'wrong': logEvent('wrong-alert', state.lastAlertText || ''); say(state.lastAlertText ? 'Thank you. I have noted that the last warning was wrong.' : 'Thank you. There was no recent warning to note.', 'status'); break;
     case 'lost': (async () => { await whereAmI(); say('Stay where you are if it is not safe to move. Say take me home, or navigate to a place, or share my location.', 'status'); })(); break;
     case 'battery': say(battery.ask(), 'status'); if (!batteryStarted) startBatteryWatch(); break;
     case 'level':

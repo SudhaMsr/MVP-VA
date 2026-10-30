@@ -140,3 +140,36 @@ test('"I lost your location signal." is said once, then at most once a minute', 
   clock = 70000; err();
   assert.equal(said.filter((t) => /lost your location/.test(t)).length, 2, 'again after a minute');
 });
+
+test('walk questions are understood: how far, what next, am I on the route, wrong alert, less chatty', () => {
+  assert.deepEqual(parseCommand('how far is it'), { type: 'navinfo', arg: 'far' });
+  assert.deepEqual(parseCommand('how much further'), { type: 'navinfo', arg: 'far' });
+  assert.deepEqual(parseCommand("what's next"), { type: 'navinfo', arg: 'next' });
+  assert.deepEqual(parseCommand('what is the next turn'), { type: 'navinfo', arg: 'next' });
+  assert.deepEqual(parseCommand('am i on the right route'), { type: 'navinfo', arg: 'onroute' });
+  assert.deepEqual(parseCommand('am i going the right way'), { type: 'navinfo', arg: 'onroute' });
+  assert.deepEqual(parseCommand('that was wrong'), { type: 'wrong' });
+  assert.deepEqual(parseCommand('false alarm'), { type: 'wrong' });
+  assert.deepEqual(parseCommand('less chatty'), { type: 'level', arg: 'less' });
+  assert.equal(parseCommand('navigate to university of bristol').type, 'navigate', 'navigation still parses');
+});
+
+test('walk answers come from the live route', async () => {
+  let cb, clock = 0;
+  const A = { lat: 51, lon: 0 }, B = { lat: 51, lon: 0.004 }, C = { lat: 51.002, lon: 0.004 };
+  const route = { distance: 500, duration: 400, source: 'google', steps: [
+    { distance: 280, name: '', text: 'walk ahead', maneuver: { type: 'depart', location: [0, 51] }, at: A, path: [A, B] },
+    { distance: 220, name: '', text: 'turn left onto High Street', maneuver: { type: 'turn', location: [0.004, 51] }, at: B, path: [B, C] },
+    { distance: 0, name: '', text: 'you have arrived', maneuver: { type: 'arrive', location: [0.004, 51.002] }, at: C, path: [] }] };
+  const nav = new Navigator({ say: () => {}, now: () => clock, providers: { route: async () => route, geocode: async () => ({ ...C, name: 'Dest' }) },
+    getPosition: async () => A, watch: (f) => { cb = f; return 1; }, unwatch: () => {} });
+  assert.match(nav.status('far'), /not navigating/);
+  await nav.start('x');
+  assert.match(nav.status('far'), /do not have your location/);
+  cb({ lat: 51, lon: 0.002, accuracy: 8 }); // halfway along the first street
+  assert.match(nav.status('next'), /^In .+, turn left onto High Street\.$/);
+  assert.match(nav.status('far'), /^Your destination is about .+ away, .+\.$/);
+  assert.equal(nav.status('onroute'), 'Yes. You are on the route.');
+  cb({ lat: 51.0012, lon: 0.002, accuracy: 8 }); // about 130 m north of the street
+  assert.match(nav.status('onroute'), /^You seem to be about .+ from the route/);
+});
