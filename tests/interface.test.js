@@ -115,3 +115,12 @@ test('on a long quiet straight the walker is reassured, once per interval', asyn
   clock = 200000; cb({ lat: 51, lon: 0.0034, accuracy: 8 }); // ~40 m from the end: near, no reassurance
   assert.ok(!said.slice(n2).some((t) => /Keep going/.test(t)));
 });
+
+test('spoken phrasings seen in field testing: address first, stuttered "to me to", battery', () => {
+  assert.deepEqual(parseCommand('save 25 lakeside bs16 3ee as a home'), { type: 'saveAddress', name: 'home', arg: '25 lakeside bs16 3ee' });
+  assert.deepEqual(parseCommand('save 25 lakeside bs16 3ee as home'), { type: 'saveAddress', name: 'home', arg: '25 lakeside bs16 3ee' });
+  assert.deepEqual(parseCommand('save this place as home'), { type: 'save', arg: 'home' }, 'still means here');
+  assert.deepEqual(parseCommand('navigate to me to university of bristol'), { type: 'navigate', arg: 'university of bristol' });
+  assert.deepEqual(parseCommand('navigate me to home'), { type: 'navigate', arg: 'home' });
+  assert.equal(parseCommand('what is my battery percentage').type, 'battery');
+});

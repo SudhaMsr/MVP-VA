@@ -27,6 +27,10 @@ export function parseCommand(raw) {
     const arg = (addr.length === 3 ? addr[2] : addr[3]).trim();
     if (arg) return { type: 'saveAddress', name, arg };
   }
+  // The same, said the other way round: "save 25 Lakeside BS16 3EE as home" / "... as a home address". The address must
+  // not start with this/here/my, which belong to "save this place as home".
+  const addrFirst = t.match(/^(?:please\s+)?(?:save|set|store|remember)\s+(?!(?:this|here|my|the|where)\b)(.+?)\s+as\s+(?:a\s+|my\s+|the\s+)?(home|work|office)(?:\s+address)?$/);
+  if (addrFirst && /\d/.test(addrFirst[1])) return { type: 'saveAddress', name: addrFirst[2], arg: addrFirst[1].trim() };
 
   // Routes you record and walk again: "record a route called home to shop", "stop recording", "follow route home to shop",
   // "take me back along route home to shop", "take me back the way I came", "what routes do I have".
@@ -81,7 +85,7 @@ export function parseCommand(raw) {
   // "navigate to X", "navigate me to X", "can you take me to X", "guide me to X", "how do I get to X", "I want to go to X"
   const nav = t.match(/\b(?:(?:navigate|take|guide|bring|lead|direct|walk|get|show|send)\s+me\s+(?:to|towards)|navigate to|navigate|directions? to|(?:find |get )?(?:me )?(?:a |the )?(?:walking )?route to|how (?:do|can) i get to|(?:i )?(?:want|need|would like|wanna) to (?:go|get|walk) to|walk to|go to)\s+(.+)$/);
   if (nav && nav[1].trim()) {
-    const arg = nav[1].replace(/\s+(?:now|from here|from my location)$/, '').trim();
+    const arg = nav[1].replace(/\s+(?:now|from here|from my location)$/, '').replace(/^(?:me|us)\s+to\s+/, '').trim(); // "navigate to me to X": the recogniser stutters
     // The recogniser often cuts the sentence after "navigate me" or "navigate me to": there is no place yet, so ask for one.
     const empty = arg.replace(/\b(?:me|to|too|two|the|a|an|please|this|that|place|somewhere|there|my|i|ok|okay)\b/g, ' ').replace(/\s+/g, '').length < 2;
     return empty ? { type: 'navigateAsk' } : { type: 'navigate', arg };
