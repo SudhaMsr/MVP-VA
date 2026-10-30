@@ -11,6 +11,7 @@
 # from ultralytics import YOLO
 # import yaml, os
 # d = '/content/p2/data'
+# !sed -i 's#^path: .*#path: /content/p2/data#' /content/p2/data/data.yaml   # data.yaml says 'path: .', which YOLO reads relative to /content
 # y25 = {'path': d, 'train': 'images/train', 'val': 'images/val', 'names': dict(enumerate(yaml.safe_load(open(d+'/data.yaml'))['names'].values() if False else list(yaml.safe_load(open(d+'/data.yaml'))['names'].values())[:25]))}
 # # YOLO finds labels by swapping 'images' for 'labels'; for the baseline we need the 25-class label copies, so link them in:
 # !rm -rf /content/p2/base && mkdir -p /content/p2/base/images /content/p2/base/labels && ln -s /content/p2/data/images/val /content/p2/base/images/val && ln -s /content/p2/data/labels25/val /content/p2/base/labels/val
