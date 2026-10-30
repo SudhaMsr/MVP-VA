@@ -29,12 +29,23 @@ COCO = {'person': 'Person', 'bicycle': 'Bike', 'car': 'Car', 'motorcycle': 'Moto
         'chair': 'Chair', 'fire hydrant': 'Fire hydrant', 'dog': 'Dog', 'potted plant': 'Plant Pot'}
 
 def yaml_names(path):
-    txt = open(path, encoding='utf-8', errors='ignore').read()
+    """Class names from a data.yaml: PyYAML if installed, else bracket list, '0: name' lines, or '- name' lines."""
     import re
+    try:
+        import yaml
+        n = (yaml.safe_load(open(path, encoding='utf-8', errors='ignore')) or {}).get('names')
+        if isinstance(n, dict): return [str(n[k]) for k in sorted(n, key=lambda x: int(x))]
+        if isinstance(n, list): return [str(x) for x in n]
+    except Exception:
+        pass
+    txt = open(path, encoding='utf-8', errors='ignore').read()
     m = re.search(r'names:\s*\[(.*?)\]', txt, re.S)
     if m: return [x.strip(" '\"\n") for x in m.group(1).split(',') if x.strip()]
-    m = re.search(r'names:\s*\n((?:\s+\d+:.*\n?)+)', txt)
-    return [l.split(':', 1)[1].strip(" '\"") for l in m.group(1).splitlines()] if m else []
+    m = re.search(r'names:\s*\n((?:\s*\d+\s*:.*\n?)+)', txt)
+    if m: return [l.split(':', 1)[1].strip(" '\"\r") for l in m.group(1).splitlines() if ':' in l]
+    m = re.search(r'names:\s*\n((?:\s*-\s*.*\n?)+)', txt)
+    if m: return [l.split('-', 1)[1].strip(" '\"\r") for l in m.group(1).splitlines() if '-' in l]
+    return []
 
 def find_pairs(root):
     """(image path, label path or None, split hint) for a Roboflow-style folder tree."""
@@ -94,6 +105,7 @@ def main():
     d = os.path.join(a.raw, 'road-traffic')
     if os.path.isdir(d):
         names = yaml_names(os.path.join(d, 'data.yaml'))
+        if not names: print('WARNING: road-traffic/data.yaml class names not read')
         for img, lbl, sp in find_pairs(d): add('road_traffic', 'see road-traffic/', img, remap_yolo(lbl, names, ROADT), sp)
     d = os.path.join(a.raw, 'stairs_specialist', 'extracted')
     if os.path.isdir(d):
