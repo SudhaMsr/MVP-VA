@@ -460,7 +460,7 @@ async function start() {
   setStatus('Starting');
   cues.play('ok'); // a short sound to show it has started
   startListening(); // inside the tap, so the browser allows the microphone prompt
-  try { navigator.geolocation.getCurrentPosition(() => {}, () => {}, { maximumAge: 60000, timeout: 10000 }); } catch (_) { /* ask for location now, so the prompt is not a surprise mid-walk */ }
+  try { navigator.geolocation.getCurrentPosition(() => {}, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }); } catch (_) { /* ask for location now, so the prompt is not a surprise mid-walk */ }
   try {
     await openCamera();
   } catch (e) {
