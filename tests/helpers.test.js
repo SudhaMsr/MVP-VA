@@ -342,3 +342,13 @@ test('what is around me starts with the state of the way ahead', () => {
   assert.match(describeScene([T('person', 2, 500)], W, { path: null }), /^The way ahead looks clear\. On your right/);
   assert.equal(describeScene([], W, { path: null }), NOTHING, 'never claims clear when it sees nothing');
 });
+
+import { COCO_NAMES, TERTIARY, MODELS } from '../docs/js/config.js';
+import { filterAllowed } from '../docs/js/lanes.js';
+test('third lane: only chosen COCO classes pass, and every one has wording', () => {
+  assert.equal(COCO_NAMES.length, 80);
+  assert.equal(MODELS.coco.url(320), 'models/coco320.onnx');
+  const dets = [{ name: 'cow' }, { name: 'person' }, { name: 'parking_meter' }, { name: 'cup' }];
+  assert.deepEqual(filterAllowed(dets, TERTIARY.classes).map((d) => d.name), ['cow', 'parking_meter']);
+  for (const n of TERTIARY.classes) assert.match(describeScene([T(n, 2, 300)], W), /On your|Straight ahead/, n);
+});

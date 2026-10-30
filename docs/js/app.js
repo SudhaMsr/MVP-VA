@@ -1,6 +1,6 @@
 // Vision Assist - app wiring: camera, detection loop, speech, voice commands, error handling.
 // Rule for this file: every failure is spoken. No silent states.
-import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY, GOOGLE_KEY, FEATURES } from './config.js';
+import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY, TERTIARY, GOOGLE_KEY, FEATURES } from './config.js';
 import { filterAllowed, mergeLanes } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
@@ -50,6 +50,8 @@ const notes = new NoteStore();
 let detector = null;
 let slowDetector = null; // second model for stairs, manholes, benches...
 const slow = { dets: [], t: null, ranAt: 0 };
+let cocoDetector = null; // optional third model (docs/models/coco320.onnx); silent when the file is not there
+const coco = { dets: [], t: null, ranAt: 0 };
 let frameCount = 0;
 const USE_SLOW = params.get('lane') !== 'off' && MODEL_KEY !== SECONDARY.model;
 let stream = null;
@@ -254,6 +256,14 @@ async function loadModel() {
       say('Stairs and manhole detection could not load. Other detection is working.', 'status');
     }
   }
+  if (USE_SLOW && !cocoDetector) {
+    try {
+      const cm = MODELS[TERTIARY.model];
+      const cd = new Detector(window.ort, TERTIARY.size, cm.names);
+      await cd.load(cm.url(TERTIARY.size), [EP]);
+      cocoDetector = cd;
+    } catch (e) { logEvent('coco-model-missing', e && e.message); } // optional: no message to the walker
+  }
 }
 
 // ---------- main loop ----------
@@ -273,8 +283,17 @@ async function loop() {
       } catch (e) { logEvent('slow-frame-error', e && e.message); }
       if (!state.running) return;
     }
+    if (cocoDetector && performance.now() - coco.ranAt >= TERTIARY.everyMs) {
+      coco.ranAt = performance.now();
+      try {
+        const r = await cocoDetector.detect(el.video, TERTIARY.conf, CONFIG.nmsIou);
+        coco.dets = filterAllowed(r.dets, TERTIARY.classes).map((d) => ({ ...d, cls: d.cls + TERTIARY.clsOffset }));
+        coco.t = performance.now();
+      } catch (e) { logEvent('coco-frame-error', e && e.message); }
+      if (!state.running) return;
+    }
     const t = performance.now();
-    const dets = mergeLanes(fast, slow, t, SECONDARY.maxAgeMs);
+    const dets = mergeLanes(mergeLanes(fast, slow, t, SECONDARY.maxAgeMs), coco, t, TERTIARY.maxAgeMs);
     const tracks = tracker.update(dets, t, width, height);
     state.scene = { tracks, w: width, h: height, t };
     const alert = engine.next(tracks, width, height, t);
@@ -313,7 +332,7 @@ function updateStats() {
   const p95 = a[Math.min(a.length - 1, Math.floor(a.length * 0.95))];
   el.stats.textContent =
     `Speed check: median ${med.toFixed(0)} ms, 95% under ${p95.toFixed(0)} ms ` +
-    `(${(1000 / med).toFixed(1)} frames/s). Model ${MODEL_KEY} ${SIZE}px${slowDetector ? ' + stairs lane' : ''}, ${EP}, ` +
+    `(${(1000 / med).toFixed(1)} frames/s). Model ${MODEL_KEY} ${SIZE}px${slowDetector ? ' + stairs lane' : ''}${cocoDetector ? ' + coco lane' : ''}, ${EP}, ` +
     `${window.ort ? window.ort.env.wasm.numThreads : '?'} thread(s)${self.crossOriginIsolated ? ', isolated' : ''}.`;
 }
 

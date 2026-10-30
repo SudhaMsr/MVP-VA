@@ -13,12 +13,14 @@ const NOUNS = {
   chair: ['chair', 'chairs'], plant_pot: ['plant pot', 'plant pots'], electrical_box: ['electrical box', 'electrical boxes'],
   bicycle_rack: ['bicycle rack', 'bicycle racks'], fire_hydrant: ['hydrant', 'hydrants'], manhole: ['manhole', 'manholes'],
   crosswalk: ['crossing', 'crossings'], red_light: ['red light', 'red lights'], green_light: ['green light', 'green lights'],
+  cat: ['cat', 'cats'], horse: ['horse', 'horses'], sheep: ['sheep', 'sheep'], cow: ['cow', 'cows'], suitcase: ['suitcase', 'suitcases'],
+  skateboard: ['skateboard', 'skateboards'], parking_meter: ['parking meter', 'parking meters'], couch: ['sofa', 'sofas'], dining_table: ['table', 'tables'],
   stairs: ['stairs', 'stairs', 'none'], blind_road: ['tactile paving', 'tactile paving', 'none'],
 };
 // Risks first: when there is a lot to say, these are kept and the rest dropped.
 const IMPORTANCE = ['stairs', 'car', 'truck', 'bus', 'motorcycle', 'tricycle', 'bicycle', 'red_light', 'manhole', 'person', 'dog',
   'roadblock', 'guard_rail', 'crosswalk', 'green_light', 'pole', 'warning_column', 'reflective_cone', 'tree', 'bench', 'chair',
-  'ashcan', 'plant_pot', 'electrical_box', 'bicycle_rack', 'fire_hydrant', 'blind_road'];
+  'horse', 'cow', 'sheep', 'cat', 'ashcan', 'plant_pot', 'suitcase', 'skateboard', 'parking_meter', 'couch', 'dining_table', 'electrical_box', 'bicycle_rack', 'fire_hydrant', 'blind_road'];
 const rank = (n) => { const i = IMPORTANCE.indexOf(n); return i < 0 ? 99 : i; };
 
 const article = (noun) => (/^[aeiou]/.test(noun) ? 'an' : 'a');
