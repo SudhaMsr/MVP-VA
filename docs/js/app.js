@@ -10,6 +10,7 @@ import { RouteStore, RouteRecorder, routeFromPoints, pathLength } from './routes
 import { Cues } from './cues.js';
 import { getUnits, setUnits, getStep, setStep, stepCm, UNIT_MODES } from './units.js';
 import { describeScene, NO_CAMERA } from './describe.js';
+import { NoteStore, crossingAdvice } from './notes.js';
 import { reverseLookup, describePlace, PlaceStore, normaliseName } from './places.js';
 import { BatteryWatch } from './battery.js';
 import { Speaker, stepRate } from './speech.js';
@@ -45,6 +46,7 @@ const routeRecorder = new RouteRecorder();
 let recWatch = null, recAnnounced = 0;
 const cues = new Cues();
 const places = new PlaceStore();
+const notes = new NoteStore();
 let detector = null;
 let slowDetector = null; // second model for stairs, manholes, benches...
 const slow = { dets: [], t: null, ranAt: 0 };
@@ -769,6 +771,10 @@ function handleTranscript(text) {
     case 'describe': describeNow(); break;
     case 'whereami': whereAmI(); break;
     case 'save': savePlace(cmd.arg); break;
+    case 'cross': if (!state.running || !state.scene) say(NO_CAMERA, 'status'); else say(crossingAdvice(state.scene.tracks), 'status'); break;
+    case 'noteAdd': { const r = notes.add(cmd.arg); say(r ? `Noted: ${r.text}.${r.persisted ? '' : ' I could only keep it until you close the page.'}` : 'What should I remember?', 'status'); break; }
+    case 'noteList': { const l = notes.list().slice(-3).reverse(); say(l.length ? `Your latest notes: ${l.map((n) => n.text).join('. ')}.` : 'You have no notes yet. Say remember, then what to remember.', 'status'); break; }
+    case 'noteFind': { const f = notes.find(cmd.arg); say(f.length ? `You told me: ${f[0].text}.` : 'I have no note about that.', 'status'); break; }
     case 'units': changeUnits(cmd.arg); break;
     case 'stepLength': changeStep(cmd.arg); break;
     case 'saveAddress': dialogue.saveAddress(cmd.name, cmd.arg); break;

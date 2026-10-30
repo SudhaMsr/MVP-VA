@@ -40,6 +40,13 @@ export function parseCommand(raw) {
   if (follow) return { type: 'routeFollow', arg: follow[1].trim(), reverse: false };
   if (/\b(?:list|what|which|how many)\b.*\broutes\b/.test(t)) return { type: 'routeList' };
 
+  // Crossing help and memory notes
+  if (/\b(?:can i|is it safe to|should i|is it ok to|is it okay to)\s+(?:cross|go across)\b|\b(?:crossing|cross the road)\s+(?:help|check)\b|\bis (?:the|it) (?:light|signal) (?:green|red)\b/.test(t)) return { type: 'cross' };
+  const note = t.match(/^(?:remember|note|make a note|take a note)\s+(?:that\s+)?(.{4,})$/);
+  if (note && !/^(?:this|here|my\s+(?:home|work)|where i am)\b/.test(note[1])) return { type: 'noteAdd', arg: note[1].trim() };
+  if (/\b(?:what|which)\s+(?:notes|things)\b.*\b(?:remember|stored|saved|have)\b|\bwhat do you remember\b|\bread (?:my )?notes\b/.test(t)) return { type: 'noteList' };
+  const ask = t.match(/^(?:where (?:did i (?:put|leave)|are|is|was)|what did i (?:say|tell you) about)\s+(.+)$/);
+  if (ask && !/\b(?:i|we)\s+(?:am|are)\b/.test(ask[1])) return { type: 'noteFind', arg: ask[1].trim() };
   // Save the place the walker is standing at: "save this place as home", "remember here as the bakery", "this is home"
   const save = t.match(/\b(?:save|remember|mark|bookmark|store)\s+(?:this|here|this place|this spot|this location|my location|where i am)(?:\s+as\s+(.+))?$/)
     || t.match(/\b(?:call this|name this)\s+(.+)$/) || t.match(/^this is\s+(?:my\s+)?(home|work|the office|office)$/);

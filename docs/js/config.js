@@ -88,4 +88,4 @@ export const CONFIG = {
 export const GOOGLE_KEY = 'AIzaSyBkblGHKZibIQUbufndBeCK6TKQpjzuCyY';
 
 // Features that are built but switched off until the core (hazards + navigation) is tested.
-export const FEATURES = { read: false }; // ?read=1 turns reading on for testing
+export const FEATURES = { read: true }; // ?read=1 turns reading on for testing
