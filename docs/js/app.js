@@ -12,6 +12,7 @@ import { getUnits, setUnits, getStep, setStep, stepCm, UNIT_MODES } from './unit
 import { describeScene, NO_CAMERA } from './describe.js';
 import { CameraWatch, frameStats, greyFromVideo } from './camcheck.js';
 import { warmModel } from './modelcache.js';
+import { DepthLane } from './depth.js';
 import { NoteStore, crossingAdvice } from './notes.js';
 import { reverseLookup, describePlace, PlaceStore, normaliseName } from './places.js';
 import { BatteryWatch } from './battery.js';
@@ -256,6 +257,8 @@ async function loadModel() {
 // The stairs / manhole lane (and the optional coco lane) load after the app is already running,
 // so the walker is not kept waiting for a second 12 MB model. Until it is ready the fast lane works alone.
 let lanesLoading = null;
+const USE_DEPTH = params.get('depth') === '1'; // test only: measure a depth model's speed on the phone
+let depthLane = null;
 function loadLanes() {
   if (!USE_SLOW || lanesLoading) return lanesLoading;
   lanesLoading = (async () => {
@@ -270,6 +273,10 @@ function loadLanes() {
         logEvent('slow-model-error', e && e.message);
         if (state.running) say('Stairs and manhole detection could not load. Other detection is working.', 'status');
       }
+    }
+    if (USE_DEPTH && !depthLane) {
+      try { const dl = new DepthLane(window.ort); await dl.load((k, v) => logEvent(k, v)); depthLane = dl; logEvent('depth-ready', ''); }
+      catch (e) { logEvent('depth-error', e && e.message); }
     }
     if (!cocoDetector) {
       try {
@@ -331,6 +338,10 @@ async function loop() {
       } catch (e) { logEvent('coco-frame-error', e && e.message); }
       if (!state.running) return;
     }
+    if (depthLane && depthLane.due(performance.now())) {
+      try { const ms = await depthLane.run(el.video, performance.now()); if (RECORD) logEvent('depth-ms', String(Math.round(ms))); } catch (e) { logEvent('depth-frame-error', e && e.message); }
+      if (!state.running) return;
+    }
     const t = performance.now();
     const dets = mergeLanes(mergeLanes(fast, slow, t, SECONDARY.maxAgeMs), coco, t, TERTIARY.maxAgeMs);
     const tracks = tracker.update(dets, t, width, height);
@@ -372,7 +383,7 @@ function updateStats() {
   const p95 = a[Math.min(a.length - 1, Math.floor(a.length * 0.95))];
   el.stats.textContent =
     `Speed check: median ${med.toFixed(0)} ms, 95% under ${p95.toFixed(0)} ms ` +
-    `(${(1000 / med).toFixed(1)} frames/s). Model ${MODEL_KEY} ${SIZE}px${slowDetector ? ' + stairs lane' : ''}${cocoDetector ? ' + coco lane' : ''}, ${EP}, ` +
+    `(${(1000 / med).toFixed(1)} frames/s). Model ${MODEL_KEY} ${SIZE}px${slowDetector ? ' + stairs lane' : ''}${cocoDetector ? ' + coco lane' : ''}${depthLane && depthLane.medianMs() != null ? ` + depth lane ${depthLane.medianMs().toFixed(0)} ms` : ''}, ${EP}, ` +
     `${window.ort ? window.ort.env.wasm.numThreads : '?'} thread(s)${self.crossOriginIsolated ? ', isolated' : ''}.`;
 }
 
@@ -392,6 +403,7 @@ function drawOverlay(tracks, w, h) {
     const d = tr.dist != null ? ` ${tr.dist.toFixed(1)}m` : '';
     g.fillText(`${tr.name}${d}`, tr.box.x1 + 4, Math.max(20, tr.box.y1 + 20));
   }
+  if (depthLane) depthLane.draw(g, w);
 }
 
 // ---------- recording (supervisor option: ?record) ----------
