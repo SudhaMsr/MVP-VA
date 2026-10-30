@@ -495,7 +495,7 @@ async function start() {
   setStatus(RECORD ? 'Running, recording' : 'Running');
   updateMain();
   cues.play('ok');
-  say(RECORD ? 'Ready, recording.' : wasFirst ? 'Ready. Tap the screen, then speak.' : 'Ready.', 'status');
+  say(RECORD ? 'Ready, recording.' : wasFirst ? 'Ready. Keep using your cane or guide dog. This app helps, but does not replace them. Tap the screen, then speak.' : 'Ready.', 'status');
   startRecording();
   lockScreen();
   loop();

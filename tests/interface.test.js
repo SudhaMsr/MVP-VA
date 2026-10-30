@@ -124,3 +124,18 @@ test('spoken phrasings seen in field testing: address first, stuttered "to me to
   assert.deepEqual(parseCommand('navigate me to home'), { type: 'navigate', arg: 'home' });
   assert.equal(parseCommand('what is my battery percentage').type, 'battery');
 });
+
+test('"I lost your location signal." is said once, then at most once a minute', async () => {
+  const said = []; let cb, err, clock = 0;
+  const A = { lat: 51, lon: 0 }, B = { lat: 51, lon: 0.004 };
+  const route = { distance: 280, duration: 200, source: 'google', steps: [
+    { distance: 280, name: '', text: 'walk ahead', maneuver: { type: 'depart', location: [0, 51] }, at: A, path: [A, B] },
+    { distance: 0, name: '', text: 'you have arrived', maneuver: { type: 'arrive', location: [0.004, 51] }, at: B, path: [] }] };
+  const nav = new Navigator({ say: (t) => said.push(t), now: () => clock, providers: { route: async () => route, geocode: async () => ({ ...B, name: 'Dest' }) },
+    getPosition: async () => A, watch: (f, e) => { cb = f; err = e; return 1; }, unwatch: () => {} });
+  await nav.start('x'); said.length = 0;
+  for (clock = 1000; clock < 50000; clock += 1000) err();
+  assert.equal(said.filter((t) => /lost your location/.test(t)).length, 1, 'once in the first 50 s');
+  clock = 70000; err();
+  assert.equal(said.filter((t) => /lost your location/.test(t)).length, 2, 'again after a minute');
+});

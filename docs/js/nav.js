@@ -240,6 +240,14 @@ export function locationMessage(err, prefix = 'I cannot find your location.') {
 }
 
 export class Navigator {
+  // A patchy signal reports an error every second or so. Say it once, then at most once a minute, and say when it is back.
+  locationLost() {
+    const t = this.now();
+    if (this.lostAt != null && t - this.lostAt < 60000) return;
+    this.lostAt = t;
+    this.say('I lost your location signal.', 'status');
+  }
+
   constructor({ say, fetchFn = (...a) => fetch(...a), providers, getPosition, watch, unwatch, warnMetres = 40, nowMetres = 8, offRouteMetres = 40, reassureMs = 90000, reassureMetres = 80, now = () => Date.now(), trace = null }) {
     this.providers = providers || makeProviders({ fetchFn });
     Object.assign(this, { say, fetchFn, getPosition, watch, unwatch, warnMetres, nowMetres, offRouteMetres, reassureMs, reassureMetres, now, trace });
@@ -296,7 +304,7 @@ export class Navigator {
       : first
       ? `Going to ${dest.name}. ${roundMetres(route.distance)}, ${minutesText(route.duration)}.${this.large && first ? ' This is a large site, so I am heading for its middle. For a particular building, say its name.' : ''} ${route.steps.some((x) => /stairs|steps/i.test(x.text || '')) ? 'The route includes stairs. ' : ''}First, ${instructionText(first0)} for ${roundMetres(first0.distance)}.`
       : `New route. ${instructionText(first0)} for ${roundMetres(first0.distance)}.`, 'status');
-    this.watchId = this.watch((p) => this.onPosition(p), () => this.say('I lost your location signal.', 'status'));
+    this.watchId = this.watch((p) => this.onPosition(p), () => this.locationLost());
     return true;
   }
 
