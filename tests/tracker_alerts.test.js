@@ -86,7 +86,7 @@ test('hazards outrank information, and information is silent while hazards are i
   const eng = new AlertEngine();
   const tracks = [
     { id: 1, cls: idx('blind_road'), name: 'blind_road', hits: 3, dist: null, speed: null, box: { x1: 100, y1: 300, x2: 500, y2: 470 } },
-    { id: 2, cls: idx('person'), name: 'person', hits: 3, dist: 2.2, speed: 0, box: { x1: 100, y1: 100, x2: 160, y2: 300 } },
+    { id: 2, cls: idx('person'), name: 'person', hits: 3, dist: 2.2, speed: 0, box: { x1: 150, y1: 100, x2: 210, y2: 300 } },
   ];
   const a = eng.next(tracks, W, H, 0);
   assert.equal(a.text, 'Person, left, about 2 metres.');

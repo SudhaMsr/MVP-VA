@@ -22,6 +22,15 @@ export function directionOf(cx, frameW) {
   return 'ahead';
 }
 
+// Is any part of this box's footing inside the walking corridor? The corridor is a trapezoid, narrow at the horizon and
+// wide at the bottom of the picture. Objects whose base is above the horizon line (topY) are too far to matter.
+export function inCorridor(box, frameW, frameH, cor = CONFIG.corridor) {
+  const y = Math.min(1, box.y2 / frameH);
+  if (y < cor.topY) return false;
+  const half = cor.topHalf + (cor.bottomHalf - cor.topHalf) * ((y - cor.topY) / (1 - cor.topY));
+  return box.x2 / frameW >= 0.5 - half && box.x1 / frameW <= 0.5 + half;
+}
+
 function metres(d) { return nearDistance(d); } // metres or steps, as the walker chose
 
 export const LEVELS = ['quiet', 'normal', 'detailed'];
@@ -105,12 +114,13 @@ export class AlertEngine {
       // 'sign', 'building' and 'road' are ignored on purpose: we cannot read it yet, so announcing it is just noise.
       const kind = STATIC_OBSTACLES[name] || name === 'manhole' || name === 'fire_hydrant' || name === 'blind_road' ? 'static'
         : VEHICLES.has(name) || name === 'bicycle' || name === 'person' || name === 'dog' ? 'moving' : 'info';
-      for (let i = start; i < out.length; i++) { out[i].d = d; out[i].dir = dir; out[i].kind = kind; }
+      const inPath = inCorridor(tr.box, frameW, frameH, c.corridor);
+      for (let i = start; i < out.length; i++) { out[i].d = d; out[i].dir = dir; out[i].kind = kind; out[i].inPath = inPath; }
     }
-    // Only things near or in the walker's path are worth speaking about: off to the side, wait until they are close.
+    // Only things in the walker's path (the corridor) are worth speaking about; outside it, wait until they are very close.
     // Urgent alerts and fall hazards (stairs, red lights) always stay.
     return out.filter((a) => levelAllows(a, this.level, c.quietNearMetres) &&
-      (a.priority <= 1 || a.dir === 'ahead' || a.d == null || a.d < (c.sideAlertMetres ?? 2.5)));
+      (a.priority <= 1 || a.inPath || a.d == null || a.d < (c.sideAlertMetres ?? 1.5)));
   }
 
   // Returns {text, priority, urgent, key} or null.

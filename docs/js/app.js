@@ -317,6 +317,10 @@ function drawOverlay(tracks, w, h) {
   const g = c.getContext('2d');
   g.clearRect(0, 0, w, h);
   g.lineWidth = 3; g.font = '20px sans-serif';
+  const cor = CONFIG.corridor; // the walking corridor, so a supervisor can see what counts as "in the way"
+  g.strokeStyle = '#00e5ff'; g.beginPath();
+  g.moveTo(w * (0.5 - cor.topHalf), h * cor.topY); g.lineTo(w * (0.5 + cor.topHalf), h * cor.topY);
+  g.lineTo(w * (0.5 + cor.bottomHalf), h); g.lineTo(w * (0.5 - cor.bottomHalf), h); g.closePath(); g.stroke();
   for (const tr of tracks) {
     g.strokeStyle = '#ffd400'; g.fillStyle = '#ffd400';
     g.strokeRect(tr.box.x1, tr.box.y1, tr.box.x2 - tr.box.x1, tr.box.y2 - tr.box.y1);

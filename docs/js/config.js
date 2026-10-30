@@ -62,7 +62,10 @@ export const CONFIG = {
   // Cooldowns per priority (ms)
   urgentGapMs: 8000,
   cooldownMs: { 0: 6000, 1: 6000, 2: 6000, 3: 12000, 4: 15000 },
-  sideAlertMetres: 2.5, // things to the left or right are only mentioned when closer than this
+  // The walker's path: a trapezoid on the ground in front of the camera (fractions of the picture). Things outside it
+  // stay quiet unless very close, because a blind walker only needs to hear about what is on the way.
+  corridor: { topY: 0.4, topHalf: 0.12, bottomHalf: 0.32 },
+  sideAlertMetres: 1.5, // things outside the path are only mentioned when closer than this // things to the left or right are only mentioned when closer than this
   repeatCloserMetres: 1.5, // a repeat alert is allowed straight away if the thing got this much closer
   forgetMs: 4000, // an object out of view this long counts as new if it comes back
   reminderMs: 30000, // fall hazards and red lights still in view are repeated this often (others only when closer)

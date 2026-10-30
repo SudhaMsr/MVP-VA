@@ -27,7 +27,7 @@ test('a repeat is allowed straight away when the thing has got clearly closer', 
 
 test('objects off to the side stay quiet unless they are close; ahead is always spoken', () => {
   assert.equal(new AlertEngine().next(tr('person', 3.5, RIGHT), W, H, 0), null);
-  assert.match(new AlertEngine().next(tr('person', 2.0, RIGHT), W, H, 0).text, /Person, right/);
+  assert.match(new AlertEngine().next(tr('person', 1.0, RIGHT), W, H, 0).text, /Person, right/);
   assert.match(new AlertEngine().next(tr('person', 3.5, AHEAD), W, H, 0).text, /Person, ahead/);
 });
 
@@ -159,4 +159,25 @@ test('the same routine sentence is never spoken twice within 30 s', () => {
   assert.equal(spoken.length, 1 + (sp.current && sp.current.text === 'Bin, left, close.' && spoken.length === 2 ? 0 : 0), 'queued, or playing after the first ended');
   sp.speak('Danger.', 'urgent'); sp.speak('Danger.', 'urgent');
   assert.ok(spoken.filter((t) => t === 'Danger.').length >= 1, 'urgent is never dropped');
+});
+
+import { inCorridor } from '../docs/js/alerts.js';
+test('walking corridor: in front counts, off to the side and far away do not', () => {
+  assert.equal(inCorridor({ x1: 280, y1: 200, x2: 360, y2: 300 }, W, H), true, 'straight ahead');
+  assert.equal(inCorridor({ x1: 500, y1: 200, x2: 600, y2: 300 }, W, H), false, 'far right, mid distance');
+  assert.equal(inCorridor({ x1: 0, y1: 100, x2: 100, y2: 460 }, W, H), false, 'far left, close');
+  assert.equal(inCorridor({ x1: 260, y1: 90, x2: 380, y2: 150 }, W, H), false, 'above the horizon line: too far');
+  assert.equal(inCorridor({ x1: 100, y1: 100, x2: 400, y2: 460 }, W, H), true, 'a wide thing close up that reaches into the path');
+});
+
+test('a person off to the side is quiet at 2 m, but a person in the path is spoken', () => {
+  const side = { x1: 20, y1: 200, x2: 100, y2: 300 };
+  assert.equal(new AlertEngine().next(tr('person', 2.0, side), W, H, 0), null);
+  assert.match(new AlertEngine().next(tr('person', 1.0, side), W, H, 0).text, /Person, left/);
+  assert.match(new AlertEngine().next(tr('person', 3.5, AHEAD), W, H, 0).text, /Person, ahead/);
+});
+
+test('a person in the path in the left third is still spoken (the old rule dropped it)', () => {
+  const leftOfCentre = { x1: 20, y1: 150, x2: 250, y2: 470 };
+  assert.match(new AlertEngine().next(tr('person', 3.0, leftOfCentre), W, H, 0).text, /Person, left/);
 });
