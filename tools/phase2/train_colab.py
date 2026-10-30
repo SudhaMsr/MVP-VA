@@ -43,9 +43,9 @@
 #
 # ---- Cell 4: stage 1, new head only (backbone frozen) then stage 2, everything gently ----
 # m = YOLO('/content/p2/rod_best.pt')
-# m.train(data=d+'/data.yaml', imgsz=416, epochs=15, batch=32, freeze=10, lr0=0.002, project='/content/p2/runs', name='s1', patience=0)
+# m.train(data=d+'/data.yaml', imgsz=416, epochs=15, batch=32, freeze=10, lr0=0.002, project='/content/p2/runs', name='s1', patience=0, exist_ok=True)
 # m = YOLO('/content/p2/runs/s1/weights/best.pt')
-# m.train(data=d+'/data.yaml', imgsz=416, epochs=40, batch=32, lr0=0.0005, project='/content/p2/runs', name='s2', patience=10)
+# m.train(data=d+'/data.yaml', imgsz=416, epochs=40, batch=32, optimizer='AdamW', lr0=0.0005, project='/content/p2/runs', name='s2', patience=10, exist_ok=True)
 #
 # ---- Cell 5: compare to the baseline, class by class ----
 # new = YOLO('/content/p2/runs/s2/weights/best.pt').val(data=d+'/data.yaml', imgsz=416, plots=False)
