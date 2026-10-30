@@ -24,7 +24,7 @@ test('a parked car also stays quiet when its distance estimate jitters (closing 
 });
 
 test('a car approaching fast is still an urgent warning, wherever it is in the picture', () => {
-  const a = new AlertEngine().next([car(LEFT, { speed: 5, dist: 9 })], W, H, 0);
+  const a = new AlertEngine().next([car(LEFT, { speed: 8, dist: 9 })], W, H, 0);
   assert.equal(a.priority, 0);
   assert.match(a.text, /Caution\. Car approaching, left/);
 });
@@ -80,4 +80,16 @@ test('the tracker measures sideways speed: still is near zero, crossing is large
   const tk2 = new Tracker(); let still;
   for (let i = 0; i <= 6; i++) still = tk2.update([det(300)], i * 100, W, H)[0];
   assert.ok(Math.abs(still.lat) < 0.02, `still lat ${still.lat}`);
+});
+
+test('speeding rule from the first Vision Assist: car over 7 m/s, bus and truck over 5 m/s, within 20 m', () => {
+  const v = (name, speed, dist = 10) => [{ ...car(LEFT, { speed, dist }), name, cls: idx(name) }];
+  const urgent = (t) => { const a = new AlertEngine(CONFIG, 'quiet').next(t, W, H, 0); return !!(a && a.priority === 0); };
+  assert.equal(urgent(v('car', 5)), false, 'a car creeping at 5 m/s is not speeding');
+  assert.equal(urgent(v('car', 8)), true);
+  assert.equal(urgent(v('bus', 4)), false);
+  assert.equal(urgent(v('bus', 6)), true);
+  assert.equal(urgent(v('truck', 6)), true);
+  assert.equal(urgent(v('car', 12, 25)), false, 'further than 20 m: not yet');
+  assert.equal(urgent(v('bicycle', 3, 5)), true, 'bicycles keep the lower threshold: they share the pavement');
 });

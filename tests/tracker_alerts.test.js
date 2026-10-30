@@ -54,7 +54,7 @@ test('direction thirds', () => {
 
 function approachingCarTracks() {
   return [{
-    id: 1, cls: idx('car'), name: 'car', hits: 5, dist: 9, speed: 4,
+    id: 1, cls: idx('car'), name: 'car', hits: 5, dist: 9, speed: 8,
     box: { x1: 400, y1: 200, x2: 520, y2: 300 },
   }];
 }

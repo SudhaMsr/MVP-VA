@@ -32,10 +32,10 @@ test('objects off to the side stay quiet unless they are close; ahead is always 
 
 test('urgent vehicle alerts ignore the side filter and the budget', () => {
   const eng = new AlertEngine();
-  const car = tr('car', 9, RIGHT, { speed: 4 });
+  const car = tr('car', 9, RIGHT, { speed: 8 });
   assert.equal(eng.next(car, W, H, 0).priority, 0);
   eng.spokenAt = [0, 0, 0]; // budget already used up
-  assert.ok(eng.next(tr('car', 4, AHEAD, { id: 2, speed: 4 }), W, H, 100), 'an approaching car must still be spoken');
+  assert.ok(eng.next(tr('car', 4, AHEAD, { id: 2, speed: 8 }), W, H, 100), 'an approaching car must still be spoken');
 });
 
 test('budget caps routine alerts per window', () => {
