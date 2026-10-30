@@ -374,6 +374,7 @@ export class Navigator {
       this.offCount += 1;
       if (this.offCount >= 2 && Date.now() - this.lastReroute > 15000) {
         this.lastReroute = Date.now(); this.offCount = 0;
+        if (this.route.source === 'recorded') { this.say('You are off your recorded route. Walk back toward the path you took.', 'nav'); return; }
         this.say('Off route. Finding a new way.', 'nav');
         this._route(p, this.destination, false);
       }

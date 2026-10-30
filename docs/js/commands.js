@@ -28,11 +28,28 @@ export function parseCommand(raw) {
     if (arg) return { type: 'saveAddress', name, arg };
   }
 
+  // Routes you record and walk again: "record a route called home to shop", "stop recording", "follow route home to shop",
+  // "take me back along route home to shop", "take me back the way I came", "what routes do I have".
+  if (/\b(?:(?:stop|finish|end)\s+(?:the\s+)?(?:route\s+)?recording|save\s+(?:the|this)\s+route)\b/.test(t)) return { type: 'routeStop' };
+  const rec = t.match(/\b(?:record|start recording|begin recording)\s*(?:a |this |my |the |new )*(?:walk|route)?(?:\s+(?:called|as|named))?\s*(.*)$/);
+  if (rec && /\b(record|recording)\b/.test(t) && !/\b(session|video)\b/.test(t)) return { type: 'routeRecord', arg: rec[1].replace(/^(?:called|as|named)\s+/, '').trim() };
+  const back = t.match(/\b(?:take me )?back (?:along|on|through) (?:the\s+|my\s+)*route\s+(?:called\s+)?(.+)$/) || t.match(/\b(?:retrace|reverse)\s+(?:the\s+|my\s+)*route\s+(?:called\s+)?(.+)$/);
+  if (back) return { type: 'routeFollow', arg: back[1].trim(), reverse: true };
+  if (/\b(?:take me back|go back|walk me back|bring me back)\b.*\b(?:way i came|same way|how i came|retrace)\b|\bretrace my steps\b/.test(t)) return { type: 'routeFollow', arg: '', reverse: true };
+  const follow = t.match(/\b(?:follow|walk|take me along|take me on|go along|use)\s+(?:the\s+|my\s+)*route\s+(?:called\s+)?(.+)$/);
+  if (follow) return { type: 'routeFollow', arg: follow[1].trim(), reverse: false };
+  if (/\b(?:list|what|which|how many)\b.*\broutes\b/.test(t)) return { type: 'routeList' };
+
   // Save the place the walker is standing at: "save this place as home", "remember here as the bakery", "this is home"
   const save = t.match(/\b(?:save|remember|mark|bookmark|store)\s+(?:this|here|this place|this spot|this location|my location|where i am)(?:\s+as\s+(.+))?$/)
     || t.match(/\b(?:call this|name this)\s+(.+)$/) || t.match(/^this is\s+(?:my\s+)?(home|work|the office|office)$/);
   if (save) return { type: 'save', arg: (save[1] || '').trim() };
   if (/\b(?:save|remember|mark|bookmark)\s+(?:my\s+)?(home|work)$/.test(t)) return { type: 'save', arg: t.match(/(home|work)$/)[1] }; // only when nothing follows: "save my home" = here
+
+  // Vibration on or off: "vibration off", "turn off the vibration", "stop vibrating", "vibration on"
+  const vib = t.match(/\b(?:turn|switch)\s+(on|off)\s+(?:the\s+)?(?:vibration|vibrations|buzz|buzzing|haptics?)\b/) || t.match(/\b(?:vibration|vibrations|vibrate|buzz|buzzing|haptics?)\s+(on|off)\b/);
+  if (vib) return { type: 'vibration', arg: vib[1] };
+  if (/\b(?:stop|no more)\s+(?:the\s+)?(?:vibrating|vibration|buzzing)\b/.test(t)) return { type: 'vibration', arg: 'off' };
 
   // Speech speed
   if (/\b(slow down|slower|more slowly|speak slower|talk slower|too fast)\b/.test(t)) return { type: 'rate', arg: 'slower' };

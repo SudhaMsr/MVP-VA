@@ -5,6 +5,8 @@ import { filterAllowed, mergeLanes } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
 import { AlertEngine, LEVELS } from './alerts.js';
+import { Haptics } from './haptics.js';
+import { RouteStore, RouteRecorder, routeFromPoints, pathLength } from './routes.js';
 import { Cues } from './cues.js';
 import { getUnits, setUnits, getStep, setStep, stepCm, UNIT_MODES } from './units.js';
 import { describeScene, NO_CAMERA } from './describe.js';
@@ -12,7 +14,7 @@ import { reverseLookup, describePlace, PlaceStore, normaliseName } from './place
 import { BatteryWatch } from './battery.js';
 import { Speaker, stepRate } from './speech.js';
 import { parseCommand, HELP_TEXT } from './commands.js';
-import { Navigator, makeProviders, locationMessage } from './nav.js';
+import { Navigator, makeProviders, locationMessage, haversine, roundMetres } from './nav.js';
 import { looksLikeEcho, isBargeIn } from './barge.js';
 import { Dialogue, parseAnswer } from './dialogue.js';
 import { recogniseText, readingSpeech } from './reader.js';
@@ -29,7 +31,7 @@ const $ = (id) => document.getElementById(id);
 const el = {
   start: $('startBtn'), stop: $('stopBtn'), repeat: $('repeatBtn'), mic: $('micBtn'),
   status: $('status'), last: $('lastAlert'), stats: $('stats'), video: $('video'), overlay: $('overlay'),
-  dl: $('logBtn'), saveRec: $('saveRecBtn'), level: $('levelBtn'), tap: $('tapBtn'), units: $('unitsBtn'), step: $('stepBtn'), rate: $('rateBtn'), shareBtn: $('shareBtn'), dbg: $('debugBtn'), rec: $('recordBtn'),
+  dl: $('logBtn'), saveRec: $('saveRecBtn'), level: $('levelBtn'), tap: $('tapBtn'), units: $('unitsBtn'), step: $('stepBtn'), rate: $('rateBtn'), haptics: $('hapticsBtn'), shareBtn: $('shareBtn'), dbg: $('debugBtn'), rec: $('recordBtn'),
 };
 
 const speaker = new Speaker(window.speechSynthesis, window.SpeechSynthesisUtterance, {
@@ -37,6 +39,10 @@ const speaker = new Speaker(window.speechSynthesis, window.SpeechSynthesisUttera
 });
 const tracker = new Tracker();
 const engine = new AlertEngine(CONFIG, CONFIG.verbosity);
+const haptics = new Haptics();
+const routes = new RouteStore();
+const routeRecorder = new RouteRecorder();
+let recWatch = null, recAnnounced = 0;
 const cues = new Cues();
 const places = new PlaceStore();
 let detector = null;
@@ -79,7 +85,7 @@ function say(text, kind = 'status') {
 
 let lastTraceAt = 0;
 const navigator_ = new Navigator({
-  say: (t, k) => say(t, k),
+  say: (t, k) => { if (k === 'nav' && /\bnow\.$/.test(t)) haptics.buzz('turn'); say(t, k); },
   trace: (f) => { const n = Date.now(); if (n - lastTraceAt < 3000) return; lastTraceAt = n; logEvent('fix', JSON.stringify(f)); },
   providers: makeProviders({
     googleKey: new URLSearchParams(location.search).get('maps') === 'osm' ? '' : GOOGLE_KEY,
@@ -272,6 +278,7 @@ async function loop() {
     const alert = engine.next(tracks, width, height, t);
     if (alert && (alert.urgent || performance.now() > state.talkUntil)) { // routine alerts wait while the walker is speaking
       if (alert.urgent) cues.play('urgent');
+      const hk = Haptics.kindFor(alert); if (hk) haptics.buzz(hk);
       speaker.speak(alert.text, alert.urgent ? 'urgent' : 'normal');
       logEvent('alert', `${alert.priority}|${alert.text}`);
     }
@@ -532,6 +539,57 @@ function describeNow() {
   state.lastSpoken = text;
 }
 
+// ---------- recording a walk and following it again ----------
+function startRouteRecording(rawName) {
+  if (routeRecorder.active) { say('Already recording. Say stop recording when you have finished.', 'status'); return; }
+  if (!('geolocation' in navigator)) { say('This phone cannot record a route.', 'status'); return; }
+  const name = normaliseName(rawName) || 'my walk';
+  routeRecorder.start(name); recAnnounced = 0;
+  recWatch = navigator.geolocation.watchPosition((pos) => {
+    routeRecorder.add({ lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy });
+    if (routeRecorder.metres - recAnnounced >= 200) { recAnnounced = routeRecorder.metres; say(`Still recording. ${roundMetres(routeRecorder.metres)} so far.`, 'status'); }
+  }, () => say('I lost your location signal while recording.', 'status'), { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
+  logEvent('route-record', name);
+  say(`Recording ${name}. Walk, and say stop recording when you have finished.`, 'status');
+}
+
+function stopRouteRecording() {
+  if (!routeRecorder.active) { say('I am not recording a route.', 'status'); return null; }
+  try { if (recWatch != null) navigator.geolocation.clearWatch(recWatch); } catch (_) { /* ignore */ }
+  recWatch = null;
+  const { name, points } = routeRecorder.stop(); const metres = pathLength(points);
+  if (points.length < 2 || metres < 20) { say('That was too short to save as a route. Try again.', 'status'); return null; }
+  const r = routes.save(name, points);
+  logEvent('route-saved', `${name} ${Math.round(metres)}m ${points.length}pts`);
+  say(`Saved route ${r.name}, ${roundMetres(metres)}.${r.persisted ? '' : ' I could not store it on this phone, so I will only remember it until you close the page.'} Say follow route ${r.name}, or take me back along route ${r.name}.`, 'status');
+  return r;
+}
+
+async function followRoute(rawName, reverse) {
+  if (routeRecorder.active) { if (!stopRouteRecording()) return; }
+  const rec = rawName ? routes.get(rawName) : routes.getLast();
+  if (!rec) { say(rawName ? `I do not have a route called ${rawName}. Say what routes do I have.` : 'I have no recorded route to go back along. Say record a route first.', 'status'); return; }
+  let pos;
+  try { pos = await navigator_.getPosition(); } catch (e) { say(locationMessage(e), 'status'); return; }
+  const route = routeFromPoints(rec.points, rec.name, { reverse });
+  if (!route) { say('That route is too short to follow.', 'status'); return; }
+  const gap = haversine(pos, route.start);
+  if (gap > 80) { say(`You are ${roundMetres(gap)} from the ${reverse ? 'end' : 'start'} of route ${rec.name}, so I cannot follow it from here. Go to its ${reverse ? 'end' : 'start'} first.`, 'status'); return; }
+  const dest = { name: `the ${reverse ? 'start' : 'end'} of route ${rec.name}`, lat: route.end.lat, lon: route.end.lon, large: false };
+  logEvent('route-follow', `${rec.name}${reverse ? ' reversed' : ''}`);
+  navigator_.begin(pos, dest, route, true, false);
+}
+
+function changeVibration(on, speak = true) {
+  haptics.set(on);
+  try { localStorage.setItem('va.haptics', on ? '1' : '0'); } catch (_) { /* storage can be unavailable */ }
+  if (el.haptics) { el.haptics.textContent = `Vibration: ${on ? 'on' : 'off'}`; el.haptics.setAttribute('aria-pressed', String(on)); }
+  if (!speak) return;
+  if (on && !haptics.available) { say('Vibration is on, but this phone or browser cannot vibrate.', 'status'); return; }
+  if (on) haptics.buzz('turn');
+  say(on ? 'Vibration is on. You will feel urgent warnings and turns.' : 'Vibration is off.', 'status');
+}
+
 function changeRate(dir) {
   const next = stepRate(speaker.rate, dir);
   if (next == null) { say(dir < 0 ? 'That is already the slowest I speak.' : 'That is already the fastest I speak.', 'status'); return; }
@@ -714,6 +772,11 @@ function handleTranscript(text) {
     case 'units': changeUnits(cmd.arg); break;
     case 'stepLength': changeStep(cmd.arg); break;
     case 'saveAddress': dialogue.saveAddress(cmd.name, cmd.arg); break;
+    case 'routeRecord': startRouteRecording(cmd.arg); break;
+    case 'routeStop': stopRouteRecording(); break;
+    case 'routeFollow': followRoute(cmd.arg, cmd.reverse); break;
+    case 'routeList': { const n = routes.list(); say(n.length ? `You have ${n.length} ${n.length === 1 ? 'route' : 'routes'}: ${n.join(', ')}.` : 'You have no recorded routes. Say record a route, to start one.', 'status'); break; }
+    case 'vibration': changeVibration(cmd.arg === 'on'); break;
     case 'rate': changeRate(cmd.arg === 'slower' ? -1 : 1); break;
     case 'share': prepareShare(); break;
     case 'lost': (async () => { await whereAmI(); say('Stay where you are if it is not safe to move. Say take me home, or navigate to a place, or share my location.', 'status'); })(); break;
@@ -787,6 +850,7 @@ function updateMic() {
 el.start.addEventListener('click', () => { cues.unlock(); if (state.running) talk(); else start(); });
 el.units.addEventListener('click', () => changeUnits(UNIT_MODES[(UNIT_MODES.indexOf(getUnits()) + 1) % UNIT_MODES.length]));
 el.step.addEventListener('click', cycleStep);
+el.haptics.addEventListener('click', () => changeVibration(!haptics.enabled));
 el.rate.addEventListener('click', () => changeRate(speaker.rate >= 1.1 ? -5 : 1)); // up a step, wrapping back to the slowest
 el.shareBtn.addEventListener('click', prepareShare);
 el.dbg.addEventListener('click', () => setCameraView(!DEBUG));
@@ -833,6 +897,7 @@ setCameraView(DEBUG, false);
 try {
   const lv = localStorage.getItem('va.level'); if (LEVELS.includes(lv)) engine.setLevel(lv);
   const rt = parseFloat(localStorage.getItem('va.rate')); if (rt >= 0.6 && rt <= 1.1) { speaker.rate = rt; el.rate.textContent = `Speech speed: ${Math.round(rt * 100)}%`; }
+  if (localStorage.getItem('va.haptics') === '0') changeVibration(false, false);
   const un = localStorage.getItem('va.units'); if (UNIT_MODES.includes(un)) setUnits(un);
   const st = parseFloat(localStorage.getItem('va.step')); if (st) setStep(st);
   if (localStorage.getItem('va.tap') === '0') { state.tapToTalk = false; el.tap.setAttribute('aria-pressed', 'false'); el.tap.textContent = 'Tap anywhere to talk: off'; }
