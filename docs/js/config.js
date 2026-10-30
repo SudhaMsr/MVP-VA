@@ -10,6 +10,8 @@ export const ROD_NAMES = [
   'Dustbin', 'Dog', 'Manhole', 'Tree', 'Guard rail', 'Pedestrian crosswalk', 'Truck', 'Bus', 'Bench',
   'Traffic Cone', 'Fire hydrant', 'Teraffic Barrel', 'Plant Pot', 'Electrical Box', 'Chair', 'Bicycle Rack',
 ];
+// Phase 2: rod_best.pt fine-tuned on more images. The first 25 classes are unchanged; five are added at the end.
+export const ROD2_NAMES = [...ROD_NAMES, 'Bollard', 'Downstairs', 'Upstairs', 'Red light', 'Green light'];
 
 // Third lane: the standard COCO model (80 classes). Only the classes below are ever used; the file is optional.
 export const COCO_NAMES = ['person','bicycle','car','motorcycle','airplane','bus','train','truck','boat','traffic light','fire hydrant','stop sign','parking meter','bench','bird','cat','dog','horse','sheep','cow','elephant','bear','zebra','giraffe','backpack','umbrella','handbag','tie','suitcase','frisbee','skis','snowboard','sports ball','kite','baseball bat','baseball glove','skateboard','surfboard','tennis racket','bottle','wine glass','cup','fork','knife','spoon','bowl','banana','apple','sandwich','orange','broccoli','carrot','hot dog','pizza','donut','cake','chair','couch','potted plant','bed','dining table','toilet','tv','laptop','mouse','remote','keyboard','cell phone','microwave','oven','toaster','sink','refrigerator','book','clock','vase','scissors','teddy bear','hair drier','toothbrush'];
@@ -18,6 +20,7 @@ export const CLASSES = WOTR_NAMES; // kept for older imports
 export const MODELS = {
   wotr: { names: WOTR_NAMES, url: (size) => `models/best${size}.onnx` },
   rod: { names: ROD_NAMES, url: (size) => `models/rod${size}.onnx` },
+  rod2: { names: ROD2_NAMES, url: (size) => `models/rod2_${size}.onnx` },
   coco: { names: COCO_NAMES, url: (size) => `models/coco${size}.onnx` },
 };
 export const DEFAULT_MODEL = 'wotr'; // switch to 'rod' once the rod*.onnx files are in docs/models
@@ -34,7 +37,7 @@ export function canonical(name) {
 
 // Slow lane: a second model run every few frames, contributing only these classes.
 export const SECONDARY = {
-  model: 'rod', size: 416, everyMs: 2000, conf: 0.40, maxAgeMs: 2500, // field log: one pass costs ~430 ms on the Poco
+  model: 'rod2', size: 416, everyMs: 2000, conf: 0.40, maxAgeMs: 2500, // field log: one pass costs ~430 ms on the Poco
   classes: ['stairs', 'manhole', 'bench', 'chair', 'guard_rail', 'electrical_box', 'plant_pot', 'bicycle_rack'],
 };
 
