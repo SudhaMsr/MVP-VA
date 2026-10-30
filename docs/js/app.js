@@ -899,6 +899,28 @@ function updateMic() {
 // ---------- buttons ----------
 el.start.addEventListener('click', () => { cues.unlock(); if (state.running) talk(); else start(); });
 prefetchAssets();
+
+// Ask for location as soon as the app opens, not later. A precise (high accuracy) request is what makes Chrome on Android
+// offer "turn on device location"; it also shows the allow-location prompt straight away. Asked again when the walker
+// comes back to the page (for example after switching location on in settings).
+let locAsked = -1e9;
+function askLocation() {
+  if (!('geolocation' in navigator) || performance.now() - locAsked < 4000) return;
+  locAsked = performance.now();
+  try {
+    navigator.geolocation.getCurrentPosition(
+      () => { if (state.locProblem) { state.locProblem = false; setStatus(state.running ? 'Running' : 'Ready. Tap start.'); } },
+      (e) => {
+        state.locProblem = true;
+        logEvent('location-ask-error', String(e && e.code));
+        if (e && e.code === 1) setStatus('Location is blocked. Allow location for this site in Chrome settings.');
+        else if (e && e.code === 2) setStatus('Location is off. Turn on location on your phone.');
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 });
+  } catch (_) { /* best effort */ }
+}
+askLocation();
+document.addEventListener('visibilitychange', () => { if (!document.hidden && !state.running) askLocation(); });
 el.units.addEventListener('click', () => changeUnits(UNIT_MODES[(UNIT_MODES.indexOf(getUnits()) + 1) % UNIT_MODES.length]));
 el.step.addEventListener('click', cycleStep);
 el.haptics.addEventListener('click', () => changeVibration(!haptics.enabled));
