@@ -70,6 +70,12 @@ export const CONFIG = {
   vehicleUrgentMetres: 6,
   approachSpeedMps: 2.5, // closing speed above this counts as "approaching"
   approachMinHits: 3, // frames a vehicle must be tracked before we trust its speed
+  // Parked or still vehicles are not announced. A vehicle is only mentioned when it is moving toward the walker (approaching),
+  // moving across the walker's path (passing), or a still one is right in the path and very close (blocking the way).
+  passLateralPerSec: 0.25, // sideways speed in frame-widths per second, after allowing for the camera turning
+  passMinHits: 4, // frames a vehicle must be tracked before it can count as passing
+  passMaxMetres: 15, // a passing vehicle further away than this is not mentioned
+  parkedAheadMetres: 2.5, // a still vehicle is only mentioned when it is in the path and nearer than this; 0 = never
   personNearMetres: 4,
   dogNearMetres: 3,
   staticNearFraction: 0.45, // object box height / frame height above this = "close"

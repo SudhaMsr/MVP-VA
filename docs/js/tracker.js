@@ -54,7 +54,7 @@ export class Tracker {
     }
     dets.forEach((d, di) => {
       if (usedD.has(di)) return;
-      const tr = { id: this.nextId++, cls: d.cls, name: d.name, hits: 0, dist: null, speed: null, lastT: null };
+      const tr = { id: this.nextId++, cls: d.cls, name: d.name, hits: 0, dist: null, speed: null, lastT: null, cx: null, latT: null, lat: null };
       this._apply(tr, d, tMs, frameW, frameH);
       this.tracks.push(tr);
       seen.push(tr);
@@ -68,6 +68,19 @@ export class Tracker {
     tr.score = d.score;
     tr.hits += 1;
     tr.seenAt = tMs;
+    // Sideways motion in the picture, in frame-widths per second (positive = moving right). Works for any class, with or without
+    // a distance. A parked car seen while walking drifts only slowly; a car driving across the picture moves much faster.
+    const cx = (d.x1 + d.x2) / 2 / frameW;
+    if (tr.cx != null && tr.latT != null) {
+      const dtl = (tMs - tr.latT) / 1000;
+      if (dtl >= 0.05 && dtl <= 1.5) {
+        const instl = (cx - tr.cx) / dtl;
+        tr.lat = tr.lat == null ? instl : 0.4 * instl + 0.6 * tr.lat;
+      } else {
+        tr.lat = null;
+      }
+    }
+    tr.cx = cx; tr.latT = tMs;
     const raw = estimateDistance(d, frameW, this.hfovDeg, frameH);
     if (raw == null) { tr.dist = null; tr.speed = null; return; }
     const prev = tr.dist;

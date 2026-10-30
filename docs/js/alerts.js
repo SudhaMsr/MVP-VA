@@ -74,14 +74,24 @@ export class AlertEngine {
       if (VEHICLES.has(name) || name === 'bicycle') {
         if (d == null) continue;
         const maxD = name === 'bicycle' ? 8 : c.vehicleAlertMetres;
+        // Only moving vehicles are worth a warning. A parked one beside the pavement is always close, and warning about it
+        // every few seconds was the main complaint from the first walk.
         const approaching = sp != null && sp > c.approachSpeedMps && tr.hits >= c.approachMinHits;
-        const veryNear = d < c.vehicleUrgentMetres && tr.hits >= 2; // one-frame wide boxes caused false alarms in the field log
-        if ((approaching && d < maxD) || veryNear) {
-          const text = approaching
-            ? `Caution. ${LABEL[name]} approaching, ${dir}, ${metres(d)}.`
-            : `Caution. ${LABEL[name]}, ${dir}, ${metres(d)}.`;
-          out.push({ key: `${name}:${dir}:u`, text, priority: 0, still: !approaching });
-        } else if (d < maxD) {
+        const inPathNow = inCorridor(tr.box, frameW, frameH, c.corridor);
+        // Is it moving across the picture? The camera itself turns as the walker walks, which shifts everything the same way,
+        // so subtract what the other tracked things are doing.
+        let passing = false;
+        if (!approaching && inPathNow && tr.lat != null && tr.hits >= (c.passMinHits ?? 4) && d < (c.passMaxMetres ?? 15)) {
+          const others = tracks.filter((o) => o !== tr && o.lat != null && o.hits >= 3).map((o) => o.lat).sort((a, b) => a - b);
+          const ego = others.length >= 2 ? others[Math.floor(others.length / 2)] : 0;
+          passing = Math.abs(tr.lat - ego) > (c.passLateralPerSec ?? 0.25);
+        }
+        if (approaching && d < maxD) {
+          out.push({ key: `${name}:${dir}:u`, text: `Caution. ${LABEL[name]} approaching, ${dir}, ${metres(d)}.`, priority: 0 });
+        } else if (passing) {
+          out.push({ key: `${name}:pass`, text: dir === 'ahead' ? `${LABEL[name]} passing ahead.` : `${LABEL[name]} passing, ${dir}.`, priority: 1 });
+        } else if ((c.parkedAheadMetres ?? 0) > 0 && inPathNow && d < c.parkedAheadMetres) {
+          // Not moving, but it is in the way (for example across a pavement): say so once, like any other obstacle.
           out.push({ key: `${name}:${dir}`, text: `${LABEL[name]}, ${dir}, ${metres(d)}.`, priority: 2 });
         }
       } else if (name === 'person') {

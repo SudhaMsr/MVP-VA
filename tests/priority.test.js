@@ -10,11 +10,10 @@ const idx = (n) => CLASSES.indexOf(n);
 const AHEAD = { x1: 280, y1: 200, x2: 360, y2: 300 }, RIGHT = { x1: 500, y1: 200, x2: 600, y2: 300 };
 const tr = (name, dist, box = AHEAD, extra = {}) => [{ id: 1, cls: idx(name), name, hits: 5, dist, speed: 0, box, ...extra }];
 
-test('a still bus 2 m ahead is not repeated every few seconds', () => {
+test('a still bus blocking the path 2 m ahead is mentioned once, not repeated every few seconds', () => {
   const eng = new AlertEngine(); let said = 0;
   for (let t = 0; t <= 60000; t += 1000) if (eng.next(tr('bus', 2), W, H, t)) said += 1;
-  assert.ok(said <= 5, `spoke ${said} times in a minute`);
-  assert.ok(said >= 2, 'should still remind the walker now and then');
+  assert.equal(said, 1, `spoke ${said} times in a minute`);
 });
 
 test('a repeat is allowed straight away when the thing has got clearly closer', () => {
@@ -36,7 +35,7 @@ test('urgent vehicle alerts ignore the side filter and the budget', () => {
   const car = tr('car', 9, RIGHT, { speed: 4 });
   assert.equal(eng.next(car, W, H, 0).priority, 0);
   eng.spokenAt = [0, 0, 0]; // budget already used up
-  assert.ok(eng.next(tr('car', 4, AHEAD, { id: 2 }), W, H, 100), 'very near car must still be spoken');
+  assert.ok(eng.next(tr('car', 4, AHEAD, { id: 2, speed: 4 }), W, H, 100), 'an approaching car must still be spoken');
 });
 
 test('budget caps routine alerts per window', () => {

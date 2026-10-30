@@ -72,7 +72,7 @@ test('speed is not trusted until the vehicle has been tracked for a few frames',
   t[0].hits = 1;
   t[0].box = { x1: 280, y1: 200, x2: 360, y2: 300 }; // straight ahead, so the routine alert is not filtered as off to the side
   const a = new AlertEngine().next(t, W, H, 0);
-  assert.doesNotMatch(a.text, /approaching/);
+  assert.equal(a, null, 'not approaching yet, and not in the way: say nothing');
 });
 
 test('cooldown suppresses repeats, then allows again', () => {

@@ -245,25 +245,49 @@ async function loadModel() {
   await d.load(MODEL.url(SIZE), [EP]);
   session.modelLoadMs = Math.round(performance.now() - t0);
   detector = d;
-  if (USE_SLOW && !slowDetector) {
-    try {
-      const sm = MODELS[SECONDARY.model];
-      const sd = new Detector(window.ort, SECONDARY.size, sm.names);
-      await sd.load(sm.url(SECONDARY.size), [EP]);
-      slowDetector = sd;
-    } catch (e) {
-      logEvent('slow-model-error', e && e.message);
-      say('Stairs and manhole detection could not load. Other detection is working.', 'status');
+}
+
+// The stairs / manhole lane (and the optional coco lane) load after the app is already running,
+// so the walker is not kept waiting for a second 12 MB model. Until it is ready the fast lane works alone.
+let lanesLoading = null;
+function loadLanes() {
+  if (!USE_SLOW || lanesLoading) return lanesLoading;
+  lanesLoading = (async () => {
+    if (!slowDetector) {
+      try {
+        const sm = MODELS[SECONDARY.model];
+        const sd = new Detector(window.ort, SECONDARY.size, sm.names);
+        await sd.load(sm.url(SECONDARY.size), [EP]);
+        slowDetector = sd;
+        logEvent('slow-model-ready', String(Math.round(performance.now())));
+      } catch (e) {
+        logEvent('slow-model-error', e && e.message);
+        if (state.running) say('Stairs and manhole detection could not load. Other detection is working.', 'status');
+      }
     }
-  }
-  if (USE_SLOW && !cocoDetector) {
+    if (!cocoDetector) {
+      try {
+        const cm = MODELS[TERTIARY.model];
+        const cd = new Detector(window.ort, TERTIARY.size, cm.names);
+        await cd.load(cm.url(TERTIARY.size), [EP]);
+        cocoDetector = cd;
+      } catch (e) { logEvent('coco-model-missing', e && e.message); } // optional: no message to the walker
+    }
+  })();
+  return lanesLoading;
+}
+
+// While the page sits open (before Start is tapped) fetch the files into the browser cache, so Start is quicker.
+function prefetchAssets() {
+  const go = () => {
     try {
-      const cm = MODELS[TERTIARY.model];
-      const cd = new Detector(window.ort, TERTIARY.size, cm.names);
-      await cd.load(cm.url(TERTIARY.size), [EP]);
-      cocoDetector = cd;
-    } catch (e) { logEvent('coco-model-missing', e && e.message); } // optional: no message to the walker
-  }
+      const urls = [MODEL.url(SIZE)];
+      if (USE_SLOW) urls.push(MODELS[SECONDARY.model].url(SECONDARY.size));
+      urls.forEach((u) => fetch(u, { cache: 'force-cache' }).catch(() => {}));
+    } catch (_) { /* best effort only */ }
+  };
+  if (navigator.connection && navigator.connection.saveData) return;
+  (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(go);
 }
 
 // ---------- main loop ----------
@@ -475,6 +499,7 @@ async function start() {
   startRecording();
   lockScreen();
   loop();
+  loadLanes();
 }
 
 function stopInternal() {
@@ -873,6 +898,7 @@ function updateMic() {
 
 // ---------- buttons ----------
 el.start.addEventListener('click', () => { cues.unlock(); if (state.running) talk(); else start(); });
+prefetchAssets();
 el.units.addEventListener('click', () => changeUnits(UNIT_MODES[(UNIT_MODES.indexOf(getUnits()) + 1) % UNIT_MODES.length]));
 el.step.addEventListener('click', cycleStep);
 el.haptics.addEventListener('click', () => changeVibration(!haptics.enabled));
