@@ -70,3 +70,32 @@ Method: for each link I read the title, channel and description, and stepped thr
 
 ## Not covered
 No audio was heard. Descriptions were used for claims about offline mode, LIDAR and Raspberry Pi hardware. The GitHub repositories linked in videos #3 and #11 could not be opened from this environment.
+
+## Source links (in the order you shared them)
+1. https://youtu.be/KfTfhyQ2exA
+2. https://youtu.be/7J2e8aBksF0
+3. https://youtu.be/8FhNYJAvp90
+4. https://youtu.be/fr_74Bo98A8
+5. https://youtu.be/-_-2K9LM0G4
+6. https://youtu.be/IOh8brzF_VA
+7. https://youtu.be/D6UMeWgt7g0
+8. https://youtu.be/l-pl55BKvW4
+9. https://youtu.be/mzhQErvSDi0
+10. https://youtu.be/z9_Pl7ml_8E
+11. https://youtu.be/7sE1K2r3KfI
+12. https://youtu.be/Q6I2QeXMuKg
+
+The table above is numbered by topic, not by this order, and I did not keep a reliable link-to-row mapping, so match a row to its link by title when you open them.
+
+## What we took from them, and where it is now
+| Learning | Source idea | Status in Vision Assist |
+|----------|-------------|-------------------------|
+| Walking corridor, only alert on what is in the path | Aakha | Built (`alerts.js`, drawn in ?debug view) |
+| Free-space left/centre/right, hold decisions steady | Smart Vision talk | Built (`freespace.js`) |
+| Vibration for urgent alerts | BlindSight, Obstacle Detector | Built (`haptics.js`) |
+| Route recording and retracing | NAVI AI | Built (`routes.js`) |
+| "What is around me" with path status | NAVI AI | Built (`describe.js`) |
+| Crossing signal help | OKO | Built (`notes.js`, "can I cross?") |
+| Memory notes | NAVI AI | Built (`notes.js`) |
+| Do not count objects aloud | NETRA | Followed: grouped, short, capped |
+| Pretrained object lane (more classes) | General | Planned: COCO export in Colab |

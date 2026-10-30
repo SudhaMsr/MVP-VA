@@ -32,6 +32,8 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
 - **Memory notes:** "remember the keys are in the drawer", "what do you remember?".
 - **Text reading:** on. Say "read" or tap Read; runs on the phone.
 
+See `RESEARCH.md` for the 12 reference videos, their links, and what we learned from each.
+
 ## Not in the MVP
 Accounts, payments, kerb and steps detection (needs footage and training), more object classes (a pretrained COCO lane is planned), iPhone, spatial audio.
 
