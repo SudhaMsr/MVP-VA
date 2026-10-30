@@ -129,10 +129,10 @@ test('a person who stays in view is announced once, not every few seconds', () =
 test('it speaks again when the thing gets clearly closer, and when it leaves and comes back', () => {
   const eng = new AlertEngine(CONFIG, 'normal');
   const closer = run(eng, (t) => [still('person', t < 10000 ? 3.5 : 1.8)], 20);
-  assert.equal(closer.length, 2, 'once far, once when 1.5 m or more closer');
+  assert.equal(closer.filter((x) => x.text !== 'Clear ahead.').length, 2, 'once far, once when 1.5 m or more closer');
   const e2 = new AlertEngine(CONFIG, 'normal');
   const back = run(e2, (t) => (t >= 8000 && t < 20000 ? [] : [still('person', 2.5)]), 40);
-  assert.equal(back.length, 2, 'new encounter after being out of view for a while');
+  assert.equal(back.filter((x) => x.text !== 'Clear ahead.').length, 2, 'new encounter after being out of view for a while');
 });
 
 test('stairs and red lights still in view are reminded only every 30 s; a bin is spoken once', () => {

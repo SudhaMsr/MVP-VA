@@ -2,6 +2,7 @@
 // Priority 0 = urgent (interrupts), 1-2 = hazards, 3-4 = information (only when nothing else is in view).
 import { CONFIG } from './config.js';
 import { nearDistance } from './units.js';
+import { FreeSpace } from './freespace.js';
 
 export const VEHICLES = new Set(['car', 'truck', 'bus', 'motorcycle', 'tricycle']);
 export const STATIC_OBSTACLES = {
@@ -50,6 +51,7 @@ export class AlertEngine {
     this.level = level;
     this.last = new Map(); // key -> { t: time last spoken, d: distance then, n: repeats since it last got closer }
     this.spokenAt = []; // times of recent non-urgent alerts, for the budget
+    this.free = new FreeSpace(cfg);
   }
 
   setLevel(level) { if (LEVELS.includes(level)) this.level = level; return this.level; }
@@ -130,7 +132,10 @@ export class AlertEngine {
   // the old rule: repeats wait longer each time. Routine alerts are also capped per 10 s and per minute; urgent ones are exempt.
   next(tracks, frameW, frameH, tMs) {
     const c = this.cfg;
+    const advice = this.free.update(tracks, frameW, frameH); // every frame, so the smoothing keeps up
     let cands = this.candidates(tracks, frameW, frameH);
+    const clear = this.free.peekClear();
+    if (clear) cands.push({ key: 'clear', text: clear, priority: 3, kind: 'moving', dir: 'ahead', d: 0, inPath: true });
     if (cands.some((x) => x.priority <= 2)) cands = cands.filter((x) => x.priority <= 2);
     cands.sort((a, b) => a.priority - b.priority);
     // Who is still in view? (done for every candidate first, because we stop at the first one we speak)
@@ -144,7 +149,7 @@ export class AlertEngine {
     this.spokenAt = this.spokenAt.filter((t) => tMs - t < (c.budgetWindowMs ?? 10000));
     this.spokenMin = (this.spokenMin || []).filter((t) => tMs - t < 60000);
     const minuteMax = (c.minuteMax || {})[this.level] ?? 99;
-    for (const a of cands) {
+    for (let a of cands) {
       const rec = this.last.get(a.key);
       const closer = rec && a.d != null && rec.d != null && rec.d - a.d >= (c.repeatCloserMetres ?? 1.5);
       const base = a.still ? Math.max(c.cooldownMs[a.priority] ?? 10000, 6000) : (c.cooldownMs[a.priority] ?? 10000);
@@ -161,11 +166,17 @@ export class AlertEngine {
       }
       if (a.priority > 0 && (this.spokenAt.length >= (c.budgetMax ?? 3) || this.spokenMin.length >= minuteMax)) continue;
       this.last.set(a.key, { t: tMs, d: a.d, n: rec && !closer ? rec.n + 1 : 0, seen: tMs });
+      // The way ahead is blocked by what we are about to name: say which side is clearer, in the same breath.
+      const hint = advice || this.free.advice(true);
+      if (hint && a.inPath && a.priority >= 1 && a.priority <= 2 && (a.kind === 'moving' || a.kind === 'static') && !a.key.startsWith('manhole')) {
+        a = { ...a, text: `${a.text} ${hint.text}` }; this.free.announcedBlocked = true;
+      }
       if (a.priority > 0) { this.spokenAt.push(tMs); this.spokenMin.push(tMs); }
+      if (a.key === 'clear') this.free.spokenClear();
       return { ...a, urgent: a.priority === 0 };
     }
     return null;
   }
 
-  reset() { this.last.clear(); this.spokenAt = []; this.spokenMin = []; }
+  reset() { this.free.reset(); this.last.clear(); this.spokenAt = []; this.spokenMin = []; }
 }

@@ -65,6 +65,7 @@ export const CONFIG = {
   // The walker's path: a trapezoid on the ground in front of the camera (fractions of the picture). Things outside it
   // stay quiet unless very close, because a blind walker only needs to hear about what is on the way.
   corridor: { topY: 0.4, topHalf: 0.12, bottomHalf: 0.32 },
+  freeSpace: { nearMetres: 3.5, on: 0.6, off: 0.3, alpha: 0.4, clearFrames: 10 }, // free-space guidance: how near blocks a lane, smoothing, frames of calm before 'clear ahead'
   sideAlertMetres: 1.5, // things outside the path are only mentioned when closer than this // things to the left or right are only mentioned when closer than this
   repeatCloserMetres: 1.5, // a repeat alert is allowed straight away if the thing got this much closer
   forgetMs: 4000, // an object out of view this long counts as new if it comes back

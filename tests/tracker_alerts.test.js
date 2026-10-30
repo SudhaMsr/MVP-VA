@@ -106,7 +106,7 @@ test('far people and signs say nothing', () => {
 test('very close distance says "very close" not "about 1 metres"', () => {
   const eng = new AlertEngine();
   const t = [{ id: 1, cls: idx('person'), name: 'person', hits: 3, dist: 1.0, speed: 0, box: { x1: 280, y1: 50, x2: 360, y2: 450 } }];
-  assert.equal(eng.next(t, W, H, 0).text, 'Person, ahead, very close.');
+  assert.match(eng.next(t, W, H, 0).text, /^Person, ahead, very close\./);
 });
 
 test('model class names from different datasets map to the same alert names', async () => {
