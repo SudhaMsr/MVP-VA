@@ -40,7 +40,10 @@ export const SECONDARY = {
 
 export const TERTIARY = {
   model: 'coco', size: 320, everyMs: 3500, conf: 0.50, maxAgeMs: 4500, clsOffset: 1000, // offset keeps its class numbers apart from the other lanes
-  classes: ['cat', 'horse', 'sheep', 'cow', 'suitcase', 'skateboard', 'parking_meter', 'couch', 'dining_table'],
+  // everything COCO knows except what the first two models already cover (person, car, bench, chair, hydrant ...)
+  classes: ['traffic_light', 'stop_sign', 'parking_meter', 'bird', 'cat', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'backpack', 'umbrella', 'handbag', 'suitcase',
+    'skateboard', 'sports_ball', 'bottle', 'cup', 'bowl', 'couch', 'potted_plant', 'bed', 'dining_table', 'toilet', 'tv', 'laptop', 'cell_phone', 'microwave', 'oven',
+    'refrigerator', 'sink', 'book', 'clock', 'vase', 'teddy_bear', 'train', 'boat', 'airplane']
 };
 
 export const CONFIG = {

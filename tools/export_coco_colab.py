@@ -1,4 +1,4 @@
-# Export the pretrained COCO YOLOv8n to ONNX for Vision Assist's third lane. Run in Google Colab (free CPU is fine).
+# No training happens here. This only converts the already-trained COCO YOLOv8n to ONNX for Vision Assist's third lane. Run in Google Colab (free CPU is fine).
 # Paste each block into a cell, run it, then download coco320.onnx and put it in docs/models/ in the repo.
 #
 # !pip -q install ultralytics onnx onnxslim
@@ -7,5 +7,5 @@
 # !mv yolov8n.onnx coco320.onnx
 # from google.colab import files; files.download('coco320.onnx')
 #
-# The app only uses these COCO classes: cat, horse, sheep, cow, suitcase, skateboard, parking meter, couch, dining table.
+# The app uses almost all COCO classes except the ones the other two models already cover (see TERTIARY in docs/js/config.js).
 # If the file is missing the app simply runs without this lane.

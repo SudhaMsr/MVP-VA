@@ -23,6 +23,9 @@ const IMPORTANCE = ['stairs', 'car', 'truck', 'bus', 'motorcycle', 'tricycle', '
   'horse', 'cow', 'sheep', 'cat', 'ashcan', 'plant_pot', 'suitcase', 'skateboard', 'parking_meter', 'couch', 'dining_table', 'electrical_box', 'bicycle_rack', 'fire_hydrant', 'blind_road'];
 const rank = (n) => { const i = IMPORTANCE.indexOf(n); return i < 0 ? 99 : i; };
 
+import { TERTIARY } from './config.js';
+// Anything the third (COCO) lane can report is named from its own label, e.g. cell_phone -> "cell phone".
+for (const n of TERTIARY.classes) if (!NOUNS[n]) { const w = n.replace(/_/g, ' '); NOUNS[n] = [w, n === 'sheep' ? 'sheep' : `${w}s`]; }
 const article = (noun) => (/^[aeiou]/.test(noun) ? 'an' : 'a');
 const SIDES = [['ahead', 'Straight ahead'], ['left', 'On your left'], ['right', 'On your right']];
 

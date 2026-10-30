@@ -11,8 +11,9 @@ export const STATIC_OBSTACLES = {
   plant_pot: 'Plant pot', electrical_box: 'Electrical box', bicycle_rack: 'Bicycle rack',
   cat: 'Cat', horse: 'Horse', sheep: 'Sheep', cow: 'Cow', suitcase: 'Suitcase', skateboard: 'Skateboard',
   parking_meter: 'Parking meter', couch: 'Sofa', dining_table: 'Table',
+  bed: 'Bed', elephant: 'Elephant', bear: 'Bear', suitcase: 'Suitcase', refrigerator: 'Fridge', train: 'Train',
 };
-const STATIC_PRIORITY = { roadblock: 1, tree: 3, plant_pot: 3, bench: 3, horse: 1, cow: 1, couch: 3, dining_table: 3 }; // default 2
+const STATIC_PRIORITY = { roadblock: 1, tree: 3, plant_pot: 3, bench: 3, horse: 1, cow: 1, elephant: 1, bear: 1, couch: 3, dining_table: 3 }; // default 2
 const LABEL = {
   car: 'Car', truck: 'Truck', bus: 'Bus', motorcycle: 'Motorbike', tricycle: 'Tricycle', bicycle: 'Bicycle',
   person: 'Person', dog: 'Dog',
