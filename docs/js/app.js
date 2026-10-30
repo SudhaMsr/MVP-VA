@@ -32,9 +32,6 @@ const el = {
   dl: $('logBtn'), saveRec: $('saveRecBtn'), level: $('levelBtn'), tap: $('tapBtn'), units: $('unitsBtn'), step: $('stepBtn'), rate: $('rateBtn'), shareBtn: $('shareBtn'), dbg: $('debugBtn'), rec: $('recordBtn'),
 };
 
-const FULL_DISCLAIMER =
-  'Vision Assist can miss obstacles. Always use your cane or guide dog.';
-
 const speaker = new Speaker(window.speechSynthesis, window.SpeechSynthesisUtterance, {
   rate: CONFIG.speechRate, lang: CONFIG.speechLang, staleMs: CONFIG.staleMs,
 });
@@ -409,7 +406,7 @@ async function start() {
   startBatteryWatch();
   updateMain();
   setStatus('Starting');
-  if (state.firstRun) say(FULL_DISCLAIMER, 'status'); else cues.play('ok'); // a sound, not a sentence, once you have heard the warning
+  cues.play('ok'); // a short sound to show it has started
   startListening(); // inside the tap, so the browser allows the microphone prompt
   try { navigator.geolocation.getCurrentPosition(() => {}, () => {}, { maximumAge: 60000, timeout: 10000 }); } catch (_) { /* ask for location now, so the prompt is not a surprise mid-walk */ }
   try {
