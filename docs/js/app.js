@@ -10,6 +10,8 @@ import { RouteStore, RouteRecorder, routeFromPoints, pathLength } from './routes
 import { Cues } from './cues.js';
 import { getUnits, setUnits, getStep, setStep, stepCm, UNIT_MODES } from './units.js';
 import { describeScene, NO_CAMERA } from './describe.js';
+import { CameraWatch, frameStats, greyFromVideo } from './camcheck.js';
+import { warmModel } from './modelcache.js';
 import { NoteStore, crossingAdvice } from './notes.js';
 import { reverseLookup, describePlace, PlaceStore, normaliseName } from './places.js';
 import { BatteryWatch } from './battery.js';
@@ -287,11 +289,20 @@ function prefetchAssets() {
     try {
       const urls = [MODEL.url(SIZE)];
       if (USE_SLOW) urls.push(MODELS[SECONDARY.model].url(SECONDARY.size));
-      urls.forEach((u) => fetch(u, { cache: 'force-cache' }).catch(() => {}));
+      urls.forEach((u) => warmModel(u).catch(() => {}));
     } catch (_) { /* best effort only */ }
   };
   if (navigator.connection && navigator.connection.saveData) return;
   (window.requestIdleCallback || ((f) => setTimeout(f, 1500)))(go);
+}
+
+// Silence must never mean "I cannot see": say so when the camera is dark or covered.
+const camWatch = new CameraWatch({ say: (t, k) => say(t, k), log: (k, v) => logEvent(k, v) });
+let camCheckedAt = 0;
+function checkCamera(t) {
+  if (t - camCheckedAt < 1000) return;
+  camCheckedAt = t;
+  try { const g = greyFromVideo(el.video); if (g) camWatch.update(frameStats(g), t); } catch (_) { /* never break detection over this */ }
 }
 
 // ---------- main loop ----------
@@ -331,6 +342,7 @@ async function loop() {
       speaker.speak(alert.text, alert.urgent ? 'urgent' : 'normal');
       logEvent('alert', `${alert.priority}|${alert.text}`);
     }
+    checkCamera(t);
     if (DEBUG) drawOverlay(tracks, width, height);
     const ms = performance.now() - t0;
     frameTimes.push(ms);
@@ -494,12 +506,13 @@ async function start() {
   tracker.tracks = [];
   slow.dets = []; slow.t = null; slow.ranAt = 0; frameCount = 0;
   engine.reset();
+  camWatch.reset(); camCheckedAt = 0;
   const wasFirst = state.welcomed !== true;
   state.welcomed = true;
   setStatus(RECORD ? 'Running, recording' : 'Running');
   updateMain();
   cues.play('ok');
-  say(RECORD ? 'Ready, recording.' : wasFirst ? 'Ready. Keep using your cane or guide dog. This app helps, but does not replace them. Tap the screen, then speak.' : 'Ready.', 'status');
+  say(RECORD ? 'Ready, recording.' : wasFirst ? 'Ready. Hold the phone at chest height, camera facing forward. Keep using your cane or guide dog. This app helps, but does not replace them. Tap the screen, then speak.' : 'Ready.', 'status');
   startRecording();
   lockScreen();
   loop();

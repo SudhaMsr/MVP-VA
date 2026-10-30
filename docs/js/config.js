@@ -72,6 +72,9 @@ export const CONFIG = {
   // Vehicles warn only when they are coming fast, like the first Vision Assist (GOOGLE repo): car over 7 m/s (25 km/h),
   // bus and truck over 5 m/s, within vehicleAlertMetres. Parked and slow cars stay quiet.
   speedingMps: { car: 7, motorcycle: 7, bus: 5, truck: 5 },
+  // ...except very close: inside this distance any vehicle closing faster than approachSpeedMps is urgent
+  // (a car reversing out of a driveway or pulling out of a space is slow, but it is right there).
+  closeVehicleMetres: 5,
   approachMinHits: 3, // frames a vehicle must be tracked before we trust its speed
   // Parked or still vehicles are not announced. A vehicle is only mentioned when it is moving toward the walker (approaching),
   // moving across the walker's path (passing), or a still one is right in the path and very close (blocking the way).

@@ -1,3 +1,4 @@
+import { modelBytes } from './modelcache.js';
 // Pure helpers (testable in Node) + a Detector class that wraps onnxruntime-web.
 import { CLASSES, canonical } from './config.js';
 
@@ -76,10 +77,10 @@ export class Detector {
     ort.env.wasm.simd = true;
     ort.env.wasm.numThreads = (typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated)
       ? Math.min(4, navigator.hardwareConcurrency || 2) : 1;
-    this.session = await ort.InferenceSession.create(url, {
-      executionProviders: providers,
-      graphOptimizationLevel: 'all',
-    });
+    const opts = { executionProviders: providers, graphOptimizationLevel: 'all' };
+    let src = url;
+    try { src = await modelBytes(url, { log: this.log }); } catch (_) { src = url; } // cache trouble: plain network load
+    this.session = await ort.InferenceSession.create(src, opts);
     this.inputName = this.session.inputNames[0];
     this.outputName = this.session.outputNames[0];
     this.canvas = document.createElement('canvas');

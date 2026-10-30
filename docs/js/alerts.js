@@ -76,7 +76,8 @@ export class AlertEngine {
         const maxD = name === 'bicycle' ? 8 : c.vehicleAlertMetres;
         // Only moving vehicles are worth a warning. A parked one beside the pavement is always close, and warning about it
         // every few seconds was the main complaint from the first walk.
-        const approaching = sp != null && sp > ((c.speedingMps && c.speedingMps[name]) ?? c.approachSpeedMps) && tr.hits >= c.approachMinHits;
+        const limit = d < (c.closeVehicleMetres ?? 0) ? c.approachSpeedMps : ((c.speedingMps && c.speedingMps[name]) ?? c.approachSpeedMps);
+        const approaching = sp != null && sp > limit && tr.hits >= c.approachMinHits;
         const inPathNow = inCorridor(tr.box, frameW, frameH, c.corridor);
         // Is it moving across the picture? The camera itself turns as the walker walks, which shifts everything the same way,
         // so subtract what the other tracked things are doing.
