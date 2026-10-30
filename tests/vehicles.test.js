@@ -55,16 +55,27 @@ test('passing needs a few sightings, so a one-frame glitch stays quiet', () => {
   assert.equal(new AlertEngine().next([car(AHEAD, { dist: 10, lat: 0.9, hits: 2 })], W, H, 0), null);
 });
 
-test('a still car right in the path and very close is mentioned once (it blocks the way)', () => {
-  const eng = new AlertEngine(CONFIG, 'detailed');
-  const a = eng.next([car(AHEAD, { dist: 2 })], W, H, 0);
-  assert.equal(a.text, 'Car, ahead, about 2 metres. Clearer on the left.');
-  assert.equal(a.priority, 2);
-  assert.equal(eng.next([car(AHEAD, { dist: 2 })], W, H, 3000), null, 'not repeated');
+test('a parked car in the path is mentioned at about 5 m, as parked, with the clearer side', () => {
+  const a = new AlertEngine(CONFIG, 'quiet').next([car(AHEAD, { dist: 4 })], W, H, 0);
+  assert.match(a.text, /^Parked car ahead, about 4 metres\./);
+  assert.equal(a.urgent, false);
+  assert.equal(new AlertEngine(CONFIG, 'quiet').next([car(AHEAD, { dist: 6 })], W, H, 0), null, 'further than 5 m: not yet');
 });
 
-test('a still car in the path further away than the limit stays quiet, and the limit can be switched off', () => {
-  assert.equal(new AlertEngine().next([car(AHEAD, { dist: 4 })], W, H, 0), null);
+test('said once: not again as the walker gets closer, and no 30 s reminder', () => {
+  const eng = new AlertEngine(CONFIG, 'quiet'); let said = 0;
+  for (let t = 0, d = 4.8; t <= 60000; t += 1000, d = Math.max(0.8, d - 0.2)) if (eng.next([car(AHEAD, { dist: d })], W, H, t)) said += 1;
+  assert.equal(said, 1);
+});
+
+test('no way round on the pavement: warn that the walker may have to step into the road', () => {
+  const wide = { x1: 10, y1: 200, x2: 630, y2: 470 };
+  const a = new AlertEngine(CONFIG, 'quiet').next([car(wide, { dist: 2 })], W, H, 0);
+  assert.match(a.text, /^Parked car ahead, about 2 metres\. It is blocking the path\. Take care if you step into the road\.$/);
+});
+
+test('a parked car at the kerb, out of the path, stays silent; the rule can be switched off', () => {
+  assert.equal(new AlertEngine(CONFIG, 'detailed').next([car(LEFT, { dist: 2 })], W, H, 0), null);
   const off = { ...CONFIG, parkedAheadMetres: 0 };
   assert.equal(new AlertEngine(off, 'detailed').next([car(AHEAD, { dist: 1.5 })], W, H, 0), null);
 });
@@ -100,4 +111,8 @@ test('very close, a slow vehicle still gets the warning: reversing or pulling ou
   assert.equal(urgent(v(3, 4)), true, 'a car 4 m away closing at 3 m/s');
   assert.equal(urgent(v(3, 8)), false, 'the same speed 8 m away: not yet');
   assert.equal(urgent(v(1.4, 3)), false, 'walking towards a parked car at walking pace: quiet');
+});
+
+test('a vehicle seen in only a few frames is not called parked (likely a misdetection)', () => {
+  assert.equal(new AlertEngine(CONFIG, 'quiet').next([car(AHEAD, { dist: 3, hits: 3 })], W, H, 0), null);
 });

@@ -81,7 +81,8 @@ export const CONFIG = {
   passLateralPerSec: 0.25, // sideways speed in frame-widths per second, after allowing for the camera turning
   passMinHits: 4, // frames a vehicle must be tracked before it can count as passing
   passMaxMetres: 15, // a passing vehicle further away than this is not mentioned
-  parkedAheadMetres: 2.5, // a still vehicle is only mentioned when it is in the path and nearer than this; 0 = never
+  parkedMinHits: 6, // seen in about 6 frames (about a second) first: a one-off misdetection is not a parked car
+  parkedAheadMetres: 5, // a still vehicle is only mentioned when it is in the path and nearer than this; 0 = never
   personNearMetres: 4,
   dogNearMetres: 3,
   staticNearFraction: 0.45, // object box height / frame height above this = "close"

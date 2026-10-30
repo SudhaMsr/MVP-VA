@@ -21,7 +21,8 @@ test('quiet: only urgent, falls, and things very close ahead', () => {
   assert.equal(say('quiet', [tr('ashcan', 1, AHEAD, { box: { x1: 200, y1: 100, x2: 440, y2: 470 } })]), null, 'a bin: the cane finds it');
   assert.equal(say('quiet', [tr('pole', 1, AHEAD, { box: { x1: 200, y1: 100, x2: 440, y2: 470 } })]), null);
   assert.match(say('quiet', [tr('car', 4, AHEAD, { speed: 8 })]).text, /Caution/, 'urgent (approaching) vehicles always');
-  assert.equal(say('quiet', [tr('car', 4)]), null, 'a parked car is never urgent');
+  const parked = say('quiet', [tr('car', 4, AHEAD, { hits: 6 })]);
+  assert.ok(parked && parked.priority !== 0 && /^Parked car/.test(parked.text), 'a parked car in the path is mentioned, never as urgent');
   assert.match(say('quiet', [tr('stairs', 5, { x1: 250, y1: 300, x2: 400, y2: 460 })]) .text, /Stairs/, 'fall hazard always');
 });
 

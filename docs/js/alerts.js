@@ -91,9 +91,10 @@ export class AlertEngine {
           out.push({ key: `${name}:${dir}:u`, text: `Caution. ${LABEL[name]} approaching, ${dir}, ${metres(d)}.`, priority: 0 });
         } else if (passing) {
           out.push({ key: `${name}:pass`, text: dir === 'ahead' ? `${LABEL[name]} passing ahead.` : `${LABEL[name]} passing, ${dir}.`, priority: 1 });
-        } else if ((c.parkedAheadMetres ?? 0) > 0 && inPathNow && d < c.parkedAheadMetres) {
-          // Not moving, but it is in the way (for example across a pavement): say so once, like any other obstacle.
-          out.push({ key: `${name}:${dir}`, text: `${LABEL[name]}, ${dir}, ${metres(d)}.`, priority: 2 });
+        } else if ((c.parkedAheadMetres ?? 0) > 0 && inPathNow && d < c.parkedAheadMetres && tr.hits >= (c.parkedMinHits ?? 6)) {
+          // Parked in the walker's path (often across a pavement: RNIB's top barrier, 82%). Say it early enough to plan,
+          // say that it is parked, and say it once: no reminders, no repeat as the walker gets closer.
+          out.push({ key: `${name}:parked`, text: `Parked ${LABEL[name].toLowerCase()} ${dir === 'ahead' ? 'ahead' : `on your ${dir}`}, ${metres(d)}.`, priority: 1, once: true, parked: true });
         }
       } else if (name === 'person') {
         if (d != null && d < c.personNearMetres) {
@@ -174,6 +175,8 @@ export class AlertEngine {
           if (!closer && tMs - rec.t < base * (1 + Math.min(n, 4))) continue;
         } else if (fresh.get(a.key)) {
           if (tMs - rec.t < base) continue; // flickering in and out of view is not a new encounter
+        } else if (a.once) {
+          continue; // said once for this encounter: never again while it stays in view
         } else if (!closer && !(a.priority === 1 && tMs - rec.t >= (c.reminderMs ?? 30000))) {
           continue; // still there, not closer: not news
         }
@@ -183,7 +186,9 @@ export class AlertEngine {
       // The way ahead is blocked by what we are about to name: say which side is clearer, in the same breath.
       const hint = advice || this.free.advice(true);
       if (hint && a.inPath && a.priority >= 1 && a.priority <= 2 && (a.kind === 'moving' || a.kind === 'static') && !a.key.startsWith('manhole')) {
-        a = { ...a, text: `${a.text} ${hint.text}` }; this.free.announcedBlocked = true;
+        // A parked vehicle with no way round on the pavement: the walker may have to step into the road.
+        const extra = a.parked && hint.stop ? 'It is blocking the path. Take care if you step into the road.' : hint.text;
+        a = { ...a, text: `${a.text} ${extra}` }; this.free.announcedBlocked = true;
       }
       if (a.priority > 0) { this.spokenAt.push(tMs); this.spokenMin.push(tMs); }
       if (a.key === 'clear') this.free.spokenClear();

@@ -12,7 +12,7 @@ const tr = (name, dist, box = AHEAD, extra = {}) => [{ id: 1, cls: idx(name), na
 
 test('a still bus blocking the path 2 m ahead is mentioned once, not repeated every few seconds', () => {
   const eng = new AlertEngine(); let said = 0;
-  for (let t = 0; t <= 60000; t += 1000) if (eng.next(tr('bus', 2), W, H, t)) said += 1;
+  for (let t = 0; t <= 60000; t += 1000) if (eng.next(tr('bus', 2, AHEAD, { hits: 6 }), W, H, t)) said += 1;
   assert.equal(said, 1, `spoke ${said} times in a minute`);
 });
 
