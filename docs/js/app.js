@@ -9,7 +9,7 @@ import { Haptics } from './haptics.js';
 import { RouteStore, RouteRecorder, routeFromPoints, pathLength } from './routes.js';
 import { Cues } from './cues.js';
 import { getUnits, setUnits, getStep, setStep, stepCm, UNIT_MODES } from './units.js';
-import { describeScene, NO_CAMERA } from './describe.js';
+import { describeScene, NO_CAMERA, findObject } from './describe.js';
 import { CameraWatch, frameStats, greyFromVideo } from './camcheck.js';
 import { warmModel } from './modelcache.js';
 import { DepthLane } from './depth.js';
@@ -859,6 +859,7 @@ function handleTranscript(text) {
     case 'vibration': changeVibration(cmd.arg === 'on'); break;
     case 'rate': changeRate(cmd.arg === 'slower' ? -1 : 1); break;
     case 'share': prepareShare(); break;
+    case 'find': if (!state.running || !state.scene) say(NO_CAMERA, 'status'); else say(findObject(state.scene.tracks, cmd.arg, state.scene.w), 'status'); break;
     case 'navinfo': say(navigator_.status(cmd.arg), 'status'); break;
     case 'wrong': logEvent('wrong-alert', state.lastAlertText || ''); say(state.lastAlertText ? 'Thank you. I have noted that the last warning was wrong.' : 'Thank you. There was no recent warning to note.', 'status'); break;
     case 'lost': (async () => { await whereAmI(); say('Stay where you are if it is not safe to move. Say take me home, or navigate to a place, or share my location.', 'status'); })(); break;

@@ -44,9 +44,10 @@ export const SECONDARY = {
 export const TERTIARY = {
   model: 'coco', size: 320, everyMs: 3500, conf: 0.50, maxAgeMs: 4500, clsOffset: 1000, // offset keeps its class numbers apart from the other lanes
   // everything COCO knows except what the first two models already cover (person, car, bench, chair, hydrant ...)
-  classes: ['traffic_light', 'stop_sign', 'parking_meter', 'bird', 'cat', 'horse', 'sheep', 'cow', 'elephant', 'bear', 'backpack', 'umbrella', 'handbag', 'suitcase',
-    'skateboard', 'sports_ball', 'bottle', 'cup', 'bowl', 'couch', 'potted_plant', 'bed', 'dining_table', 'toilet', 'tv', 'laptop', 'microwave', 'oven',
-    'refrigerator', 'sink', 'book', 'clock', 'vase', 'teddy_bear'] // no cell_phone (it saw the walker's own phone), no train/boat/airplane (false calls on street footage, 31 Oct)
+  // Outdoor things only. Indoor classes (microwave, oven, fridge, sink, tv, bed, cup...) were dropped on 31 Oct: on street footage
+  // it called a shop front "microwave" for 26 frames in a row.
+  classes: ['traffic_light', 'stop_sign', 'parking_meter', 'bird', 'cat', 'horse', 'sheep', 'cow', 'backpack', 'umbrella', 'handbag', 'suitcase',
+    'skateboard', 'sports_ball', 'potted_plant'],
 };
 
 export const CONFIG = {

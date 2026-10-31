@@ -69,3 +69,38 @@ export function describeScene(tracks, frameW, { minHits = 2, maxItems = 5, path 
   const more = groups.size > kept.length ? ' There is more, but those are the main things.' : '';
   return `${pathSentence(path)} ${parts.join(' ')}${more}`.trim();
 }
+
+// "Is there a bench?" / "find a bin" (object search, from the NAVI AI idea in RESEARCH.md).
+// Answers from what the camera sees right now; honest when it cannot see one, or does not know the word.
+const ASK = { bin: 'ashcan', 'rubbish bin': 'ashcan', 'litter bin': 'ashcan', 'trash can': 'ashcan', seat: 'bench', crossing: 'crosswalk',
+  'zebra crossing': 'crosswalk', 'pedestrian crossing': 'crosswalk', steps: 'stairs', staircase: 'stairs', bike: 'bicycle', 'push bike': 'bicycle',
+  motorbike: 'motorcycle', someone: 'person', anybody: 'person', anyone: 'person', man: 'person', woman: 'person', lorry: 'truck', van: 'truck',
+  'traffic light': ['red_light', 'green_light', 'traffic_light'], 'traffic lights': ['red_light', 'green_light', 'traffic_light'], sofa: 'couch', table: 'dining_table',
+  hydrant: 'fire_hydrant', cone: 'reflective_cone', barrier: ['roadblock', 'guard_rail'], post: ['pole', 'warning_column'], bollard: 'warning_column' };
+export function objectNames(query) {
+  const q = String(query || '').toLowerCase().replace(/[?.!]/g, '').replace(/^(?:a|an|the|any|some)\s+/, '').trim();
+  if (!q) return [];
+  const tryWord = (w) => {
+    if (ASK[w]) return [].concat(ASK[w]);
+    const hit = Object.entries(NOUNS).filter(([name, [one, many]]) => w === one || w === many || w === name.replace(/_/g, ' '));
+    return hit.map(([name]) => name);
+  };
+  let names = tryWord(q);
+  if (!names.length && q.endsWith('s')) names = tryWord(q.slice(0, -1));
+  return names;
+}
+export function findObject(tracks, query, frameW, { minHits = 2 } = {}) {
+  const q = String(query || '').toLowerCase().replace(/^(?:a|an|the|any|some)\s+/, '').replace(/[?.!]/g, '').trim();
+  const names = objectNames(q);
+  if (!names.length) return `I cannot recognise ${q || 'that'} yet. I can look for things like a bench, a bin, a crossing, a person, a car or stairs.`;
+  const seen = (tracks || []).filter((t) => names.includes(t.name) && (t.hits ?? minHits) >= minHits)
+    .sort((a, b) => (a.dist ?? 99) - (b.dist ?? 99));
+  const noun = NOUNS[names[0]] ? NOUNS[names[0]][0] : q;
+  if (!seen.length) return `I cannot see ${NOUNS[names[0]]?.[2] === 'none' ? noun : `${article(noun)} ${noun}`} right now. Turn slowly, then ask again.`;
+  const t = seen[0], dir = directionOf((t.box.x1 + t.box.x2) / 2, frameW);
+  const n = NOUNS[t.name] ? NOUNS[t.name][0] : t.name.replace(/_/g, ' ');
+  const where = dir === 'ahead' ? 'straight ahead' : `on your ${dir}`;
+  const lead = NOUNS[t.name]?.[2] === 'none' ? cap(n) : `${cap(article(n))} ${n}`;
+  return `Yes. ${lead}, ${where}${t.dist != null ? `, ${nearDistance(t.dist)}` : ''}.`;
+}
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);

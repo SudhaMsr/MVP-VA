@@ -73,6 +73,9 @@ export function parseCommand(raw) {
   if (/\b(where am i|where are we|my location|what street (?:am i on|is this)|which street (?:am i on|is this))\b/.test(t)) return { type: 'whereami' };
 
   // What the camera sees, on request ("what is in front of me"). "what is this place" stays with reading (shop signs).
+  // Object search: "is there a bench", "find a bin", "look for a crossing", "can you see any stairs"
+  const look = t.match(/\b(?:is there (?:a|an|any)|are there (?:any)?|find (?:me )?(?:a|an)|look(?:ing)? for (?:a|an|the|any)?|can you see (?:a|an|any|the)?)\s+(.+)$/);
+  if (look && !/\b(?:nearest|closest|route|way)\b/.test(look[1]) && !/^(?:thing|anything)/.test(look[1].trim())) return { type: 'find', arg: look[1].trim() };
   if (/\b(what(?:'s| is| was)? (?:in front of me|ahead|ahead of me|around me|around|near me|nearby|in front)|what (?:do you|can you) see|describe (?:the |what|my )?(?:scene|view|surroundings|street|area)?|look around|is there anything (?:ahead|in front|near|around)|anything (?:ahead|in front))\b/.test(t)) return { type: 'describe' };
 
   // Distances in miles (yards for short ones), steps or metres
@@ -117,7 +120,7 @@ export function parseCommand(raw) {
 
 export const HELP_TEXT =
   'You can say: start, stop, repeat, or navigate to, followed by a place. ' +
-  'Say what is in front of me, where am I, or battery. ' +
+  'Say what is in front of me, where am I, or battery. Say is there a bench, or find a bin, to look for something. ' +
   'Say save this place as home, and later, take me home. ' +
   'On a route, say how far, what is next, or am I on the right route. If a warning was wrong, say that was wrong. ' +
   'Say use miles, use metres or use steps for distances, and my step is, with a length, to set your step. ' +
