@@ -159,3 +159,23 @@ test('portrait pictures use the long side for the field of view (field log: phon
   const landscapeStyle = estimateDistance(det('person', 190, 100, 290, 500), 480, 66, 480);
   assert.ok(d > landscapeStyle * 1.3 && d < landscapeStyle * 1.4, 'portrait distance should be about 1.33x larger');
 });
+
+test('field test 31 Oct: stairs must score 0.80+ and be seen in two slow runs in a row', async () => {
+  const { confirmSlow } = await import('../docs/js/lanes.js');
+  const rules = { stairs: { minScore: 0.8, runs: 2 } };
+  const paving = [{ name: 'stairs', score: 0.77 }, { name: 'manhole', score: 0.5 }];
+  let r = confirmSlow(paving, null, rules);
+  assert.deepEqual(r.dets.map((d) => d.name), ['manhole'], 'plain paving at 0.77 is not stairs; other classes pass');
+  r = confirmSlow([{ name: 'stairs', score: 0.9 }], null, rules);
+  assert.equal(r.dets.length, 0, 'first sure sighting: wait for the next run');
+  r = confirmSlow([{ name: 'stairs', score: 0.88 }], r.names, rules);
+  assert.equal(r.dets.length, 1, 'second run in a row: stairs');
+  r = confirmSlow([], r.names, rules);
+  r = confirmSlow([{ name: 'stairs', score: 0.95 }], r.names, rules);
+  assert.equal(r.dets.length, 0, 'a gap resets it');
+});
+
+test('field test 31 Oct: the fast lane tactile paving guess is not used', async () => {
+  const { IGNORE_FAST } = await import('../docs/js/config.js');
+  assert.ok(IGNORE_FAST.includes('blind_road'));
+});

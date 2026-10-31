@@ -71,13 +71,20 @@ export class AlertEngine {
       const hFrac = (tr.box.y2 - tr.box.y1) / frameH;
       const bottom = tr.box.y2 / frameH; // low in the picture = close to the camera, for things on the ground
 
+      // Seen often enough to be real (field test 31 Oct: one blurred frame of a wall, filling the picture, was spoken as
+      // "Dog, ahead, very close"). People and dogs need 3 frames; anything filling most of the picture needs 5.
+      const big = ((tr.box.x2 - tr.box.x1) * (tr.box.y2 - tr.box.y1)) / (frameW * frameH) > 0.6;
+      const need = big ? (c.minHitsBig ?? 5) : (name === 'person' || name === 'dog') ? (c.minHitsPeople ?? 3) : 1;
+      if (!VEHICLES.has(name) && (tr.hits ?? need) < need) continue;
       if (VEHICLES.has(name) || name === 'bicycle') {
         if (d == null) continue;
         const maxD = name === 'bicycle' ? 8 : c.vehicleAlertMetres;
         // Only moving vehicles are worth a warning. A parked one beside the pavement is always close, and warning about it
         // every few seconds was the main complaint from the first walk.
         const limit = d < (c.closeVehicleMetres ?? 0) ? c.approachSpeedMps : ((c.speedingMps && c.speedingMps[name]) ?? c.approachSpeedMps);
-        const approaching = sp != null && sp > limit && tr.hits >= c.approachMinHits;
+        // speedN (from the tracker) = speed samples in a row; a car seen in only 4 frames once scored 14.6 m/s (field test 31 Oct).
+        const enough = tr.speedN == null ? tr.hits >= c.approachMinHits : tr.speedN >= (c.approachMinSamples ?? 5);
+        const approaching = sp != null && sp > limit && enough;
         const inPathNow = inCorridor(tr.box, frameW, frameH, c.corridor);
         // Is it moving across the picture? The camera itself turns as the walker walks, which shifts everything the same way,
         // so subtract what the other tracked things are doing.

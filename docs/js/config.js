@@ -39,7 +39,13 @@ export function canonical(name) {
 export const SECONDARY = {
   model: 'rod2', size: 416, everyMs: 2000, conf: 0.40, maxAgeMs: 2500, // field log: one pass costs ~430 ms on the Poco
   classes: ['stairs', 'manhole', 'bench', 'chair', 'guard_rail', 'electrical_box', 'plant_pot', 'bicycle_rack'],
+  // Stairs give a spoken fall-hazard warning, so they must be sure: score 0.80+ and seen in two slow runs in a row.
+  // (Phone footage, 31 Oct: plain paving scored up to 0.77 as stairs.) Retune once real stairs have been filmed.
+  confirm: { stairs: { minScore: 0.80, runs: 2 } },
 };
+// The fast model's "blind_road" (tactile paving) fired on ordinary block paving in 51 of 178 phone frames (31 Oct).
+// Wrong information about tactile paving misleads a blind walker, so it is not used until a model passes on UK footage.
+export const IGNORE_FAST = ['blind_road'];
 
 export const TERTIARY = {
   model: 'coco', size: 320, everyMs: 3500, conf: 0.50, maxAgeMs: 4500, clsOffset: 1000, // offset keeps its class numbers apart from the other lanes
@@ -76,7 +82,8 @@ export const CONFIG = {
   // ...except very close: inside this distance any vehicle closing faster than approachSpeedMps is urgent
   // (a car reversing out of a driveway or pulling out of a space is slow, but it is right there).
   closeVehicleMetres: 5,
-  approachMinHits: 3, // frames a vehicle must be tracked before we trust its speed
+  approachMinHits: 3, // frames a vehicle must be tracked before we trust its speed (tests and tracks without a sample count)
+  approachMinSamples: 5, // speed samples in a row (about 0.6 s) before a vehicle can be called approaching
   // Parked or still vehicles are not announced. A vehicle is only mentioned when it is moving toward the walker (approaching),
   // moving across the walker's path (passing), or a still one is right in the path and very close (blocking the way).
   passLateralPerSec: 0.25, // sideways speed in frame-widths per second, after allowing for the camera turning

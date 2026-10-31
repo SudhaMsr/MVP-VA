@@ -1,7 +1,7 @@
 // Vision Assist - app wiring: camera, detection loop, speech, voice commands, error handling.
 // Rule for this file: every failure is spoken. No silent states.
-import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY, TERTIARY, GOOGLE_KEY, FEATURES } from './config.js';
-import { filterAllowed, mergeLanes } from './lanes.js';
+import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY, TERTIARY, GOOGLE_KEY, FEATURES, IGNORE_FAST } from './config.js';
+import { filterAllowed, mergeLanes, confirmSlow } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
 import { AlertEngine, LEVELS, inCorridor } from './alerts.js';
@@ -332,14 +332,16 @@ async function loop() {
   if (!state.running) return;
   const t0 = performance.now();
   try {
-    const { dets: fast, width, height } = await detector.detect(el.video, CONFIG.confThreshold, CONFIG.nmsIou);
+    const { dets: fastAll, width, height } = await detector.detect(el.video, CONFIG.confThreshold, CONFIG.nmsIou);
+    const fast = fastAll.filter((d) => !IGNORE_FAST.includes(d.name));
     if (!state.running) return; // stopped while this frame was in flight
     frameCount += 1;
     if (slowDetector && performance.now() - slow.ranAt >= SECONDARY.everyMs) {
       slow.ranAt = performance.now();
       try {
         const r = await slowDetector.detect(el.video, SECONDARY.conf, CONFIG.nmsIou);
-        slow.dets = filterAllowed(r.dets, SECONDARY.classes);
+        const c = confirmSlow(filterAllowed(r.dets, SECONDARY.classes), slow.prevNames, SECONDARY.confirm || {});
+        slow.dets = c.dets; slow.prevNames = c.names;
         slow.t = performance.now();
       } catch (e) { logEvent('slow-frame-error', e && e.message); }
       if (!state.running) return;
@@ -410,7 +412,8 @@ function riskOf(tr, w, h) {
   const sp = tr.speed;
   const move = sp == null ? '' : (Math.abs(sp) > 0.8 || Math.abs(tr.lat || 0) > 0.15) ? 'moving' : 'still';
   const limit = tr.dist != null && tr.dist < (CONFIG.closeVehicleMetres ?? 0) ? CONFIG.approachSpeedMps : ((CONFIG.speedingMps || {})[tr.name] ?? CONFIG.approachSpeedMps);
-  if (vehicle && sp != null && sp > limit && (tr.hits ?? 0) >= CONFIG.approachMinHits) return { risk: 'high', move };
+  const enough = tr.speedN == null ? (tr.hits ?? 0) >= CONFIG.approachMinHits : tr.speedN >= (CONFIG.approachMinSamples ?? 5);
+  if (vehicle && sp != null && sp > limit && enough) return { risk: 'high', move };
   if (inCorridor(tr.box, w, h, CONFIG.corridor) && tr.dist != null && tr.dist < 3) return { risk: 'caution', move };
   return { risk: 'low', move };
 }
@@ -547,7 +550,7 @@ async function start() {
   state.errors = 0;
   state.lastFrameOk = performance.now();
   tracker.tracks = [];
-  slow.dets = []; slow.t = null; slow.ranAt = 0; frameCount = 0;
+  slow.dets = []; slow.t = null; slow.ranAt = 0; slow.prevNames = null; frameCount = 0;
   engine.reset();
   camWatch.reset(); camCheckedAt = 0;
   const wasFirst = state.welcomed !== true;

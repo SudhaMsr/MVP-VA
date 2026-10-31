@@ -82,3 +82,10 @@ Paste this at the start of a new chat, together with the repo link.
 - **Tests:** 196 Node tests; headless browser scripts covered start/stop, voice navigation, saved home, battery, camera check, cache with downloads blocked, demo-video playback.
 - **Docs (claude.ai):** plan "Vision Assist: Plan to Real Use by Blind Walkers"; "Vision Assist: Tester Pack" (consent, known limits, quick guide, supervisor checklist, interview).
 - **Next:** sighted street walk with Record session on (Poco speed, load time, car rules, "navigate me to this place" log); seated tester session; supervised walk with the tester pack; Bristol photos for kerbs and tactile paving; rotate the key in the old GOOGLE repo.
+
+## Model test on the first field-walk videos (31 Oct, evening)
+Phone screen recordings from 30 Oct (camera preview cut out, 15 fps, 45 s of Bristol pavements with parked cars) played through the app:
+- Before: quiet mode said 8 things in 90 s, 7 false (4 "car approaching" for parked cars, "Stairs", 2 "Dog"); detailed mode also said "Tactile paving" 4 times on block paving.
+- After: quiet mode 0 false; detailed only trees, bins, a pole.
+- Fixes: closing speed is now a line fit over the last 1.2 s of distances (trusted only with a good fit, 5+ samples); no speed for boxes cut off by the picture edge; a one-step distance jump resets the speed (tracker swapping cars); slow-lane stairs need 0.80+ and two runs in a row (plain paving scored up to 0.77); the fast lane's "tactile paving" guess is ignored (51 of 178 frames on ordinary paving); people and dogs need 3 frames, anything filling 60%+ of the picture needs 5 (a blurred wall was "Dog, very close").
+- Still to prove on the street: that a real approaching car is warned in time (synthetic test: about 0.6 s after it is fully in view), and that real stairs still pass the stricter stairs rule.

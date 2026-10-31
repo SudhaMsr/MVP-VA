@@ -81,19 +81,39 @@ export class Tracker {
       }
     }
     tr.cx = cx; tr.latT = tMs;
+    // Cut off by the edge of the picture (field test 31 Oct): its width grows as more of it comes into view, which looked like
+    // a parked car "approaching" and a fast-moving one "passing". While it touches the edge, speed and sideways motion are not
+    // measured, and the count of good speed samples starts again.
+    const m = Math.max(2, frameW * 0.01);
+    tr.edge = d.x1 <= m || d.x2 >= frameW - m;
+    if (tr.edge) tr.lat = null;
     const raw = estimateDistance(d, frameW, this.hfovDeg, frameH);
     if (raw == null) { tr.dist = null; tr.speed = null; return; }
     const prev = tr.dist;
     const dist = prev == null ? raw : 0.6 * raw + 0.4 * prev;
-    if (prev != null && tr.lastT != null) {
-      const dt = (tMs - tr.lastT) / 1000;
-      if (dt >= 0.05 && dt <= 1.5) {
-        const inst = (prev - dist) / dt; // positive = getting closer
-        const sp = tr.speed == null ? inst : 0.4 * inst + 0.6 * tr.speed;
-        tr.speed = Math.abs(sp) > 25 ? null : sp;
-      } else {
-        tr.speed = null;
-      }
+    if (tr.edge) { tr.dist = dist; tr.speed = null; tr.speedN = 0; tr.lastT = null; tr.hist = []; return; }
+    // Closing speed = the slope of a straight line fitted through the last ~1.2 s of raw distances (field test 31 Oct).
+    // A car really coming closer gives a steady fall (a good fit); a parked car whose box wobbles (camera shake, half hidden
+    // behind another car) gives a poor fit, and its speed is not trusted. Positive = getting closer.
+    tr.hist = (tr.hist || []).filter((h) => tMs - h[0] <= 1200);
+    // A sudden jump in one step (over 30% and over 2 m) is the tracker swapping between two neighbouring parked cars, not
+    // motion: even a car at 10 m/s, 5 m away, changes about 25% between frames. Start the speed measurement again.
+    const last = tr.hist.length ? tr.hist[tr.hist.length - 1][1] : null;
+    if (last != null && Math.abs(raw - last) > Math.max(2, 0.3 * last)) tr.hist = [];
+    tr.hist.push([tMs, raw]);
+    tr.speedN = tr.hist.length;
+    const span = tMs - tr.hist[0][0];
+    if (tr.hist.length >= 5 && span >= 500) {
+      const n = tr.hist.length, mt = tr.hist.reduce((a, h) => a + h[0], 0) / n, md = tr.hist.reduce((a, h) => a + h[1], 0) / n;
+      let sxy = 0, sxx = 0, syy = 0;
+      for (const [t, d] of tr.hist) { sxy += (t - mt) * (d - md); sxx += (t - mt) ** 2; syy += (d - md) ** 2; }
+      const slope = sxx ? sxy / sxx : 0; // metres per ms
+      const r2 = sxx && syy ? (sxy * sxy) / (sxx * syy) : 0;
+      const sp = -slope * 1000;
+      tr.speed = Math.abs(sp) > 25 ? null : (r2 >= 0.6 || Math.abs(sp) < 0.5 ? sp : null);
+      tr.fit = +r2.toFixed(2);
+    } else {
+      tr.speed = null;
     }
     tr.dist = dist;
     tr.lastT = tMs;

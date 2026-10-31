@@ -116,3 +116,39 @@ test('very close, a slow vehicle still gets the warning: reversing or pulling ou
 test('a vehicle seen in only a few frames is not called parked (likely a misdetection)', () => {
   assert.equal(new AlertEngine(CONFIG, 'quiet').next([car(AHEAD, { dist: 3, hits: 3 })], W, H, 0), null);
 });
+
+test('field test 31 Oct: a car cut off by the picture edge gets no speed, so it cannot "approach" or "pass"', () => {
+  const tk = new Tracker();
+  let tr;
+  // a parked car sliding into view from the left edge: its box grows every frame
+  for (let i = 0; i < 10; i++) tr = tk.update([{ cls: idx('car'), name: 'car', score: 0.9, x1: 0, y1: 100, x2: 60 + i * 15, y2: 300 }], i * 120, W, H)[0];
+  assert.equal(tr.speed, null);
+  assert.equal(tr.lat, null);
+  assert.equal(new AlertEngine(CONFIG, 'quiet').next([tr], W, H, 2000), null);
+});
+
+test('a car really driving towards the walker (fully in view) is still warned about, after about half a second', () => {
+  const tk = new Tracker(); const eng = new AlertEngine(CONFIG, 'quiet');
+  let first = null;
+  // centred car, box widening as it closes at about 10 m/s from about 25 m
+  for (let i = 0; i < 20 && first == null; i++) {
+    const t = i * 125, dist = 25 - 10 * (t / 1000), wpx = 1.8 * 470 / dist; // ~470 px focal length for a 640 px frame
+    const tr = tk.update([{ cls: idx('car'), name: 'car', score: 0.9, x1: 320 - wpx / 2, y1: 200, x2: 320 + wpx / 2, y2: 260 }], t, W, H);
+    const a = eng.next(tr, W, H, t);
+    if (a && a.priority === 0) first = { t, text: a.text };
+  }
+  assert.ok(first, 'warned');
+  assert.ok(first.t <= 1000, `warned at ${first.t} ms`);
+  assert.match(first.text, /^Caution\. Car approaching, ahead/);
+});
+
+test('field test 31 Oct: one blurred frame filling the picture is not spoken; a real person needs 3 frames', () => {
+  const whole = { x1: 0, y1: 0, x2: 640, y2: 480 };
+  const blur = (hits) => [{ id: 9, cls: idx('dog'), name: 'dog', hits, dist: 0.4, speed: null, box: whole }];
+  assert.equal(new AlertEngine(CONFIG, 'quiet').next(blur(1), W, H, 0), null);
+  assert.equal(new AlertEngine(CONFIG, 'quiet').next(blur(4), W, H, 0), null);
+  assert.ok(new AlertEngine(CONFIG, 'quiet').next(blur(5), W, H, 0), 'still there after 5 frames: say it');
+  const person = (hits) => [{ id: 3, cls: idx('person'), name: 'person', hits, dist: 1.2, speed: 0, box: { x1: 280, y1: 150, x2: 360, y2: 470 } }];
+  assert.equal(new AlertEngine(CONFIG, 'quiet').next(person(2), W, H, 0), null);
+  assert.match(new AlertEngine(CONFIG, 'quiet').next(person(3), W, H, 0).text, /^Person, ahead/);
+});
