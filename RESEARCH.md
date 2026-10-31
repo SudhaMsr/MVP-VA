@@ -98,4 +98,9 @@ The table above is numbered by topic, not by this order, and I did not keep a re
 | Crossing signal help | OKO | Built (`notes.js`, "can I cross?") |
 | Memory notes | NAVI AI | Built (`notes.js`) |
 | Do not count objects aloud | NETRA | Followed: grouped, short, capped |
-| Pretrained object lane (more classes) | General | Planned: COCO export in Colab |
+| Pretrained object lane (more classes) | General | Built 31 Oct (`coco320.onnx`, outdoor classes only) |
+| Object search ("is there a bench", "find a bin") | NAVI AI | Built 31 Oct (`describe.js` `findObject`) |
+| "Checking a possible obstacle" before alerting | NAVI AI | Followed: vehicles need 3 to 6 sightings before a warning |
+| Latency under about 150 ms (Smart Vision talk) | Smart Vision | Desktop 92 ms per frame; Poco about 250 ms (HANDOFF): still to decide on the street walk |
+| Visible Listening / Speaking states and a chat log | NAVI AI | Partly: status line shows Listening and the last message; no full log on screen (the session log has it) |
+| Risk badges (safe / high risk) per object | NAVI AI | Not built as badges; urgent warnings start with "Caution" and vibrate |
