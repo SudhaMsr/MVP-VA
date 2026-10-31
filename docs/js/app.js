@@ -4,7 +4,7 @@ import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY, TERTIARY, GOOGLE_KEY, FEATURE
 import { filterAllowed, mergeLanes } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
-import { AlertEngine, LEVELS } from './alerts.js';
+import { AlertEngine, LEVELS, inCorridor } from './alerts.js';
 import { Haptics } from './haptics.js';
 import { RouteStore, RouteRecorder, routeFromPoints, pathLength } from './routes.js';
 import { Cues } from './cues.js';
@@ -76,7 +76,22 @@ let recMime = '';
 const spokenHistory = []; // for ignoring our own voice picked up by the microphone
 const session = { startedAt: new Date().toISOString(), events: [], size: SIZE, ep: EP, model: MODEL_KEY };
 
+// What the app is doing, shown as a coloured chip (NAVI AI idea): Ready, Watching, Listening, Thinking, Speaking.
+// Hidden from screen readers: TalkBack already hears the speech, and a changing label would make it talk twice.
+function setMode(m) { const e = document.getElementById('mode'); if (e) { e.textContent = m; e.dataset.m = m; } }
+function idleMode() { setMode(!state.running ? 'Ready' : performance.now() < state.talkUntil ? 'Listening' : 'Watching'); }
+// The conversation on screen: what the walker said and what the app answered, newest at the bottom, last 30.
+function addConvo(who, text) {
+  const ol = document.getElementById('convoLog'); if (!ol) return;
+  const li = document.createElement('li'); li.className = who === 'You' ? 'you' : 'app';
+  li.textContent = `${who}: ${text}`; ol.appendChild(li);
+  while (ol.children.length > 30) ol.removeChild(ol.firstChild);
+  ol.scrollTop = ol.scrollHeight;
+}
+speaker.onIdle = () => idleMode();
+
 speaker.onSpoken = (item) => {
+  setMode('Speaking'); addConvo('App', item.text);
   state.lastSpeechAt = performance.now();
   state.lastSpoken = item.kind === 'status' ? state.lastSpoken : item.text;
   spokenHistory.push({ text: item.text.toLowerCase(), t: performance.now() });
@@ -388,6 +403,18 @@ function updateStats() {
     `${window.ort ? window.ort.env.wasm.numThreads : '?'} thread(s)${self.crossOriginIsolated ? ', isolated' : ''}.`;
 }
 
+// Supervisor view only: a risk level and moving / still for each object, like NAVI AI's obstacle card.
+// high = a vehicle coming fast (what triggers "Caution"); caution = in the walking path and within 3 m; low = the rest.
+function riskOf(tr, w, h) {
+  const vehicle = ['car', 'truck', 'bus', 'motorcycle', 'bicycle', 'tricycle'].includes(tr.name);
+  const sp = tr.speed;
+  const move = sp == null ? '' : (Math.abs(sp) > 0.8 || Math.abs(tr.lat || 0) > 0.15) ? 'moving' : 'still';
+  const limit = tr.dist != null && tr.dist < (CONFIG.closeVehicleMetres ?? 0) ? CONFIG.approachSpeedMps : ((CONFIG.speedingMps || {})[tr.name] ?? CONFIG.approachSpeedMps);
+  if (vehicle && sp != null && sp > limit && (tr.hits ?? 0) >= CONFIG.approachMinHits) return { risk: 'high', move };
+  if (inCorridor(tr.box, w, h, CONFIG.corridor) && tr.dist != null && tr.dist < 3) return { risk: 'caution', move };
+  return { risk: 'low', move };
+}
+
 function drawOverlay(tracks, w, h) {
   const c = el.overlay;
   if (c.width !== w) { c.width = w; c.height = h; }
@@ -399,10 +426,12 @@ function drawOverlay(tracks, w, h) {
   g.moveTo(w * (0.5 - cor.topHalf), h * cor.topY); g.lineTo(w * (0.5 + cor.topHalf), h * cor.topY);
   g.lineTo(w * (0.5 + cor.bottomHalf), h); g.lineTo(w * (0.5 - cor.bottomHalf), h); g.closePath(); g.stroke();
   for (const tr of tracks) {
-    g.strokeStyle = '#ffd400'; g.fillStyle = '#ffd400';
+    const r = riskOf(tr, w, h);
+    const col = r.risk === 'high' ? '#ff3b30' : r.risk === 'caution' ? '#ff9f0a' : '#34c759';
+    g.strokeStyle = col; g.fillStyle = col;
     g.strokeRect(tr.box.x1, tr.box.y1, tr.box.x2 - tr.box.x1, tr.box.y2 - tr.box.y1);
     const d = tr.dist != null ? ` ${tr.dist.toFixed(1)}m` : '';
-    g.fillText(`${tr.name}${d}`, tr.box.x1 + 4, Math.max(20, tr.box.y1 + 20));
+    g.fillText(`${tr.name}${d} ${r.move} ${r.risk.toUpperCase()}`, tr.box.x1 + 4, Math.max(20, tr.box.y1 + 20));
   }
   if (depthLane) depthLane.draw(g, w);
 }
@@ -513,6 +542,7 @@ async function start() {
   }
   state.firstRun = false;
   state.running = true;
+  setMode('Watching');
   state.starting = false;
   state.errors = 0;
   state.lastFrameOk = performance.now();
@@ -542,7 +572,7 @@ function stopInternal() {
   stopCamera();
   releaseScreen();
   try { const c = el.overlay; c.getContext('2d').clearRect(0, 0, c.width, c.height); } catch (_) { /* ignore */ }
-  setStatus('Stopped');
+  setStatus('Stopped'); setMode('Ready');
   updateMain();
 }
 
@@ -577,11 +607,12 @@ function talk() {
   state.talkHeard = false;
   cues.play('listen');
   if (!state.listening) startListening();
-  setStatus('Listening');
+  setStatus('Listening'); setMode('Listening');
   clearTimeout(talkTimer);
   talkTimer = setTimeout(() => {
     speaker.hold(false);
     if (!state.talkHeard && state.running) { cues.play('huh'); setStatus('Running'); logEvent('talk-timeout', ''); }
+    if (!speaker.current) idleMode();
   }, TALK_WINDOW_MS);
   logEvent('talk', '');
 }
@@ -836,10 +867,12 @@ function handleTranscript(text) {
   const inTalk = performance.now() < state.talkUntil;
   const answering = dialogue.waiting && (dialogue.state === 'where' || !!parseAnswer(text).type); // an answer to our question always counts, even over our own voice
   if (!inTalk && !answering && isEcho(text)) { logEvent('ignored-echo', text); return; }
+  addConvo('You', text);
   if (answering) speaker.skip(); // stop reading the question out
   if (inTalk) { setTimeout(() => speaker.hold(false), 150); /* after the command's own reply is queued, so the answer comes first */ state.talkHeard = true; state.talkUntil = 0; clearTimeout(talkTimer); if (state.running) setStatus('Running'); }
   if (dialogue.answer(text)) { cues.play('ok'); return; } // an answer to a question we asked
   const cmd = parseCommand(text);
+  if (['navigate', 'saveAddress', 'whereami', 'lost', 'read'].includes(cmd.type)) setMode('Thinking'); // these wait on the network or a model
   if (cmd.type) cues.play('ok'); else if (inTalk) cues.play('huh');
   switch (cmd.type) {
     case 'describe': describeNow(); break;

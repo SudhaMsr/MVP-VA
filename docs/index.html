@@ -22,6 +22,9 @@
   #stopBtn { background: var(--danger); color:#000; border-color:#000; }
   #status { font-size:1.4rem; font-weight:700; margin: 8px 0 4px; }
   #lastAlert { font-size:1.3rem; color: var(--accent); min-height: 1.6em; margin:4px 0 12px; }
+  #mode { display:inline-block; font-size:1rem; font-weight:700; padding:4px 12px; border-radius:999px; border:2px solid #fff; margin:0 0 10px; }
+  #mode[data-m="Listening"] { background:#1565c0; } #mode[data-m="Speaking"] { background:#2e7d32; } #mode[data-m="Thinking"] { background:#6a1b9a; }
+  #convoLog { padding-left:2.4em; font-size:1rem; max-height:40vh; overflow:auto; } #convoLog li { margin:4px 0; } #convoLog .you { color:#9fd3ff; }
   #stats { font-size: .95rem; opacity:.85; margin-top: 8px; }
   details { margin: 8px 0 12px; }
   details summary { display:flex; align-items:center; justify-content:center; min-height: 72px; font-size:1.4rem; cursor:pointer; list-style:none; }
@@ -42,6 +45,7 @@
   <h1>Vision Assist</h1>
   <p id="status" aria-live="off">Ready. Tap start.</p>
   <p id="lastAlert" aria-live="off"></p>
+  <p id="mode" aria-hidden="true" data-m="Ready">Ready</p>
 
   <button id="startBtn" type="button" aria-label="Start Vision Assist">Start</button>
   <button id="stopBtn" type="button" aria-label="Stop Vision Assist">Stop</button>
@@ -77,8 +81,13 @@
       <button id="recordBtn" type="button" aria-pressed="false">Record session: off</button>
       <button id="saveRecBtn" type="button" hidden disabled aria-label="Save the recording and log" style="min-height:64px;font-size:1.1rem">Save recording</button>
       <button id="logBtn" type="button" aria-label="Save session log" style="min-height:56px;font-size:1rem">Save session log</button>
-      <p class="small">Version: <span id="ver">8b8a138</span></p>
+      <p class="small">Version: <span id="ver">abade89</span></p>
     </details>
+  </details>
+
+  <details id="convo">
+    <summary>Conversation</summary>
+    <ol id="convoLog" aria-live="off"></ol>
   </details>
 
   <p id="stats" aria-hidden="true"></p>
@@ -102,34 +111,34 @@
 </script>
 <!--stamp-->
 <script type="importmap">{"imports": {
-    "./js/alerts.js": "./js/alerts.js?v=8b8a138",
-    "./js/app.js": "./js/app.js?v=8b8a138",
-    "./js/barge.js": "./js/barge.js?v=8b8a138",
-    "./js/battery.js": "./js/battery.js?v=8b8a138",
-    "./js/camcheck.js": "./js/camcheck.js?v=8b8a138",
-    "./js/commands.js": "./js/commands.js?v=8b8a138",
-    "./js/config.js": "./js/config.js?v=8b8a138",
-    "./js/cues.js": "./js/cues.js?v=8b8a138",
-    "./js/depth.js": "./js/depth.js?v=8b8a138",
-    "./js/describe.js": "./js/describe.js?v=8b8a138",
-    "./js/detector.js": "./js/detector.js?v=8b8a138",
-    "./js/dialogue.js": "./js/dialogue.js?v=8b8a138",
-    "./js/freespace.js": "./js/freespace.js?v=8b8a138",
-    "./js/haptics.js": "./js/haptics.js?v=8b8a138",
-    "./js/lanes.js": "./js/lanes.js?v=8b8a138",
-    "./js/modelcache.js": "./js/modelcache.js?v=8b8a138",
-    "./js/nav.js": "./js/nav.js?v=8b8a138",
-    "./js/notes.js": "./js/notes.js?v=8b8a138",
-    "./js/places.js": "./js/places.js?v=8b8a138",
-    "./js/reader.js": "./js/reader.js?v=8b8a138",
-    "./js/routes.js": "./js/routes.js?v=8b8a138",
-    "./js/speech.js": "./js/speech.js?v=8b8a138",
-    "./js/tracker.js": "./js/tracker.js?v=8b8a138",
-    "./js/units.js": "./js/units.js?v=8b8a138"
+    "./js/alerts.js": "./js/alerts.js?v=abade89",
+    "./js/app.js": "./js/app.js?v=abade89",
+    "./js/barge.js": "./js/barge.js?v=abade89",
+    "./js/battery.js": "./js/battery.js?v=abade89",
+    "./js/camcheck.js": "./js/camcheck.js?v=abade89",
+    "./js/commands.js": "./js/commands.js?v=abade89",
+    "./js/config.js": "./js/config.js?v=abade89",
+    "./js/cues.js": "./js/cues.js?v=abade89",
+    "./js/depth.js": "./js/depth.js?v=abade89",
+    "./js/describe.js": "./js/describe.js?v=abade89",
+    "./js/detector.js": "./js/detector.js?v=abade89",
+    "./js/dialogue.js": "./js/dialogue.js?v=abade89",
+    "./js/freespace.js": "./js/freespace.js?v=abade89",
+    "./js/haptics.js": "./js/haptics.js?v=abade89",
+    "./js/lanes.js": "./js/lanes.js?v=abade89",
+    "./js/modelcache.js": "./js/modelcache.js?v=abade89",
+    "./js/nav.js": "./js/nav.js?v=abade89",
+    "./js/notes.js": "./js/notes.js?v=abade89",
+    "./js/places.js": "./js/places.js?v=abade89",
+    "./js/reader.js": "./js/reader.js?v=abade89",
+    "./js/routes.js": "./js/routes.js?v=abade89",
+    "./js/speech.js": "./js/speech.js?v=abade89",
+    "./js/tracker.js": "./js/tracker.js?v=abade89",
+    "./js/units.js": "./js/units.js?v=abade89"
 }}</script>
 <!--/stamp-->
 <script>window.ORT_BASE = new URL('vendor/ort/', location.href).href;</script>
 <script src="vendor/ort/ort.min.js" onerror="window.ORT_BASE='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/';var s=document.createElement('script');s.src=window.ORT_BASE+'ort.min.js';document.head.appendChild(s);"></script>
-<script type="module" src="js/app.js?v=8b8a138"></script>
+<script type="module" src="js/app.js?v=abade89"></script>
 </body>
 </html>

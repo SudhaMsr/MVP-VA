@@ -160,6 +160,7 @@ export class Speaker {
       this.lastEnd = this.now();
       if (why === 'error') this.errors += 1;
       this._pump();
+      if (!this.current && this.onIdle) this.onIdle();
     };
     u.onend = () => finish('end');
     u.onerror = () => finish('error');

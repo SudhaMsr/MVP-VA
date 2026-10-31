@@ -102,5 +102,5 @@ The table above is numbered by topic, not by this order, and I did not keep a re
 | Object search ("is there a bench", "find a bin") | NAVI AI | Built 31 Oct (`describe.js` `findObject`) |
 | "Checking a possible obstacle" before alerting | NAVI AI | Followed: vehicles need 3 to 6 sightings before a warning |
 | Latency under about 150 ms (Smart Vision talk) | Smart Vision | Desktop 92 ms per frame; Poco about 250 ms (HANDOFF): still to decide on the street walk |
-| Visible Listening / Speaking states and a chat log | NAVI AI | Partly: status line shows Listening and the last message; no full log on screen (the session log has it) |
-| Risk badges (safe / high risk) per object | NAVI AI | Not built as badges; urgent warnings start with "Caution" and vibrate |
+| Visible Listening / Speaking states and a chat log | NAVI AI | Built 31 Oct: a state chip (Ready, Watching, Listening, Thinking, Speaking, hidden from screen readers) and a Conversation section with the last 30 lines |
+| Risk badges (safe / high risk) per object | NAVI AI | Built 31 Oct in the supervisor camera view: red HIGH (fast vehicle), orange CAUTION (in the path within 3 m), green LOW, plus moving / still. Spoken: urgent warnings start with "Caution" and vibrate |
