@@ -77,3 +77,10 @@ test('the app\'s own "Already stopped. Say start" is never taken as the command 
   for (const heard of ['say start or tap start', 'start', 'nothing to repeat yet', 'repeat', 'already stopped']) assert.equal(looksLikeEcho(heard, recent), true, heard);
   assert.equal(looksLikeEcho('where am i', recent), false, 'a real question is not an echo');
 });
+
+test('echo check uses whole words: "help" is not an echo of "this app helps"', () => {
+  const said = ['ready. hold the phone at chest height, camera facing forward. keep using your cane or guide dog. this app helps, but does not replace them.'];
+  assert.equal(looksLikeEcho('help', said), false);
+  assert.equal(looksLikeEcho('battery', ['your battery is at 63 percent']), true, 'a real echo of a whole word is still caught');
+  assert.equal(looksLikeEcho('star', ['start']), false);
+});

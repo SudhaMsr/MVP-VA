@@ -9,7 +9,8 @@ export const wordsOf = (text) => String(text || '').toLowerCase().replace(/[^a-z
 export function looksLikeEcho(text, recent) {
   const w = wordsOf(text);
   if (!w.length) return true;
-  return recent.slice(-5).some((h) => w.every((x) => h.includes(x)));
+  // Whole words only: "help" must not count as an echo of "This app helps" (field fault, 31 Oct).
+  return recent.slice(-5).some((h) => { const hw = new Set(wordsOf(h)); return w.every((x) => hw.has(x)); });
 }
 
 // text: what the recogniser has heard so far (may be unfinished).
