@@ -5,7 +5,7 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
 > **Safety notice:** This is a test version, not a validated mobility aid. It can miss obstacles and lose GPS. Always use a cane or guide dog as well.
 
 ## What the MVP does
-- Detects street hazards on the phone (people, vehicles, bikes, poles, cones, bins, tactile paving, crossings, traffic lights and more).
+- Detects street hazards on the phone (people, vehicles, bikes, poles, cones, bins, crossings, traffic lights and more).
 - **One screen, two main controls:** a big **Start** button that becomes **Talk** while running, and **Stop**. Everything else (repeat, how much I say, voice on/off, tap anywhere to talk, distances, typing a destination, session log) is inside **More options**, so a screen-reader user meets three things, not nine.
 - **Talk:** tap the Talk button (or empty screen, if "tap anywhere to talk" is on). The app goes quiet, plays a rising tone, and records until you stop talking (or 7 s). The clip goes to Google Cloud Speech-to-Text; if that fails (no internet, key not allowed) it falls back to Chrome's built-in recogniser. Tap to talk instead of always-on listening because Chrome's always-on recogniser on Android stops every few seconds and misses speech while the phone is talking. Four sounds, one meaning each: listening (rising), understood (single), not understood (falling), urgent (sharp beep plus a buzz).
 - **How much I say:** quiet (default), normal or detailed. Quiet speaks turns, urgent vehicles, stairs, red lights, barriers, and people or vehicles very close ahead. Things a cane finds anyway (poles, bins, benches) are only spoken in detailed. Say "less talk", "more detail", "quiet mode", "normal mode" or "detailed mode".
@@ -18,10 +18,10 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
   - "Slower" / "faster" changes how fast it speaks (7 notches from 60% to 110%, default 95%, saved on the phone; also a button).
   - "Share my location" gets a link ready (street plus a map link); then tap the empty screen and choose who to send it to. The browser only opens the share sheet from a real tap.
   - "I am lost" says where you are and what to do next.
-  - Distances are in **miles by default** ("50 yards", "0.3 miles"). Say "use metres" or "use steps", or tap the units button in More options. Steps: one step is taken as 70 cm; say "my step is 60 centimetres" or tap the step button to change it. Step counts are approximate.
+  - Distances are spoken in **yards by default** (miles for longer distances: "50 yards", "0.3 miles"). Say "use metres" or "use steps", or tap the units button in More options. Steps: one step is taken as 70 cm; say "my step is 60 centimetres" or tap the step button to change it. Step counts are approximate.
   - Distances and times are rounded on purpose ("about 8 minutes", "0.7 miles") so they are easy to take in.
   - "Battery" tells the charge. The app also warns once at 20, 10 and 5 percent while not charging, and logs battery level in the session log.
-- Voice commands: start, stop, repeat, help, plus the ones above. While it is asking a question you can answer at once, even over its voice; talking over it stops it.
+- Voice commands: start, stop, repeat, help, plus the ones above. While it is asking a question you can answer at once, even over its voice. Talking over the app to interrupt it only works with "voice commands on" (the phone-listening fallback, always-on); with Google Cloud listening (the default) you tap Talk first, then speak.
 - Spoken errors: no silent failures.
 - **Screen off stops the app:** locking the phone or switching away stops detection and cancels speech at once (a Wake Lock keeps the screen on while running, when the phone allows it); coming back resumes automatically with "Vision Assist is resuming."
 - **Walking corridor:** only things in the walker's path are spoken about; things to the side only when very close. The supervisor view (?debug) draws the corridor.
@@ -85,7 +85,7 @@ Built: three-lane hazard detection, calm spoken alerts, spoken walking navigatio
 Never commit service-account files or an unrestricted API key. The Google key in `docs/js/config.js` is the exception: a browser-only app on GitHub Pages cannot hide a key from whoever loads the page, so it is restricted in Google Cloud Console instead of hidden — locked to the `https://sudhamsr.github.io/*` referrer and to the Places (New), Routes and Speech-to-Text APIs only. It is useless if copied elsewhere. Check the Google Cloud Console quota and billing page occasionally for unexpected use, and keep the API restriction list as narrow as the app actually needs (new paid API usage should extend that list deliberately, not by leaving it open).
 
 ## Privacy note
-The session log now includes location fixes (about every 3 seconds while navigating) so walks can be reviewed. Treat saved logs as personal data and delete them after review. Saved places stay in the phone's own storage.
+Each time you tap Talk, that recording is sent to Google Cloud Speech-to-Text and is not stored by the app. Place searches and routes also go to Google (OpenStreetMap as the fallback). Camera pictures never leave the phone. The session log includes location fixes (about every 3 seconds while navigating) and the words heard and spoken, so walks can be reviewed. Treat saved logs as personal data and delete them after review. Saved places stay in the phone's own storage.
 
 ## Navigation trust
 Route data comes from Google (checked: spoken distances match Google's own figures). Position is the phone's raw GPS, so it can be 10 to 50 m out. The app says when the signal is weak or has stopped, ignores very imprecise fixes, and tolerates more drift before calling "off route". The voice wizard waits 40 seconds for a yes or no.

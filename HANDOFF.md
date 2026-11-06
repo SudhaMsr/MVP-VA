@@ -17,13 +17,13 @@ Paste this at the start of a new chat, together with the repo link.
   - Fast lane every frame, `wotr` (20 classes).
   - Slow lane at most every 2 s, `rod2` (30 classes: stairs, manhole, bench and so on, plus five not yet wired into any alert — bollard, upstairs, downstairs, red light, green light).
   - Third lane every 3.5 s, `coco` (outdoor COCO classes: traffic lights, stop signs, animals... also not yet spoken).
-  - IoU tracker with distance estimates. Alert engine with priorities and cooldowns. Urgent vehicle alerts need 2 or more sightings.
+  - IoU tracker with distance estimates. Alert engine with priorities and cooldowns. Urgent vehicle alerts need 5 speed samples in a row before the vehicle can be called approaching.
   - Test-only: `depth_s_q.onnx` (Depth Anything V2 Small) behind `?depth=1`, never speaks.
 - **Navigation:**
   - Google Places (New) and Routes (WALK), called from the browser with a referrer-restricted key. Falls back to OpenStreetMap (Nominatim and routed-foot). `?maps=osm` forces OSM.
-  - Wayfindr-style wording. Heading check after about 10 m. Off-route detection. Turn warning at 40 m, "now" at 12 m.
+  - Wayfindr-style wording. Heading check after about 10 m. Off-route detection. Turn warning at 40 m, "now" at 8 m. Distances are spoken in yards by default.
   - "Navigate me to ..." goes straight to the best match and aims at its nearest entrance, Google-Maps style.
-- **Dialogue:** idle, choose and confirm states. Yes, no and number answers. 25 s timeout. On-screen answer buttons.
+- **Dialogue:** idle, choose and confirm states. Yes, no and number answers. 40 s timeout (75 s while choosing from a list). On-screen answer buttons.
 - **Voice:** TTS is browser speechSynthesis (en-GB), rate 0.95. STT is tap-to-talk: the walker taps, the app goes quiet, records until they stop talking (or 7 s), and the clip goes to Google Cloud Speech-to-Text (same restricted key as navigation); Chrome's built-in recogniser is the fallback if Google fails. Repeated and chatty speech is capped: once per encounter, per-minute caps, no chatter in quiet mode.
 - **Reading text:** built (built-in TextDetector, otherwise Tesseract.js) and switched on (`FEATURES.read=true`).
 - **Screen off:** locking the phone or switching tabs stops detection and speech at once; a Wake Lock keeps the screen on while running (where the phone allows it); coming back resumes automatically.
