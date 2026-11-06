@@ -1,6 +1,6 @@
 // Vision Assist - app wiring: camera, detection loop, speech, voice commands, error handling.
 // Rule for this file: every failure is spoken. No silent states.
-import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY, TERTIARY, GOOGLE_KEY, FEATURES, IGNORE_FAST } from './config.js';
+import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY, TERTIARY, WATCH_CLASSES, GOOGLE_KEY, FEATURES, IGNORE_FAST } from './config.js';
 import { filterAllowed, mergeLanes, confirmSlow } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
@@ -217,6 +217,12 @@ function logEvent(type, detail) {
   if (session.events.length > 2000) session.events.shift();
 }
 
+// Step C: a class the walker never hears about yet, straight from the raw model output (not the tracker or alert
+// engine, so this cannot change anything that is actually spoken). Watch the session log for false alarms.
+function logWatchClasses(dets, names) {
+  for (const d of filterAllowed(dets, names)) logEvent('watch-detect', `${d.name}|${(d.score ?? 0).toFixed(2)}`);
+}
+
 // ---------- camera ----------
 async function openCamera() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -344,6 +350,7 @@ async function loop() {
       slow.ranAt = performance.now();
       try {
         const r = await slowDetector.detect(el.video, SECONDARY.conf, CONFIG.nmsIou);
+        logWatchClasses(r.dets, WATCH_CLASSES.rod2);
         const c = confirmSlow(filterAllowed(r.dets, SECONDARY.classes), slow.prevNames, SECONDARY.confirm || {});
         slow.dets = c.dets; slow.prevNames = c.names;
         slow.t = performance.now();
@@ -354,6 +361,7 @@ async function loop() {
       coco.ranAt = performance.now();
       try {
         const r = await cocoDetector.detect(el.video, TERTIARY.conf, CONFIG.nmsIou);
+        logWatchClasses(r.dets, WATCH_CLASSES.coco);
         coco.dets = filterAllowed(r.dets, TERTIARY.classes).map((d) => ({ ...d, cls: d.cls + TERTIARY.clsOffset }));
         coco.t = performance.now();
       } catch (e) { logEvent('coco-frame-error', e && e.message); }

@@ -56,6 +56,15 @@ export const TERTIARY = {
     'skateboard', 'sports_ball', 'potted_plant'],
 };
 
+// Step C: classes a model already sees but no alert speaks. rod2's five (SECONDARY.classes does not list them, so they
+// never reach the tracker) and coco's traffic_light/stop_sign (in TERTIARY.classes, reach the tracker, but alerts.js has
+// no wording for them). Logged every time the slow or coco lane sees one (a new 'watch-detect' session-log event), so
+// false-alarm rate can be checked on the Poco before CONFIG.speakWatchClasses is ever turned on.
+export const WATCH_CLASSES = {
+  rod2: ['bollard', 'upstairs', 'downstairs', 'red_light', 'green_light'],
+  coco: ['traffic_light', 'stop_sign'],
+};
+
 export const CONFIG = {
   // Input size: 320 is faster, 416 sees smaller objects. Override with ?size=416 (and ?model=rod or ?model=wotr)
   inputSize: 320,
@@ -117,6 +126,11 @@ export const CONFIG = {
   reassureMetres: 80, // ...and the next turn is at least this far away
   speechRate: 0.95, // calm but not slow (HANDOFF rule); 1.0 is the voice default. Walkers can change it by voice or the button
   speechLang: 'en-GB',
+
+  speakWatchClasses: false, // Step C: WATCH_CLASSES are logged only. Turn on only after a Poco test shows no false alarms.
+  // bollard/upstairs/downstairs/traffic_light/stop_sign have no alert wording yet, so this alone would not make them
+  // speak; red_light/green_light already have wording (shared with the wotr model), which is exactly why rod2's two
+  // must stay out of SECONDARY.classes until the Poco test is in: reaching the tracker would speak that old wording at once.
 };
 
 // Google key. A browser-only app on GitHub Pages cannot hide this key, so it is locked down in Google Cloud

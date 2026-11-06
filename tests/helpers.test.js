@@ -352,3 +352,21 @@ test('third lane: only chosen COCO classes pass, and every one has wording', () 
   assert.deepEqual(filterAllowed(dets, TERTIARY.classes).map((d) => d.name), ['cow', 'parking_meter']);
   for (const n of TERTIARY.classes) assert.match(describeScene([T(n, 2, 300)], W), /On your|Straight ahead/, n);
 });
+
+import { SECONDARY, WATCH_CLASSES } from '../docs/js/config.js';
+test('Step C watch classes: detected (eventually), but nothing new speaks yet', () => {
+  // rod2's five are not in SECONDARY.classes, so today they cannot even reach the tracker.
+  for (const n of WATCH_CLASSES.rod2) assert.ok(!SECONDARY.classes.includes(n), n);
+  // coco's two are already in TERTIARY.classes (they do reach the tracker); watch-logging them must not require widening that list.
+  for (const n of WATCH_CLASSES.coco) assert.ok(TERTIARY.classes.includes(n), n);
+  assert.equal(CONFIG.speakWatchClasses, false);
+  // Most of these have no alert wording at all yet, so nothing would be spoken even if they reached the tracker.
+  const e = new AlertEngine(CONFIG, 'detailed');
+  for (const n of ['bollard', 'upstairs', 'downstairs', 'traffic_light', 'stop_sign']) {
+    assert.equal(e.next([T(n, 1, 300)], W, 480, 0), null, n);
+  }
+  // red_light/green_light DO already have wording (shared with the wotr model's own classes of the same name) - exactly
+  // why rod2's two must stay out of SECONDARY.classes: were they ever merged into the tracker, they would be spoken
+  // at once, by old wording nobody has checked against rod2's own false-alarm rate.
+  assert.match(e.next([T('red_light', 1, 300)], W, 480, 0).text, /Red light/);
+});
