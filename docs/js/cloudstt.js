@@ -13,9 +13,10 @@ export const PHRASES = [
   'train station', 'pharmacy', 'supermarket', 'postcode',
 ];
 
-export function buildRequest(base64Audio, { lang = 'en-GB', sampleRate = 48000, model = 'latest_short', phrases = PHRASES } = {}) {
+export function buildRequest(base64Audio, { lang = 'en-GB', sampleRate = 48000, model = 'latest_short', phrases = PHRASES, channels = 1 } = {}) {
   const config = {
-    encoding: 'WEBM_OPUS', sampleRateHertz: sampleRate, languageCode: lang, maxAlternatives: 1,
+    // channels must match the recording: Google refuses a stereo clip described as mono (seen 6 Nov)
+    encoding: 'WEBM_OPUS', sampleRateHertz: sampleRate, audioChannelCount: channels, languageCode: lang, maxAlternatives: 1,
     profanityFilter: false, enableAutomaticPunctuation: false,
     speechContexts: [{ phrases, boost: 12 }],
   };
@@ -58,7 +59,7 @@ export class CloudListener {
 
   async _mic() {
     if (this.stream && this.stream.getAudioTracks().some((t) => t.readyState === 'live')) return this.stream;
-    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+    this.stream = await navigator.mediaDevices.getUserMedia({ audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
     return this.stream;
   }
 
@@ -98,7 +99,8 @@ export class CloudListener {
       onRecorded();
       const blob = new Blob(parts, { type: mime });
       const b64 = await blobToBase64(blob);
-      const text = await this._recognise(b64, ctx.sampleRate || 48000);
+      const st = (stream.getAudioTracks()[0] && stream.getAudioTracks()[0].getSettings && stream.getAudioTracks()[0].getSettings()) || {};
+      const text = await this._recognise(b64, ctx.sampleRate || 48000, st.channelCount || 1);
       this.failed = 0;
       return text;
     } finally {
@@ -106,13 +108,19 @@ export class CloudListener {
     }
   }
 
-  async _recognise(b64, sampleRate) {
+  async _recognise(b64, sampleRate, channels = 1) {
     const url = `https://speech.googleapis.com/v1/speech:recognize?key=${encodeURIComponent(this.key)}`;
     const t0 = performance.now();
-    let res = await this.fetchFn(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildRequest(b64, { lang: this.lang, sampleRate, model: this.model })) });
-    if (res.status === 400 && this.model) { // a model not offered for this language: try the default one
-      this.model = null;
-      res = await this.fetchFn(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildRequest(b64, { lang: this.lang, sampleRate, model: null })) });
+    const send = (opts) => this.fetchFn(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildRequest(b64, { lang: this.lang, sampleRate, channels, ...opts })) });
+    let res = await send({ model: this.model });
+    if (res.status === 400) {
+      // Google says what it did not like: the channel count, the sample rate or the model. Fix that one thing and try once more.
+      const msg = await res.clone().text().catch(() => '');
+      this.log('cloud-stt-400', msg.slice(0, 200));
+      const hc = (msg.match(/header[^0-9]*(\d+)/i) || [])[1];
+      if (/channel/i.test(msg)) res = await send({ model: this.model, channels: hc ? Number(hc) : (channels === 1 ? 2 : 1) });
+      else if (/sample_rate|sample rate/i.test(msg)) res = await send({ model: this.model, sampleRate: 48000 });
+      else if (this.model) { this.model = null; res = await send({ model: null }); }
     }
     if (!res.ok) {
       this.failed += res.status === 401 || res.status === 403 ? 99 : 1; // key not allowed for Speech-to-Text: stop trying
