@@ -115,7 +115,7 @@ export const CONFIG = {
   quietNearMetres: 2, // in quiet mode, people, dogs and vehicles are only mentioned this close and straight ahead
   reassureMs: 90000, // on a long straight stretch, say "you are on the route" if nothing has been said for this long
   reassureMetres: 80, // ...and the next turn is at least this far away
-  speechRate: 0.8, // calmer pace; 1.0 is the voice default
+  speechRate: 0.95, // calm but not slow (HANDOFF rule); 1.0 is the voice default. Walkers can change it by voice or the button
   speechLang: 'en-GB',
 };
 

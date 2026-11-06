@@ -12,6 +12,7 @@ import { getUnits, setUnits, getStep, setStep, stepCm, UNIT_MODES } from './unit
 import { describeScene, NO_CAMERA, findObject } from './describe.js';
 import { CameraWatch, frameStats, greyFromVideo } from './camcheck.js';
 import { warmModel } from './modelcache.js';
+import { CloudListener } from './cloudstt.js';
 import { DepthLane } from './depth.js';
 import { NoteStore, crossingAdvice } from './notes.js';
 import { reverseLookup, describePlace, PlaceStore, normaliseName } from './places.js';
@@ -24,6 +25,9 @@ import { Dialogue, parseAnswer } from './dialogue.js';
 import { recogniseText, readingSpeech } from './reader.js';
 
 const params = new URLSearchParams(location.search);
+// Listening: Google Cloud Speech-to-Text, tap to talk (default), or Chrome's own always-on recogniser (?stt=chrome, and the
+// automatic fallback when Google cannot be reached).
+const WANT_CLOUD_STT = params.get('stt') !== 'chrome' && !!GOOGLE_KEY;
 const SIZE = params.get('size') === '416' ? 416 : CONFIG.inputSize;
 const MODEL_KEY = MODELS[params.get('model')] ? params.get('model') : DEFAULT_MODEL;
 const MODEL = MODELS[MODEL_KEY];
@@ -520,7 +524,8 @@ async function start() {
   updateMain();
   setStatus('Starting');
   cues.play('ok'); // a short sound to show it has started
-  startListening(); // inside the tap, so the browser allows the microphone prompt
+  if (useCloud()) cloud._mic().catch((e) => { logEvent('mic-error', e && e.name); cloudOff = true; startListening(); }); // inside the tap, so the browser allows the microphone prompt
+  else startListening();
   try { navigator.geolocation.getCurrentPosition(() => {}, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }); } catch (_) { /* ask for location now, so the prompt is not a surprise mid-walk */ }
   try {
     await openCamera();
@@ -576,6 +581,7 @@ function stopInternal() {
   releaseScreen();
   try { const c = el.overlay; c.getContext('2d').clearRect(0, 0, c.width, c.height); } catch (_) { /* ignore */ }
   setStatus('Stopped'); setMode('Ready');
+  cloud.close(); // let go of the microphone
   updateMain();
 }
 
@@ -599,6 +605,29 @@ function updateMain() {
   b.setAttribute('aria-label', state.running ? 'Talk to Vision Assist. Double tap, then say what you want.' : state.starting ? 'Starting' : 'Start Vision Assist');
 }
 
+const cloud = new CloudListener({ key: GOOGLE_KEY, lang: CONFIG.speechLang, log: (k, v) => logEvent(k, v) });
+let cloudOff = false;
+const useCloud = () => WANT_CLOUD_STT && !cloudOff && cloud.usable;
+function endTalk() { speaker.hold(false); state.talkUntil = 0; clearTimeout(talkTimer); if (state.running) setStatus('Running'); if (!speaker.current) idleMode(); }
+async function cloudTalk() {
+  try {
+    const text = await cloud.listen({ onRecorded: () => setMode('Thinking') });
+    if (!state.running) return;
+    if (!text) { cues.play('huh'); endTalk(); say("I did not catch that. Tap the screen and try again.", 'status'); logEvent('talk-nothing', ''); return; }
+    handleTranscript(text);
+  } catch (e) {
+    logEvent('cloud-stt-fail', e && e.message);
+    endTalk();
+    if (!cloud.usable || (e && e.name === 'NotAllowedError')) {
+      cloudOff = true;
+      say("Google listening is not working, so I will use the phone's own listening. Tap the screen and try again.", 'status');
+      startListening();
+    } else {
+      say('I could not hear that clearly. Tap the screen and try again.', 'status');
+    }
+  }
+}
+
 // The walker taps, the app goes quiet, plays a rising sound, and listens for about 9 seconds.
 const TALK_WINDOW_MS = 9000;
 function talk() {
@@ -609,7 +638,7 @@ function talk() {
   state.talkUntil = performance.now() + TALK_WINDOW_MS;
   state.talkHeard = false;
   cues.play('listen');
-  if (!state.listening) startListening();
+  if (useCloud()) cloudTalk(); else if (!state.listening) startListening();
   setStatus('Listening'); setMode('Listening');
   clearTimeout(talkTimer);
   talkTimer = setTimeout(() => {
