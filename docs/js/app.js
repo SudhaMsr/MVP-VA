@@ -17,7 +17,7 @@ import { DepthLane } from './depth.js';
 import { NoteStore, crossingAdvice } from './notes.js';
 import { reverseLookup, describePlace, PlaceStore, normaliseName } from './places.js';
 import { BatteryWatch } from './battery.js';
-import { Speaker, stepRate } from './speech.js';
+import { Speaker, stepRate, RATES } from './speech.js';
 import { parseCommand, HELP_TEXT } from './commands.js';
 import { Navigator, makeProviders, locationMessage, haversine, roundMetres } from './nav.js';
 import { looksLikeEcho, isBargeIn } from './barge.js';
@@ -1022,7 +1022,7 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden && !s
 el.units.addEventListener('click', () => changeUnits(UNIT_MODES[(UNIT_MODES.indexOf(getUnits()) + 1) % UNIT_MODES.length]));
 el.step.addEventListener('click', cycleStep);
 el.haptics.addEventListener('click', () => changeVibration(!haptics.enabled));
-el.rate.addEventListener('click', () => changeRate(speaker.rate >= 1.1 ? -5 : 1)); // up a step, wrapping back to the slowest
+el.rate.addEventListener('click', () => changeRate(speaker.rate >= RATES.at(-1) ? -(RATES.length - 1) : 1)); // up a step, wrapping back to the slowest
 el.shareBtn.addEventListener('click', prepareShare);
 el.dbg.addEventListener('click', () => setCameraView(!DEBUG));
 el.rec.addEventListener('click', () => setRecording(!RECORD));
@@ -1067,7 +1067,8 @@ setRecording(RECORD, false);
 setCameraView(DEBUG, false);
 try {
   const lv = localStorage.getItem('va.level'); if (LEVELS.includes(lv)) engine.setLevel(lv);
-  const rt = parseFloat(localStorage.getItem('va.rate')); if (rt >= 0.6 && rt <= 1.1) { speaker.rate = rt; el.rate.textContent = `Speech speed: ${Math.round(rt * 100)}%`; }
+  el.rate.textContent = `Speech speed: ${Math.round(speaker.rate * 100)}%`;
+  const rt = parseFloat(localStorage.getItem('va.rate')); if (rt >= RATES[0] && rt <= RATES.at(-1)) { speaker.rate = rt; el.rate.textContent = `Speech speed: ${Math.round(rt * 100)}%`; }
   if (localStorage.getItem('va.haptics') === '0') changeVibration(false, false);
   const un = localStorage.getItem('va.units'); if (UNIT_MODES.includes(un)) setUnits(un);
   const st = parseFloat(localStorage.getItem('va.step')); if (st) setStep(st);

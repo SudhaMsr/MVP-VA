@@ -7,7 +7,7 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
 ## What the MVP does
 - Detects street hazards on the phone (people, vehicles, bikes, poles, cones, bins, tactile paving, crossings, traffic lights and more).
 - **One screen, two main controls:** a big **Start** button that becomes **Talk** while running, and **Stop**. Everything else (repeat, how much I say, voice on/off, tap anywhere to talk, distances, typing a destination, session log) is inside **More options**, so a screen-reader user meets three things, not nine.
-- **Talk:** tap the Talk button (or empty screen, if "tap anywhere to talk" is on). The app goes quiet, plays a rising tone and listens for about 9 seconds. Four sounds, one meaning each: listening (rising), understood (single), not understood (falling), urgent (sharp beep plus a buzz).
+- **Talk:** tap the Talk button (or empty screen, if "tap anywhere to talk" is on). The app goes quiet, plays a rising tone, and records until you stop talking (or 7 s). The clip goes to Google Cloud Speech-to-Text; if that fails (no internet, key not allowed) it falls back to Chrome's built-in recogniser. Tap to talk instead of always-on listening because Chrome's always-on recogniser on Android stops every few seconds and misses speech while the phone is talking. Four sounds, one meaning each: listening (rising), understood (single), not understood (falling), urgent (sharp beep plus a buzz).
 - **How much I say:** quiet (default), normal or detailed. Quiet speaks turns, urgent vehicles, stairs, red lights, barriers, and people or vehicles very close ahead. Things a cane finds anyway (poles, bins, benches) are only spoken in detailed. Say "less talk", "more detail", "quiet mode", "normal mode" or "detailed mode".
 - **Calm alerts:** repeats of the same alert wait longer unless the thing got clearly closer; at most 3 routine alerts per 10 seconds (urgent ones are exempt); things to the side are only mentioned when close.
 - **Spoken walking directions:** type or say "navigate to ...", turns announced about 40 m ahead and at the turn, "keep going, you are on the route" on long quiet stretches. Turn prompts go ahead of hazard chatter. Say "cancel" to stop. Needs internet and location permission.
@@ -15,7 +15,7 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
   - "What is in front of me?" describes what the camera sees now, by side and distance, and says plainly when it sees nothing it recognises.
   - "Where am I?" says the street and area (free OpenStreetMap lookup).
   - "Save this place as home" (uses where you are now), or "save my home address as 25 Lakeside BS16 3EE" (the app reads back what it found and asks yes or no; it warns if the postcode differs). Then "take me home" (or any name). Places are kept on the phone only, never in the code.
-  - "Slower" / "faster" changes how fast it speaks (6 notches, saved on the phone; also a button).
+  - "Slower" / "faster" changes how fast it speaks (7 notches from 60% to 110%, default 95%, saved on the phone; also a button).
   - "Share my location" gets a link ready (street plus a map link); then tap the empty screen and choose who to send it to. The browser only opens the share sheet from a real tap.
   - "I am lost" says where you are and what to do next.
   - Distances are in **miles by default** ("50 yards", "0.3 miles"). Say "use metres" or "use steps", or tap the units button in More options. Steps: one step is taken as 70 cm; say "my step is 60 centimetres" or tap the step button to change it. Step counts are approximate.
@@ -23,6 +23,7 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
   - "Battery" tells the charge. The app also warns once at 20, 10 and 5 percent while not charging, and logs battery level in the session log.
 - Voice commands: start, stop, repeat, help, plus the ones above. While it is asking a question you can answer at once, even over its voice; talking over it stops it.
 - Spoken errors: no silent failures.
+- **Screen off stops the app:** locking the phone or switching away stops detection and cancels speech at once (a Wake Lock keeps the screen on while running, when the phone allows it); coming back resumes automatically with "Vision Assist is resuming."
 - **Walking corridor:** only things in the walker's path are spoken about; things to the side only when very close. The supervisor view (?debug) draws the corridor.
 - **Free-space hints:** when the way ahead is blocked the alert adds "Clearer on the left." or "No clear way. Stop."; "Clear ahead." follows once it opens. Smoothed so it does not flicker.
 - **Vibration:** urgent alerts, stairs, "Stop" and turns buzz the phone with different patterns. Say "vibration off" / "vibration on", or use the button.
@@ -43,9 +44,11 @@ The detection runtime (onnxruntime-web 1.17.3) is served from `docs/vendor/ort`,
 ## Test device
 Poco M2 Pro (Android, Chrome).
 
-## Detection models (two lanes)
-- **Fast lane, every frame:** `wotr` (20 classes: people, cars, trucks, buses, bicycles, poles, cones, bins, traffic lights, crossings, tactile paving...). Validation: precision 0.83, recall 0.69, mAP50 0.77. On our own street footage it found about twice as many people as the ROD model.
-- **Slow lane, every 4th frame:** `rod` (25 classes) used only for what the fast lane lacks: **stairs, manholes, benches, chairs, guard rails, electrical boxes, plant pots, bicycle racks**. Validation: precision 0.87, recall 0.84, mAP50 0.91 (on its own dataset). Its stairs and manhole accuracy on UK footage is not yet measured.
+## Detection models (three lanes)
+- **Fast lane, every frame:** `wotr` (`best320.onnx`, 20 classes: people, cars, trucks, buses, bicycles, poles, cones, bins, traffic lights, crossings, tactile paving...). Validation: precision 0.83, recall 0.69, mAP50 0.77. On our own street footage it found about twice as many people as the ROD model. Tactile paving ("blind_road") is detected but ignored (`IGNORE_FAST`): it fired on ordinary paving in 51 of 178 phone frames.
+- **Slow lane, every 2 s:** `rod2` (`rod2_416.onnx`, 30 classes, Phase 2) used only for what the fast lane lacks: **stairs, manholes, benches, chairs, guard rails, electrical boxes, plant pots, bicycle racks**. Stairs are only confirmed, and spoken as a fall hazard, at score 0.80+ in two slow-lane runs in a row. Five more classes it can see (bollard, upstairs, downstairs, red light, green light) are not yet wired into any alert.
+- **Third lane, every 3.5 s:** `coco` (`coco320.onnx`, standard COCO, outdoor classes only — traffic lights, stop signs, parking meters, animals, backpacks... — indoor classes like microwave and fridge were dropped after false hits on shop fronts). Also not yet spoken.
+- **Test-only:** `depth_s_q.onnx` (Depth Anything V2 Small) runs behind `?depth=1` to measure phone speed; it never speaks and is not part of the normal app.
 - Dataset source and licence: _to be added._
 - Original weights are in `weights/`. ONNX files for the browser are in `docs/models/`.
 
@@ -76,10 +79,10 @@ Offline review: `python3 tools/analyze_session.py VIDEO LOG.json` replays the vi
 Hold or mount the phone at chest height with the camera facing forward and **your arm out of the picture**. In our demo video the tester's own arm in view was detected as a person. A chest lanyard is the recommended mount for tests.
 
 ## Status
-Built: two-lane hazard detection, calm spoken alerts, spoken walking navigation (Google when available, OpenStreetMap as the fallback), the one-screen interface, and the ask-the-app features above. Not yet tested outdoors with blind testers. A known-limits list and a tester guide are still to be written.
+Built: three-lane hazard detection, calm spoken alerts, spoken walking navigation (Google when available, OpenStreetMap as the fallback), tap-to-talk voice (Google Cloud Speech-to-Text, Chrome as fallback), the one-screen interface, and the ask-the-app features above. Not yet tested outdoors with blind testers. A known-limits list and a tester guide are still to be written.
 
 ## Security
-Never commit API keys or service-account files. Use environment variables.
+Never commit service-account files or an unrestricted API key. The Google key in `docs/js/config.js` is the exception: a browser-only app on GitHub Pages cannot hide a key from whoever loads the page, so it is restricted in Google Cloud Console instead of hidden — locked to the `https://sudhamsr.github.io/*` referrer and to the Places (New), Routes and Speech-to-Text APIs only. It is useless if copied elsewhere. Check the Google Cloud Console quota and billing page occasionally for unexpected use, and keep the API restriction list as narrow as the app actually needs (new paid API usage should extend that list deliberately, not by leaving it open).
 
 ## Privacy note
 The session log now includes location fixes (about every 3 seconds while navigating) so walks can be reviewed. Treat saved logs as personal data and delete them after review. Saved places stay in the phone's own storage.

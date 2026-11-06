@@ -69,7 +69,11 @@ test('speech speed, share my location and "I am lost" commands', () => {
 test('speech speed steps one notch at a time and stops at the ends', () => {
   assert.equal(stepRate(0.8, -1), 0.7); assert.equal(stepRate(0.8, 1), 0.9);
   assert.equal(stepRate(RATES[0], -1), null); assert.equal(stepRate(RATES.at(-1), 1), null);
-  assert.equal(stepRate(0.97, 1), 1.1, 'an odd saved value snaps to the nearest notch first');
+  assert.equal(stepRate(0.97, 1), 1.0, 'an odd saved value snaps to the nearest notch first');
+});
+test('95% is a speed notch, between 90% and 100%', () => {
+  assert.equal(stepRate(0.9, 1), 0.95);
+  assert.equal(stepRate(1.0, -1), 0.95);
 });
 
 test('the app\'s own "Already stopped. Say start" is never taken as the command "start", even a few words late', () => {

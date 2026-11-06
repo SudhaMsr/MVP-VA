@@ -119,8 +119,9 @@ export const CONFIG = {
   speechLang: 'en-GB',
 };
 
-// Google Maps Platform key. Restricted in Google Cloud to https://sudhamsr.github.io/* and to the Places, Routes,
-// Geocoding and Maps JavaScript APIs, so it is useless elsewhere. Empty string = use OpenStreetMap only.
+// Google key. A browser-only app on GitHub Pages cannot hide this key, so it is locked down in Google Cloud
+// Console instead: restricted to https://sudhamsr.github.io/* and to the Places (New), Routes and
+// Speech-to-Text APIs only. Empty string = use OpenStreetMap and Chrome's speech recogniser only.
 export const GOOGLE_KEY = 'AIzaSyBkblGHKZibIQUbufndBeCK6TKQpjzuCyY';
 
 // Features that are built but switched off until the core (hazards + navigation) is tested.

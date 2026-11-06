@@ -4,31 +4,34 @@ Paste this at the start of a new chat, together with the repo link.
 
 ## Project
 - Voice-first walking companion web app for blind and low-vision people. Core feature: spoken walking navigation. Second feature: hazard detection with spoken alerts.
-- Repo: github.com/SudhaMsr/MVP-VA (branch main). Live: https://sudhamsr.github.io/MVP-VA/ (GitHub Pages, served from `/docs`). Latest commit: `9386756`.
+- Repo: github.com/SudhaMsr/MVP-VA (branch main). Live: https://sudhamsr.github.io/MVP-VA/ (GitHub Pages, served from `/docs`).
 - Test phone: Poco M2 Pro (Android, Chrome). Team: the user and Claude. Deadline: 10 days. Blind testers are ready.
 - Rules from the user:
-  - Only navigation may use paid APIs. Everything else must be free or on-device.
+  - Only navigation and speech-to-text may use paid APIs (both are Google, under the one restricted key). Everything else must be free or on-device.
   - Never say "prototype" anywhere in the app.
   - Guide blind users safely by voice. No compass words (north-west and so on); say left and right.
-  - Speech should be calm and not too fast. Rate is now 0.95.
+  - Speech should be calm and not too fast. Rate is now 0.95 (of 7 notches, 60% to 110%).
 
 ## What is built
-- **Hazard detection:** two YOLOv8n ONNX models in the browser (onnxruntime-web WASM).
-  - Fast lane every frame (20 classes).
-  - Slow lane at most every 2 s (stairs, manhole, bench and so on).
+- **Hazard detection:** three YOLOv8n/COCO ONNX models in the browser (onnxruntime-web WASM).
+  - Fast lane every frame, `wotr` (20 classes).
+  - Slow lane at most every 2 s, `rod2` (30 classes: stairs, manhole, bench and so on, plus five not yet wired into any alert — bollard, upstairs, downstairs, red light, green light).
+  - Third lane every 3.5 s, `coco` (outdoor COCO classes: traffic lights, stop signs, animals... also not yet spoken).
   - IoU tracker with distance estimates. Alert engine with priorities and cooldowns. Urgent vehicle alerts need 2 or more sightings.
+  - Test-only: `depth_s_q.onnx` (Depth Anything V2 Small) behind `?depth=1`, never speaks.
 - **Navigation:**
   - Google Places (New) and Routes (WALK), called from the browser with a referrer-restricted key. Falls back to OpenStreetMap (Nominatim and routed-foot). `?maps=osm` forces OSM.
   - Wayfindr-style wording. Heading check after about 10 m. Off-route detection. Turn warning at 40 m, "now" at 12 m.
+  - "Navigate me to ..." goes straight to the best match and aims at its nearest entrance, Google-Maps style.
 - **Dialogue:** idle, choose and confirm states. Yes, no and number answers. 25 s timeout. On-screen answer buttons.
-- **Voice:** TTS is browser speechSynthesis (en-GB). STT is Chrome Web Speech.
-- **Reading text:** built (built-in TextDetector, otherwise Tesseract.js) but switched off by `FEATURES.read=false`. Turn on only after the core is finished.
+- **Voice:** TTS is browser speechSynthesis (en-GB), rate 0.95. STT is tap-to-talk: the walker taps, the app goes quiet, records until they stop talking (or 7 s), and the clip goes to Google Cloud Speech-to-Text (same restricted key as navigation); Chrome's built-in recogniser is the fallback if Google fails. Repeated and chatty speech is capped: once per encounter, per-minute caps, no chatter in quiet mode.
+- **Reading text:** built (built-in TextDetector, otherwise Tesseract.js) and switched on (`FEATURES.read=true`).
+- **Screen off:** locking the phone or switching tabs stops detection and speech at once; a Wake Lock keeps the screen on while running (where the phone allows it); coming back resumes automatically.
 - **Tools and tests:**
-  - 56 Node tests pass (`node --test tests/*.test.js`).
-  - Playwright e2e at `/home/claude/work/e2e/run.py` (may not persist).
-  - `tools/` has frame extraction, a Colab training recipe for a steps/kerb detector, and a session-log analyser.
+  - 209 Node tests pass (`npm test`).
+  - `tools/` has frame extraction, Open Images and Colab training recipes (phase2/phase3), and a session-log analyser.
   - README documents everything.
-- **Google setup:** project `vision-assist-512619` on account chandramukhi843@gmail.com, with the $300 trial credit (90 days). Key is restricted to `https://sudhamsr.github.io/*` and lives in `docs/js/config.js`. The old project and key in an older repo should be rotated, and that repo made private.
+- **Google setup:** key restricted to the `https://sudhamsr.github.io/*` referrer and to the Places (New), Routes and Speech-to-Text APIs only; it lives in `docs/js/config.js` and is intentionally committed (a browser app cannot hide it). Check Cloud Console quota/billing occasionally for unexpected use.
 
 ## Last retest (live, fake Bristol GPS, real Google APIs)
 - Working: screen-reader double speaking fixed, no "test" labels, a short start message, "You are going the right way", and the 30 m turn warning.
