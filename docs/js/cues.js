@@ -17,6 +17,7 @@ export class Cues {
     vibrate = (typeof navigator !== 'undefined' && navigator.vibrate ? (p) => navigator.vibrate(p) : null), volume = 0.25 } = {}) {
     this.AudioCtx = AudioCtx;
     this.vibrate = vibrate;
+    this.vibrateFn = vibrate; // kept, so speech-only mode can switch vibration off and back on
     this.volume = volume;
     this.ctx = null;
     this.enabled = true;

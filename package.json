@@ -4,9 +4,11 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
-    "check:offline": "node tools/offline_check.mjs"
+    "check:offline": "node tools/offline_check.mjs",
+    "check:a11y": "node tools/a11y_check.mjs"
   },
   "devDependencies": {
-    "playwright": "1.65.0"
+    "playwright": "1.65.0",
+    "axe-core": "4.14.0"
   }
 }
