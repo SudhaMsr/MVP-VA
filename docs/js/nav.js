@@ -241,10 +241,13 @@ export function locationMessage(err, prefix = 'I cannot find your location.') {
 
 export class Navigator {
   // A patchy signal reports an error every second or so. Say it once, then at most once a minute, and say when it is back.
+  // A single error while good fixes keep arriving is not a lost signal (7 Nov: it was said twice on a walk where
+  // directions kept working). Only say it once there has been no fix for lostAfterMs, and say when it comes back.
   locationLost() {
     const t = this.now();
+    if (this.lastFixAt && t - this.lastFixAt < (this.lostAfterMs ?? 10000)) return;
     if (this.lostAt != null && t - this.lostAt < 60000) return;
-    this.lostAt = t;
+    this.lostAt = t; this.lostSaid = true;
     this.say('I lost your location signal.', 'status');
   }
 
@@ -328,6 +331,7 @@ export class Navigator {
     if (!this.active) return;
     const t = this.now();
     this.lastFixAt = t; this.silentSaid = false;
+    if (this.lostSaid && !(p.accuracy != null && p.accuracy > 60)) { this.lostSaid = false; this.say('Location signal is back.', 'status'); }
     if (p.accuracy != null && p.accuracy > 60) { // ignore poor fixes, but never silently: tell the walker if it goes on
       if (!this.weakSince) this.weakSince = t;
       if (!this.weakSaid && t - this.weakSince > 15000) { this.weakSaid = true; this.say('My location signal is weak. I may be late with turns, so go carefully.', 'status'); }

@@ -139,7 +139,11 @@ export class AlertEngine {
       const kind = STATIC_OBSTACLES[name] || name === 'manhole' || name === 'fire_hydrant' || name === 'blind_road' ? 'static'
         : VEHICLES.has(name) || name === 'bicycle' || name === 'person' || name === 'dog' ? 'moving' : 'info';
       const inPath = inCorridor(tr.box, frameW, frameH, c.corridor);
-      for (let i = start; i < out.length; i++) { out[i].d = d; out[i].dir = dir; out[i].kind = kind; out[i].inPath = inPath; }
+      for (let i = start; i < out.length; i++) {
+        out[i].d = d; out[i].dir = dir; out[i].kind = kind; out[i].inPath = inPath;
+        // Someone or something moving, straight ahead and very close: never held back by the talk budget.
+        out[i].closeAhead = kind === 'moving' && dir === 'ahead' && d != null && d < (c.closeAheadMetres ?? 1.5);
+      }
     }
     // Only things in the walker's path (the corridor) are worth speaking about; outside it, wait until they are very close.
     // Urgent alerts and fall hazards (stairs, red lights) always stay.
@@ -156,6 +160,19 @@ export class AlertEngine {
     const c = this.cfg;
     const advice = this.free.update(tracks, frameW, frameH); // every frame, so the smoothing keeps up
     let cands = this.candidates(tracks, frameW, frameH);
+    // Busy pavement (7 Nov): three or more people close in the walking path. Naming each one, each with "No clear way.
+    // Stop.", was stressful and wrong (people move aside). Say it once as a crowd; keep the single, real warning for
+    // someone very close straight ahead. Set crowdMin to 0 to turn this off.
+    const crowdMin = c.crowdMin ?? 3;
+    const nearPeople = crowdMin > 0 ? tracks.filter((t) => t.name === 'person' && (t.hits ?? 3) >= (c.minHitsPeople ?? 3) &&
+      t.dist != null && t.dist < c.personNearMetres && inCorridor(t.box, frameW, frameH, c.corridor)) : [];
+    if (crowdMin > 0 && nearPeople.length >= crowdMin) {
+      const nearest = Math.min(...nearPeople.map((t) => t.dist));
+      cands = cands.filter((a) => !a.key.startsWith('person:') || a.closeAhead);
+      if (!cands.some((a) => a.key.startsWith('person:'))) {
+        cands.push({ key: 'crowd', text: 'Busy ahead, people close.', priority: 2, kind: 'moving', dir: 'ahead', d: nearest, inPath: true, crowd: true, once: true });
+      }
+    }
     const clear = this.free.peekClear();
     if (clear) cands.push({ key: 'clear', text: clear, priority: 3, kind: 'moving', dir: 'ahead', d: 0, inPath: true });
     if (cands.some((x) => x.priority <= 2)) cands = cands.filter((x) => x.priority <= 2);
@@ -188,11 +205,13 @@ export class AlertEngine {
           continue; // still there, not closer: not news
         }
       }
-      if (a.priority > 0 && (this.spokenAt.length >= (c.budgetMax ?? 3) || this.spokenMin.length >= minuteMax)) continue;
+      if (a.priority > 0 && !a.closeAhead && (this.spokenAt.length >= (c.budgetMax ?? 3) || this.spokenMin.length >= minuteMax)) continue;
       this.last.set(a.key, { t: tMs, d: a.d, n: rec && !closer ? rec.n + 1 : 0, seen: tMs });
       // The way ahead is blocked by what we are about to name: say which side is clearer, in the same breath.
       const hint = advice || this.free.advice(true);
-      if (hint && a.inPath && a.priority >= 1 && a.priority <= 2 && (a.kind === 'moving' || a.kind === 'static') && !a.key.startsWith('manhole')) {
+      // In a crowd, "Stop" is kept for someone very close straight ahead; a busy pavement only gets the clearer side, if any.
+      const crowdStop = hint && hint.stop && (a.crowd || (nearPeople.length >= crowdMin && crowdMin > 0 && !a.closeAhead && a.key.startsWith('person:')));
+      if (hint && !crowdStop && a.inPath && a.priority >= 1 && a.priority <= 2 && (a.kind === 'moving' || a.kind === 'static') && !a.key.startsWith('manhole')) {
         // A parked vehicle with no way round on the pavement: the walker may have to step into the road.
         const extra = a.parked && hint.stop ? 'It is blocking the path. Take care if you step into the road.' : hint.text;
         a = { ...a, text: `${a.text} ${extra}` }; this.free.announcedBlocked = true;
