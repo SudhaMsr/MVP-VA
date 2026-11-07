@@ -22,16 +22,12 @@ export class NoteStore {
   clear() { this.mem = []; try { if (this.storage) this.storage.removeItem(this.key); } catch (_) { /* ignore */ } }
 }
 
-// "Can I cross?" Honest and cautious: it reports what the camera sees and never says it is safe.
+// "Can I cross?" / "Is the light green?" Honest and cautious. The app cannot reliably read traffic signals, so it never
+// reports a colour here and never says it is safe (Package A, 7 Nov). A close vehicle is still mentioned first.
+import { CROSSING_TEXT } from './safetext.js';
 const MOVING = new Set(['car', 'truck', 'bus', 'motorcycle', 'bicycle', 'tricycle']);
 export function crossingAdvice(tracks) {
   const seen = (tracks || []).filter((t) => (t.hits ?? 2) >= 2);
-  const red = seen.some((t) => t.name === 'red_light'), green = seen.some((t) => t.name === 'green_light');
-  const crossing = seen.some((t) => t.name === 'crosswalk');
   const vehicle = seen.find((t) => MOVING.has(t.name) && (t.dist == null || t.dist < 12));
-  if (red) return 'The light looks red. Wait.';
-  if (vehicle) return 'A vehicle is close. Wait and listen for traffic.';
-  if (green) return 'The light looks green. I cannot be sure, so listen for traffic before you cross.';
-  if (crossing) return 'I can see a crossing but no signal. Listen for traffic and cross only when you are sure.';
-  return 'I cannot see a crossing or a signal. Do not rely on me to cross.';
+  return vehicle ? `A vehicle is close. Wait. ${CROSSING_TEXT}` : CROSSING_TEXT;
 }

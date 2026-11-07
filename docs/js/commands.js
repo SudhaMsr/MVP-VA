@@ -45,7 +45,12 @@ export function parseCommand(raw) {
   if (/\b(?:list|what|which|how many)\b.*\broutes\b/.test(t)) return { type: 'routeList' };
 
   // Crossing help and memory notes
-  if (/\b(?:can i|is it safe to|should i|is it ok to|is it okay to)\s+(?:cross|go across)\b|\b(?:crossing|cross the road)\s+(?:help|check)\b|\bis (?:the|it) (?:light|signal) (?:green|red)\b/.test(t)) return { type: 'cross' };
+  if (/\b(?:can i|is it safe to|should i|is it ok to|is it okay to)\s+(?:cross|go across)\b|\b(?:crossing|cross the road)\s+(?:help|check)\b|\bis (?:the|it) (?:light|signal|green man|man) (?:green|red|on)\b/.test(t)) return { type: 'cross' };
+  // Any question about traffic lights or the crossing signal gets the same honest answer (Package A): the app cannot read them.
+  if (/\b(?:traffic lights?|traffic signals?|crossing lights?|pedestrian lights?|green man|red man|the signal|is it green|is it red)\b/.test(t)) return { type: 'cross' };
+  // What the app cannot see, and what it sends where (Package A)
+  if (/\b(?:what (?:can't|cannot|can not|don't|do not) you (?:see|detect|spot)|what are your limits|your limits|limitations|what do you miss|what (?:might|could|can) you miss)\b/.test(t)) return { type: 'limits' };
+  if (/\b(?:privacy|private|my data|what do you (?:send|share|record|keep)|where does (?:my|the) (?:data|voice|information) go|who (?:can )?(?:hears|sees) (?:this|me))\b/.test(t)) return { type: 'privacy' };
   const note = t.match(/^(?:remember|note|make a note|take a note)\s+(?:that\s+)?(.{4,})$/);
   if (note && !/^(?:this|here|my\s+(?:home|work)|where i am)\b/.test(note[1])) return { type: 'noteAdd', arg: note[1].trim() };
   if (/\b(?:what|which)\s+(?:notes|things)\b.*\b(?:remember|stored|saved|have)\b|\bwhat do you remember\b|\bread (?:my )?notes\b/.test(t)) return { type: 'noteList' };
@@ -127,6 +132,7 @@ export const HELP_TEXT =
   'Say save this place as home, and later, take me home. ' +
   'On a route, say how far, what is next, or am I on the right route. If a warning was wrong, say that was wrong. ' +
   'Say why did you say that, to hear the reason for the last warning, or are you working, to check the app. ' +
+  'Say what can\'t you see, to hear my limits, or privacy, to hear what I send. ' +
   'Say use miles, use metres or use steps for distances, and my step is, with a length, to set your step. ' +
   'Say save my home address as, and the address, to set home from an address. ' +
   'Say slower or faster to change how fast I speak. Say share my location to send where you are to someone. If you are lost, say I am lost. ' +

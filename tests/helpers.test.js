@@ -342,10 +342,10 @@ test('the answer window is long enough for a walker to reply (40 seconds)', () =
 import { pathSentence } from '../docs/js/describe.js';
 test('what is around me starts with the state of the way ahead', () => {
   assert.equal(pathSentence(undefined), '');
-  assert.equal(pathSentence(null), 'The way ahead looks clear.');
+  assert.equal(pathSentence(null), 'I see nothing in your way, but check with your cane.');
   assert.equal(pathSentence({ stop: true, text: 'No clear way. Stop.' }), 'No clear way ahead. Stop.');
   assert.equal(pathSentence({ stop: false, side: 'left', text: 'Clearer on the left.' }), 'Ahead is blocked. Clearer on the left.');
-  assert.match(describeScene([T('person', 2, 500)], W, { path: null }), /^The way ahead looks clear\. On your right/);
+  assert.match(describeScene([T('person', 2, 500)], W, { path: null }), /^I see nothing in your way, but check with your cane\. On your right/);
   assert.equal(describeScene([], W, { path: null }), NOTHING, 'never claims clear when it sees nothing');
 });
 

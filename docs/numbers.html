@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#000000">
+<title>Our numbers - Vision Assist</title>
+<style>
+  :root { --bg:#000; --fg:#fff; --accent:#ffd400; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--fg); font-family: system-ui, sans-serif; }
+  body { padding: 16px; max-width: 640px; margin: 0 auto; font-size: 1.3rem; line-height: 1.5; }
+  h1 { font-size: 2rem; margin: 8px 0 16px; } h2 { font-size: 1.5rem; margin: 28px 0 8px; color: var(--accent); }
+  a { color: var(--accent); } a:focus-visible { outline: 6px solid var(--accent); outline-offset: 3px; }
+  a.back { display:flex; align-items:center; justify-content:center; min-height:72px; margin: 24px 0; border:3px solid var(--fg);
+    border-radius:16px; background:#111; color:var(--fg); font-weight:700; text-decoration:none; font-size:1.4rem; }
+  .box { border:2px solid var(--accent); border-radius:12px; padding:10px 14px; margin: 12px 0; }
+  table { border-collapse: collapse; width: 100%; } th, td { text-align:left; padding: 8px 6px; border-bottom: 1px solid #555; vertical-align: top; }
+  li { margin: 6px 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>Our numbers</h1>
+<p class="box"><strong>Not measured yet.</strong></p>
+<p>We publish how well Vision Assist works on real walks, including when it gets things wrong.
+  No numbers are shown until they have been measured.</p>
+<h2>The bar before blind testers use it</h2>
+<p>Stage 1 gate: <strong>0 missed moving vehicles</strong> and <strong>fewer than 1 false warning per minute</strong>,
+  across <strong>10 recorded walks</strong>.</p>
+<h2>How the numbers are made</h2>
+<p>A sighted tester walks with the app recording. Every warning is checked against the video and marked correct or false,
+  and every moving vehicle the app missed is added. The scorer (tools/score_walk.mjs in the source code) adds them up.</p>
+<a class="back" href="./">Back to Vision Assist</a>
+</main>
+</body>
+</html>

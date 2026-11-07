@@ -1,6 +1,7 @@
 // Spoken walking navigation: geocode a place, fetch a walking route, speak turns as the walker approaches them.
 // Pure helpers are exported for tests; Navigator takes its network/GPS/speech dependencies as arguments.
 import { roundDistance, durationPhrase } from './units.js';
+import { CROSSING_TEXT } from './safetext.js';
 const R = 6371000;
 const rad = (d) => (d * Math.PI) / 180;
 
@@ -78,6 +79,19 @@ export function instructionText(step) {
   if (m.type === 'roundabout' || m.type === 'rotary') return `at the roundabout, take exit ${m.exit ?? 'ahead'}${name}`;
   const verb = MOD[m.modifier] || 'continue';
   return verb === 'continue straight' ? `continue straight${step.name ? ` on ${step.name}` : ''}` : `${verb}${name}`;
+}
+
+// Does this route step cross a road? Google puts it in the instruction ("Cross the road", "take the crosswalk"); OSRM
+// steps can carry it in the street name (OSM footway=crossing ways are often named "... crossing") or in their
+// intersection classes. OSRM does not pass on OSM highway=crossing nodes, so a crossing it does not name is missed: the
+// route preview says "about" for that reason (Package G).
+const CROSS_WORDS = /\b(?:cross(?:es|ing)?|crosswalk|zebra|pelican|puffin|toucan|subway|underpass)\b/i;
+export function crossesRoad(step) {
+  if (!step) return false;
+  const m = step.maneuver || {};
+  const text = [step.text, step.name, m.instruction, m.modifier && m.type === 'crossing' ? 'crossing' : ''].filter(Boolean).join(' ');
+  if (CROSS_WORDS.test(text)) return true;
+  return (step.intersections || []).some((x) => (x.classes || []).includes('crossing'));
 }
 
 // Journey time, rounded so it is easy to take in (see units.js).
@@ -299,7 +313,7 @@ export class Navigator {
   }
 
   _begin(pos, dest, route, first) {
-    this.destination = dest; this.route = route; this.idx = 1; this.warned = -1; this.nowSaid = -1; this.offCount = 0;
+    this.destination = dest; this.route = route; this.crossSaid = new Set(); this.idx = 1; this.warned = -1; this.nowSaid = -1; this.offCount = 0;
     this.lastReroute = Date.now(); this.lastSayAt = this.now(); this.lastFixAt = this.now(); this.silentSaid = false; this.weakSince = 0; this.weakSaid = false; this.active = true; this.oriented = false; this.startFix = null; this.large = !!dest.large; this.source = route.source;
     const first0 = route.steps[0];
     this.say(first && this.brief
@@ -307,6 +321,7 @@ export class Navigator {
       : first
       ? `Going to ${dest.name}. ${roundMetres(route.distance)}, ${minutesText(route.duration)}.${this.large && first ? ' This is a large site, so I am heading for its middle. For a particular building, say its name.' : ''} ${route.steps.some((x) => /stairs|steps/i.test(x.text || '')) ? 'The route includes stairs. ' : ''}First, ${instructionText(first0)} for ${roundMetres(first0.distance)}.`
       : `New route. ${instructionText(first0)} for ${roundMetres(first0.distance)}.`, 'status');
+    const c0 = this._crossing(first0); if (c0) this.say(c0.trim(), 'nav');
     this.watchId = this.watch((p) => this.onPosition(p), () => this.locationLost());
     return true;
   }
@@ -365,19 +380,21 @@ export class Navigator {
         this.nowSaid = this.idx;
         const next = this.route.steps[this.idx];
         let text = `${cap(instructionText(next))} now`;
+        const said = [next];
         this.idx += 1;
         // Several turns within a few metres (OSM junction detail): say them together, not as separate alerts.
         while (this.route.steps[this.idx - 1].distance < 15 && this.route.steps[this.idx] && this.route.steps[this.idx].maneuver.type !== 'arrive') {
           text += `, then ${instructionText(this.route.steps[this.idx])}`;
+          said.push(this.route.steps[this.idx]);
           this.idx += 1;
         }
-        this.say(`${text}.`, 'nav');
+        this.say(`${text}.${said.map((x) => this._crossing(x)).find(Boolean) || ''}`, 'nav');
       }
       return;
     }
     if (d <= this.warnMetres && this.warned !== this.idx) {
       this.warned = this.idx;
-      this.say(step.maneuver.type === 'arrive' ? `Your destination is in ${roundMetres(d)}.` : `In ${roundMetres(d)}, ${instructionText(step)}.`, 'nav');
+      this.say(step.maneuver.type === 'arrive' ? `Your destination is in ${roundMetres(d)}.` : `In ${roundMetres(d)}, ${instructionText(step)}.${this._crossing(step)}`, 'nav');
       return;
     }
     // off-route check against the current and previous leg
@@ -399,6 +416,15 @@ export class Navigator {
         this.say(`Keep going. You are on the route. ${what} about ${roundMetres(d)} away.`, 'status');
       }
     }
+  }
+
+  // " Crossing ahead. I can't read the traffic signal..." the first time a crossing step is announced, else ''.
+  _crossing(step) {
+    if (!crossesRoad(step)) return '';
+    this.crossSaid = this.crossSaid || new Set();
+    if (this.crossSaid.has(step)) return '';
+    this.crossSaid.add(step);
+    return ` ${CROSSING_TEXT}`;
   }
 
   // Walk questions while navigating: "how far", "what's next", "am I on the right route".

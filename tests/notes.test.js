@@ -10,13 +10,14 @@ test('notes: add, find newest first, list', () => {
   assert.equal(n.find('passport').length, 0);
   assert.equal(n.list().length, 2); assert.equal(n.add('  '), null);
 });
-test('crossing advice is cautious', () => {
+test('crossing advice never reads a signal colour and never says safe (Package A)', () => {
   const t = (name, dist) => ({ name, hits: 3, dist });
-  assert.match(crossingAdvice([t('red_light')]), /red\. Wait/);
-  assert.match(crossingAdvice([t('green_light'), t('car', 5)]), /vehicle is close/);
-  assert.match(crossingAdvice([t('green_light')]), /listen for traffic/);
-  assert.match(crossingAdvice([]), /Do not rely on me/);
-  assert.ok(!/safe to cross/i.test(crossingAdvice([t('green_light')])));
+  const line = "Crossing ahead. I can't read the traffic signal. Listen for traffic before you cross.";
+  assert.equal(crossingAdvice([]), line);
+  assert.equal(crossingAdvice([t('green_light')]), line, 'a green light seen by the model is not reported');
+  assert.equal(crossingAdvice([t('red_light')]), line);
+  assert.equal(crossingAdvice([t('green_light'), t('car', 5)]), `A vehicle is close. Wait. ${line}`);
+  for (const x of [[], [t('green_light')], [t('car', 5)]]) assert.ok(!/safe|green/i.test(crossingAdvice(x)));
 });
 test('commands for notes and crossing', () => {
   assert.equal(parseCommand('can I cross').type, 'cross');
