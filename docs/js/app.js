@@ -1,6 +1,6 @@
 // Vision Assist - app wiring: camera, detection loop, speech, voice commands, error handling.
 // Rule for this file: every failure is spoken. No silent states.
-import { CONFIG, MODELS, pickModel, SECONDARY, TERTIARY, WATCH_CLASSES, HAZARD, GOOGLE_KEY, FEATURES, IGNORE_FAST } from './config.js';
+import { CONFIG, MODELS, pickModel, canonical, SECONDARY, TERTIARY, WATCH_CLASSES, HAZARD, GOOGLE_KEY, FEATURES, IGNORE_FAST } from './config.js';
 import { filterAllowed, mergeLanes, confirmSlow } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
@@ -29,6 +29,7 @@ import { firstStartPrivacy, PRIVACY_TEXT, RecordingConsent } from './privacy.js'
 import { OnlineWatch, updateNotice } from './pwa.js';
 import { PerfMeter, SlowMode, WalkStats, summaryText } from './perf.js';
 import { routeOutput, OUTPUT_MODES, OUTPUT_NAMES, outputText } from './output.js';
+import { hazardCandidates } from './hazardalerts.js';
 
 const params = new URLSearchParams(location.search);
 // Listening: Google Cloud Speech-to-Text, tap to talk (default), or Chrome's own always-on recogniser (?stt=chrome, and the
@@ -68,6 +69,7 @@ let cocoDetector = null; // optional third model (docs/models/coco320.onnx); sil
 const coco = { dets: [], t: null, ranAt: 0 };
 const hazard = { dets: [], t: null, ranAt: 0 }; // open-vocabulary hazard lane: log and on-request only
 let hazardDetector = null;
+const HAZARD_CONFIRM = Object.fromEntries((HAZARD.speakClasses || []).map((n) => [canonical(n), { minScore: HAZARD.conf, runs: 2 }]));
 let frameCount = 0;
 // Walk measurements (Package C): a 'perf' event every 30 s, slow-phone mode, and a summary of each walk.
 const perf = new PerfMeter();
@@ -374,6 +376,7 @@ function prefetchAssets() {
     try {
       const urls = [MODEL.url(SIZE)];
       if (USE_SLOW) urls.push(MODELS[SECONDARY.model].url(SECONDARY.size));
+      if ((HAZARD.speakClasses || []).length && params.get('hazard') !== 'off') urls.push(HAZARD.file); // only once a class may speak
       urls.forEach((u) => warmModel(u).catch(() => {}));
     } catch (_) { /* best effort only */ }
   };
@@ -434,6 +437,9 @@ async function loop() {
         const r = await hazardDetector.detect(el.video, HAZARD.conf, CONFIG.nmsIou);
         perf.lane('hazard', performance.now() - hazard.ranAt);
         hazard.dets = r.dets.map((d) => ({ ...d, box: { x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2 }, w: r.width }));
+        // A class that may speak must be seen in two hazard runs in a row (like stairs in the slow lane).
+        const hc = confirmSlow(hazard.dets, hazard.prevNames, HAZARD_CONFIRM);
+        hazard.confirmed = hc.dets.filter((d) => HAZARD_CONFIRM[d.name]); hazard.prevNames = hc.names; hazard.h = r.height;
         hazard.t = performance.now();
         logHazards(r.dets, r.width, r.height);
       } catch (e) { logEvent('hazard-frame-error', e && e.message); }
@@ -443,7 +449,8 @@ async function loop() {
     const dets = mergeLanes(mergeLanes(fast, slow, t, SECONDARY.maxAgeMs), coco, t, TERTIARY.maxAgeMs);
     const tracks = tracker.update(dets, t, width, height);
     state.scene = { tracks, w: width, h: height, t };
-    const alert = engine.next(tracks, width, height, t);
+    const hzFresh = hazard.confirmed && hazard.t != null && t - hazard.t <= HAZARD.maxAgeMs;
+    const alert = engine.next(tracks, width, height, t, hzFresh ? hazardCandidates(hazard.confirmed, width, height, HAZARD.speakClasses, { corridor: CONFIG.corridor }) : []);
     if (alert && (alert.urgent || performance.now() > state.talkUntil)) { // routine alerts wait while the walker is speaking
       const route = routeOutput(alert.urgent ? 'urgent' : 'normal', out); // vibration only: buzz instead, but vehicles are still spoken
       if (alert.urgent) cues.play('urgent');
@@ -658,6 +665,7 @@ async function start() {
   state.lastFrameOk = performance.now();
   tracker.tracks = [];
   slow.dets = []; slow.t = null; slow.ranAt = 0; slow.prevNames = null; frameCount = 0;
+  hazard.confirmed = []; hazard.prevNames = null; hazard.t = null;
   perf.reset(performance.now()); slowMode.reset(); fpsTick = { t: 0, frames: 0 }; walk.start(Date.now(), batteryNow().level);
   engine.reset();
   camWatch.reset(); camCheckedAt = 0;

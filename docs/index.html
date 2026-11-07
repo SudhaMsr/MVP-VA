@@ -114,7 +114,7 @@
         <button id="saveRecBtn" type="button" hidden disabled style="min-height:64px;font-size:1.1rem">Save recording</button>
         <button id="logBtn" type="button" style="min-height:56px;font-size:1rem">Save session log</button>
         <p id="stats" class="small"></p>
-        <p class="small">Version: <span id="ver">881a1e5</span></p>
+        <p class="small">Version: <span id="ver">5e6e345</span></p>
       </details>
       <p class="small">Say: start, stop, repeat, help, less talk, more detail, what is in front of me, where am I, battery, what can't you see, privacy, or navigate to a place.</p>
     </details>
@@ -146,41 +146,42 @@
 </script>
 <!--stamp-->
 <script type="importmap">{"imports": {
-    "./js/alerts.js": "./js/alerts.js?v=881a1e5",
-    "./js/app.js": "./js/app.js?v=881a1e5",
-    "./js/barge.js": "./js/barge.js?v=881a1e5",
-    "./js/battery.js": "./js/battery.js?v=881a1e5",
-    "./js/camcheck.js": "./js/camcheck.js?v=881a1e5",
-    "./js/cloudstt.js": "./js/cloudstt.js?v=881a1e5",
-    "./js/commands.js": "./js/commands.js?v=881a1e5",
-    "./js/config.js": "./js/config.js?v=881a1e5",
-    "./js/cues.js": "./js/cues.js?v=881a1e5",
-    "./js/depth.js": "./js/depth.js?v=881a1e5",
-    "./js/describe.js": "./js/describe.js?v=881a1e5",
-    "./js/detector.js": "./js/detector.js?v=881a1e5",
-    "./js/dialogue.js": "./js/dialogue.js?v=881a1e5",
-    "./js/freespace.js": "./js/freespace.js?v=881a1e5",
-    "./js/haptics.js": "./js/haptics.js?v=881a1e5",
-    "./js/lanes.js": "./js/lanes.js?v=881a1e5",
-    "./js/modelcache.js": "./js/modelcache.js?v=881a1e5",
-    "./js/nav.js": "./js/nav.js?v=881a1e5",
-    "./js/notes.js": "./js/notes.js?v=881a1e5",
-    "./js/output.js": "./js/output.js?v=881a1e5",
-    "./js/perf.js": "./js/perf.js?v=881a1e5",
-    "./js/places.js": "./js/places.js?v=881a1e5",
-    "./js/privacy.js": "./js/privacy.js?v=881a1e5",
-    "./js/pwa.js": "./js/pwa.js?v=881a1e5",
-    "./js/reader.js": "./js/reader.js?v=881a1e5",
-    "./js/routes.js": "./js/routes.js?v=881a1e5",
-    "./js/safetext.js": "./js/safetext.js?v=881a1e5",
-    "./js/speech.js": "./js/speech.js?v=881a1e5",
-    "./js/tracker.js": "./js/tracker.js?v=881a1e5",
-    "./js/trustcheck.js": "./js/trustcheck.js?v=881a1e5",
-    "./js/units.js": "./js/units.js?v=881a1e5"
+    "./js/alerts.js": "./js/alerts.js?v=5e6e345",
+    "./js/app.js": "./js/app.js?v=5e6e345",
+    "./js/barge.js": "./js/barge.js?v=5e6e345",
+    "./js/battery.js": "./js/battery.js?v=5e6e345",
+    "./js/camcheck.js": "./js/camcheck.js?v=5e6e345",
+    "./js/cloudstt.js": "./js/cloudstt.js?v=5e6e345",
+    "./js/commands.js": "./js/commands.js?v=5e6e345",
+    "./js/config.js": "./js/config.js?v=5e6e345",
+    "./js/cues.js": "./js/cues.js?v=5e6e345",
+    "./js/depth.js": "./js/depth.js?v=5e6e345",
+    "./js/describe.js": "./js/describe.js?v=5e6e345",
+    "./js/detector.js": "./js/detector.js?v=5e6e345",
+    "./js/dialogue.js": "./js/dialogue.js?v=5e6e345",
+    "./js/freespace.js": "./js/freespace.js?v=5e6e345",
+    "./js/haptics.js": "./js/haptics.js?v=5e6e345",
+    "./js/hazardalerts.js": "./js/hazardalerts.js?v=5e6e345",
+    "./js/lanes.js": "./js/lanes.js?v=5e6e345",
+    "./js/modelcache.js": "./js/modelcache.js?v=5e6e345",
+    "./js/nav.js": "./js/nav.js?v=5e6e345",
+    "./js/notes.js": "./js/notes.js?v=5e6e345",
+    "./js/output.js": "./js/output.js?v=5e6e345",
+    "./js/perf.js": "./js/perf.js?v=5e6e345",
+    "./js/places.js": "./js/places.js?v=5e6e345",
+    "./js/privacy.js": "./js/privacy.js?v=5e6e345",
+    "./js/pwa.js": "./js/pwa.js?v=5e6e345",
+    "./js/reader.js": "./js/reader.js?v=5e6e345",
+    "./js/routes.js": "./js/routes.js?v=5e6e345",
+    "./js/safetext.js": "./js/safetext.js?v=5e6e345",
+    "./js/speech.js": "./js/speech.js?v=5e6e345",
+    "./js/tracker.js": "./js/tracker.js?v=5e6e345",
+    "./js/trustcheck.js": "./js/trustcheck.js?v=5e6e345",
+    "./js/units.js": "./js/units.js?v=5e6e345"
 }}</script>
 <!--/stamp-->
 <script>window.ORT_BASE = new URL('vendor/ort/', location.href).href;</script>
 <script src="vendor/ort/ort.min.js" onerror="window.ORT_BASE='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/';var s=document.createElement('script');s.src=window.ORT_BASE+'ort.min.js';document.head.appendChild(s);"></script>
-<script type="module" src="js/app.js?v=881a1e5"></script>
+<script type="module" src="js/app.js?v=5e6e345"></script>
 </body>
 </html>

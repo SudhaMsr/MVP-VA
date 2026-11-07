@@ -200,3 +200,19 @@ hears something unclear, or needs help. Do it indoors first, then on a quiet pav
    two short = right).
 7. **Stop (1 min).** Talk, "cancel" (the route stops). Double tap "Stop walking". Talk, "walk summary".
 Record for each step: done alone / needed help / could not do it, and the tester's own words. Fix anything "needed help" before the pilot.
+
+### Package E: hazard lane, class by class (`feat/hazard-live`)
+- **Model exported here** (ultralytics 8.4.175, yoloe-11s-seg, 320 px; onnx/onnxslim/CLIP in a throwaway venv): `docs/models/hazard320.onnx`,
+  40.5 MB. `npm run check:hazard` (tools/phase4/check_hazard_model.mjs): loads with the app's onnxruntime-web; output0 is
+  `[1, 51, 2100]` = 4 + 15 classes + 32 mask channels; 269 ms per frame on a desktop. In the app it runs every 4 s (skipped in
+  slow-phone mode). The site grows from 102 MB to 142 MB.
+- **Not evaluated:** no `hazard_eval.json` was given, so `HAZARD.speakClasses` is empty and nothing from this lane is spoken. In the
+  headless run, Chrome's fake-camera test pattern was logged as an A-board at 0.43: this lane needs the evaluation before it speaks.
+  Next: download VIP-Mobility360, run `python3 tools/phase4/eval_hazard_model.py DATASET --map "..."`, then
+  `node tools/phase4/graduate.mjs hazard_eval.json`, copy the passing names into `HAZARD.speakClasses`, and walk-test them.
+- `docs/js/hazardalerts.js`: `graduate()`, `hazardCandidates()`, `hazardText()`. Candidates: graduated class, seen in two hazard runs
+  in a row (confirmSlow), in the walking path and near (box bottom below 55% of the picture). Priority 2 (below vehicles 0 and stairs 1),
+  `once: true`, through `AlertEngine.next(..., extra)` so the budget and encounter memory apply; allowed at every talk level.
+  No distance: none of these classes has a measured distance error. `ped_signal` is never spoken from this lane.
+- `HAZARD.speak` (unused flag) replaced by `HAZARD.speakClasses`. The model is cached by Detector.load (modelcache.js) after first
+  use; it is also warmed before Start once speakClasses is not empty (40 MB is not worth fetching early for a log-only lane).
