@@ -92,3 +92,27 @@ Phone screen recordings from 30 Oct (camera preview cut out, 15 fps, 45 s of Bri
 - After: quiet mode 0 false; detailed only trees, bins, a pole.
 - Fixes: closing speed is now a line fit over the last 1.2 s of distances (trusted only with a good fit, 5+ samples); no speed for boxes cut off by the picture edge; a one-step distance jump resets the speed (tracker swapping cars); slow-lane stairs need 0.80+ and two runs in a row (plain paving scored up to 0.77); the fast lane's "tactile paving" guess is ignored (51 of 178 frames on ordinary paving); people and dogs need 3 frames, anything filling 60%+ of the picture needs 5 (a blurred wall was "Dog, very close").
 - Still to prove on the street: that a real approaching car is warned in time (synthetic test: about 0.6 s after it is fully in view), and that real stairs still pass the stricter stairs rule.
+
+
+## State on 7 Nov (Stage 1 build: calmer, more honest, measurable)
+Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headless Chrome (fake camera, simulated GPS, faked Google replies). Not yet checked on the Poco or a real street.
+- **Steps by default** for distances ("about 4 steps", "in 60 steps, turn right"; long walks still in miles).
+- **Busy pavements:** 3+ people close in the path give one "Busy ahead, people close." (said once per encounter); "Stop" only for someone very close straight ahead; anything moving very close straight ahead skips the talk budget. `crowdMin: 0` in config turns the crowd rule off. In a 60 s simulated crowd, quiet mode said 4 things and never "Stop" for the crowd itself.
+- **Lost signal:** only after 10 s with no fix, plus "Location signal is back." (a stray error between good fixes used to trigger it).
+- **Trust features (trustcheck.js):** "why did you say that?" explains the last warning from what the engine saw; "are you working?" gives a full check; a start-up check speaks the full line on first start and afterwards only problems.
+- **Watch log throttle:** watch-detect at most once per class every 2 s.
+- **record-start event** marks video time zero in the session log.
+- **Stage 1 gate scorer:** `tools/score_walk.mjs` (see README, "Scoring walks"). Gate: every warning reviewed, 0 missed moving vehicles, under 1 false warning per minute, across 10 recorded walks.
+
+### What blind and partially sighted people have told us (sources used to set priorities)
+- RNIB "In My Way" (2025, 1,197 respondents): top barriers are vehicles parked on pavements 82%, poor pavements 71%, temporary obstacles (A-boards, bikes, e-scooters, bin bags) 56%, paths shared with cyclists or e-scooters 52%, lack of accessible crossings 44%; overhanging branches named too; 92% have had to walk in the road.
+- User studies: obstacle detection had the most first preferences; reading text was the most requested task; people want obstacle-free paths, route information, low cost and low effort.
+- Forums (AppleVis): strong anger at apps that over-claim ("AI Guide Dog"); crossing apps get confused by red countdown timers and lose the light near the far kerb; people do not want to hold a phone out in crowds.
+- To do: ask VI Talk (charity 1165629; podcast, Facebook group) and the Bristol Sight Loss Council for a feedback session and pilot testers. A draft message is in the chat of 7 Nov.
+
+### Model plan that follows from this (needs walk footage; not started)
+1. Bristol test set from Stage 1 walks, scored with score_walk.mjs, as the regression gate.
+2. Hazard list in RNIB order: pavement-parked vehicles (done), parked bikes and e-scooters, A-boards and bins, overhanging branches and head-height signs, kerbs and step-downs, crossings (pedestrian signal state only, Oko-style, robust to countdown timers).
+3. Training data: false alarms and misses from walk logs ("that was wrong", watch-detect), auto-labelled with an open-vocabulary detector and checked by hand; plain Bristol paving as negatives (the reason the kerb model failed).
+4. One merged detector instead of three lanes, then INT8 and WebGPU for speed on the Poco.
+5. Distance from ground geometry (box bottom + phone height and tilt) and the depth lane, not just box height.
