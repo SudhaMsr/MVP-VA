@@ -116,3 +116,10 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
 3. Training data: false alarms and misses from walk logs ("that was wrong", watch-detect), auto-labelled with an open-vocabulary detector and checked by hand; plain Bristol paving as negatives (the reason the kerb model failed).
 4. One merged detector instead of three lanes, then INT8 and WebGPU for speed on the Poco.
 5. Distance from ground geometry (box bottom + phone height and tilt) and the depth lane, not just box height.
+
+### Hazard lane (7 Nov, later): prebuilt open-vocabulary model, no training
+- **What:** YOLOE (Ultralytics) told by text to look for RNIB's obstacles: e-scooter, parked bicycle, A-board, bollard, wheelie bin, rubbish bag, traffic cone, roadworks barrier, low branch, kerb, stairs, pothole, crossing light, bench, lamp post (`tools/phase4/hazard_vocab.json`).
+- **Make the file (on your computer; the build sandbox may not run downloaded model weights):** `pip install ultralytics onnx onnxslim`, then `python3 tools/phase4/export_hazard_model.py` → `docs/models/hazard320.onnx`. Run `python3 tools/stamp.py`, `npm test`, commit, push.
+- **In the app:** loads in the background if the file is there (`?hazard=off` turns it off); runs every 4 s; LOG ONLY: `hazard-detect` events (name|score|side|box height), and "is there an e-scooter / a bollard / a kerb?" answers with a hedge ("I think there is... check with your cane"). `HAZARD.speak` is false: no class is spoken as a warning yet.
+- **Evaluate before speaking anything:** download VIP-Mobility360 (LJMU open data, CC BY 4.0; UK footage of the RNIB obstacles) on your computer and run `python3 tools/phase4/eval_hazard_model.py DATASET --map "..."`. A class becomes a candidate only at precision >= 0.9 and recall >= 0.6, then it must pass the walk gate (`tools/score_walk.mjs`) on Bristol walks.
+- **Next model step:** use the best open-vocabulary classes to auto-label VIP-Mobility360 and our walk frames, check the labels by hand, and fine-tune a small fixed-class YOLO (fast enough for every frame, unlike YOLOE every 4 s).

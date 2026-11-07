@@ -1,10 +1,10 @@
 // Vision Assist - app wiring: camera, detection loop, speech, voice commands, error handling.
 // Rule for this file: every failure is spoken. No silent states.
-import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY, TERTIARY, WATCH_CLASSES, GOOGLE_KEY, FEATURES, IGNORE_FAST } from './config.js';
+import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY, TERTIARY, WATCH_CLASSES, HAZARD, GOOGLE_KEY, FEATURES, IGNORE_FAST } from './config.js';
 import { filterAllowed, mergeLanes, confirmSlow } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
-import { AlertEngine, LEVELS, inCorridor } from './alerts.js';
+import { AlertEngine, LEVELS, inCorridor, directionOf } from './alerts.js';
 import { Haptics } from './haptics.js';
 import { RouteStore, RouteRecorder, routeFromPoints, pathLength } from './routes.js';
 import { Cues } from './cues.js';
@@ -60,6 +60,8 @@ let slowDetector = null; // second model for stairs, manholes, benches...
 const slow = { dets: [], t: null, ranAt: 0 };
 let cocoDetector = null; // optional third model (docs/models/coco320.onnx); silent when the file is not there
 const coco = { dets: [], t: null, ranAt: 0 };
+const hazard = { dets: [], t: null, ranAt: 0 }; // open-vocabulary hazard lane: log and on-request only
+let hazardDetector = null;
 let frameCount = 0;
 const USE_SLOW = params.get('lane') !== 'off' && MODEL_KEY !== SECONDARY.model;
 let stream = null;
@@ -220,6 +222,17 @@ function logEvent(type, detail) {
 
 // Step C: a class the walker never hears about yet, straight from the raw model output (not the tracker or alert
 // engine, so this cannot change anything that is actually spoken). Watch the session log for false alarms.
+// Hazard lane sightings for review against the video: name|score|side|height of the box as a share of the picture.
+// Throttled like the watch classes.
+function logHazards(dets, w, h) {
+  const now = performance.now();
+  for (const d of dets) {
+    const k = 'hz:' + d.name;
+    if (now - (watchLoggedAt.get(k) ?? -1e9) < 2000) continue;
+    watchLoggedAt.set(k, now);
+    logEvent('hazard-detect', `${d.name}|${d.score.toFixed(2)}|${directionOf((d.x1 + d.x2) / 2, w)}|${((d.y2 - d.y1) / h).toFixed(2)}`);
+  }
+}
 // At most once per class every 2 s, so a traffic light in view for a minute cannot push the start of a walk out of the
 // 2000-event log.
 const watchLoggedAt = new Map();
@@ -320,6 +333,13 @@ function loadLanes() {
         cocoDetector = cd;
       } catch (e) { logEvent('coco-model-missing', e && e.message); } // optional: no message to the walker
     }
+    if (!hazardDetector && params.get('hazard') !== 'off') {
+      try {
+        const hd = new Detector(window.ort, HAZARD.size, HAZARD.names);
+        await hd.load(HAZARD.file, [EP]);
+        hazardDetector = hd; logEvent('hazard-model-ready', String(Math.round(performance.now())));
+      } catch (e) { logEvent('hazard-model-missing', e && e.message); } // optional, and silent: the file may not be deployed yet
+    }
   })();
   return lanesLoading;
 }
@@ -378,6 +398,16 @@ async function loop() {
     }
     if (depthLane && depthLane.due(performance.now())) {
       try { const ms = await depthLane.run(el.video, performance.now()); if (RECORD) logEvent('depth-ms', String(Math.round(ms))); } catch (e) { logEvent('depth-frame-error', e && e.message); }
+      if (!state.running) return;
+    }
+    if (hazardDetector && performance.now() - hazard.ranAt >= HAZARD.everyMs) {
+      hazard.ranAt = performance.now();
+      try {
+        const r = await hazardDetector.detect(el.video, HAZARD.conf, CONFIG.nmsIou);
+        hazard.dets = r.dets.map((d) => ({ ...d, box: { x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2 }, w: r.width }));
+        hazard.t = performance.now();
+        logHazards(r.dets, r.width, r.height);
+      } catch (e) { logEvent('hazard-frame-error', e && e.message); }
       if (!state.running) return;
     }
     const t = performance.now();
@@ -960,7 +990,8 @@ function handleTranscript(text) {
     case 'vibration': changeVibration(cmd.arg === 'on'); break;
     case 'rate': changeRate(cmd.arg === 'slower' ? -1 : 1); break;
     case 'share': prepareShare(); break;
-    case 'find': if (!state.running || !state.scene) say(NO_CAMERA, 'status'); else say(findObject(state.scene.tracks, cmd.arg, state.scene.w), 'status'); break;
+    case 'find': if (!state.running || !state.scene) say(NO_CAMERA, 'status');
+      else say(findObject(state.scene.tracks, cmd.arg, state.scene.w, { extra: hazard.t && performance.now() - hazard.t < HAZARD.maxAgeMs ? hazard.dets : [] }), 'status'); break;
     case 'navinfo': say(navigator_.status(cmd.arg), 'status'); break;
     case 'wrong': logEvent('wrong-alert', state.lastAlertText || ''); say(state.lastAlertText ? 'Thank you. I have noted that the last warning was wrong.' : 'Thank you. There was no recent warning to note.', 'status'); break;
     case 'lost': (async () => { await whereAmI(); say('Stay where you are if it is not safe to move. Say take me home, or navigate to a place, or share my location.', 'status'); })(); break;

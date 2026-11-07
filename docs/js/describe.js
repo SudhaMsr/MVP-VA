@@ -16,6 +16,10 @@ const NOUNS = {
   cat: ['cat', 'cats'], horse: ['horse', 'horses'], sheep: ['sheep', 'sheep'], cow: ['cow', 'cows'], suitcase: ['suitcase', 'suitcases'],
   skateboard: ['skateboard', 'skateboards'], parking_meter: ['parking meter', 'parking meters'], couch: ['sofa', 'sofas'], dining_table: ['table', 'tables'],
   stairs: ['stairs', 'stairs', 'none'], blind_road: ['tactile paving', 'tactile paving', 'none'],
+  // hazard lane (open-vocabulary, RNIB obstacle list)
+  e_scooter: ['e-scooter', 'e-scooters'], a_board: ['A-board', 'A-boards'], bollard: ['bollard', 'bollards'], wheelie_bin: ['wheelie bin', 'wheelie bins'],
+  rubbish_bag: ['rubbish bag', 'rubbish bags'], road_barrier: ['roadworks barrier', 'roadworks barriers'], low_branch: ['low branch', 'low branches'],
+  kerb: ['kerb', 'kerbs'], pothole: ['pothole', 'potholes'], ped_signal: ['crossing light', 'crossing lights'], lamp_post: ['lamp post', 'lamp posts'],
 };
 // Risks first: when there is a lot to say, these are kept and the rest dropped.
 const IMPORTANCE = ['stairs', 'car', 'truck', 'bus', 'motorcycle', 'tricycle', 'bicycle', 'red_light', 'manhole', 'person', 'dog',
@@ -76,9 +80,14 @@ const ASK = { bin: 'ashcan', 'rubbish bin': 'ashcan', 'litter bin': 'ashcan', 't
   'zebra crossing': 'crosswalk', 'pedestrian crossing': 'crosswalk', steps: 'stairs', staircase: 'stairs', bike: 'bicycle', 'push bike': 'bicycle',
   motorbike: 'motorcycle', someone: 'person', anybody: 'person', anyone: 'person', man: 'person', woman: 'person', lorry: 'truck', van: 'truck',
   'traffic light': ['red_light', 'green_light', 'traffic_light'], 'traffic lights': ['red_light', 'green_light', 'traffic_light'], sofa: 'couch', table: 'dining_table',
-  hydrant: 'fire_hydrant', cone: 'reflective_cone', barrier: ['roadblock', 'guard_rail'], post: ['pole', 'warning_column'], bollard: 'warning_column' };
+  hydrant: 'fire_hydrant', cone: 'reflective_cone', barrier: ['roadblock', 'guard_rail', 'road_barrier'], post: ['pole', 'warning_column', 'lamp_post'],
+  bollard: ['warning_column', 'bollard'], scooter: 'e_scooter', 'e scooter': 'e_scooter', 'electric scooter': 'e_scooter',
+  'a board': 'a_board', 'sandwich board': 'a_board', 'advertising board': 'a_board', 'sign board': 'a_board', 'wheelie bin': 'wheelie_bin',
+  'bin bag': 'rubbish_bag', 'rubbish bag': 'rubbish_bag', 'trash bag': 'rubbish_bag', curb: 'kerb', 'dropped kerb': 'kerb', branch: 'low_branch',
+  'tree branch': 'low_branch', 'street light': 'lamp_post', 'lamppost': 'lamp_post', 'roadworks': 'road_barrier',
+  'crossing light': ['ped_signal', 'red_light', 'green_light'], 'green man': ['ped_signal', 'green_light'] };
 export function objectNames(query) {
-  const q = String(query || '').toLowerCase().replace(/[?.!]/g, '').replace(/^(?:a|an|the|any|some)\s+/, '').trim();
+  const q = String(query || '').toLowerCase().replace(/[?.!]/g, '').replace(/^(?:a|an|the|any|some)\s+/, '').replace(/-/g, ' ').trim();
   if (!q) return [];
   const tryWord = (w) => {
     if (ASK[w]) return [].concat(ASK[w]);
@@ -89,13 +98,22 @@ export function objectNames(query) {
   if (!names.length && q.endsWith('s')) names = tryWord(q.slice(0, -1));
   return names;
 }
-export function findObject(tracks, query, frameW, { minHits = 2 } = {}) {
+export function findObject(tracks, query, frameW, { minHits = 2, extra = [] } = {}) {
   const q = String(query || '').toLowerCase().replace(/^(?:a|an|the|any|some)\s+/, '').replace(/[?.!]/g, '').trim();
   const names = objectNames(q);
   if (!names.length) return `I cannot recognise ${q || 'that'} yet. I can look for things like a bench, a bin, a crossing, a person, a car or stairs.`;
   const seen = (tracks || []).filter((t) => names.includes(t.name) && (t.hits ?? minHits) >= minHits)
     .sort((a, b) => (a.dist ?? 99) - (b.dist ?? 99));
   const noun = NOUNS[names[0]] ? NOUNS[names[0]][0] : q;
+  if (!seen.length) {
+    // The open-vocabulary hazard lane is still being checked, so its answers are hedged and never give a distance.
+    const hz = (extra || []).filter((d) => names.includes(d.name)).sort((a, b) => b.score - a.score)[0];
+    if (hz) {
+      const hn = NOUNS[hz.name] ? NOUNS[hz.name][0] : hz.name.replace(/_/g, ' ');
+      const hd = directionOf((hz.x1 + hz.x2) / 2, frameW);
+      return `I think there is ${article(hn)} ${hn} ${hd === 'ahead' ? 'straight ahead' : `on your ${hd}`}. I am still learning to spot these, so check with your cane.`;
+    }
+  }
   if (!seen.length) return `I cannot see ${NOUNS[names[0]]?.[2] === 'none' ? noun : `${article(noun)} ${noun}`} right now. Turn slowly, then ask again.`;
   const t = seen[0], dir = directionOf((t.box.x1 + t.box.x2) / 2, frameW);
   const n = NOUNS[t.name] ? NOUNS[t.name][0] : t.name.replace(/_/g, ' ');

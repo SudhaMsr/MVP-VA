@@ -1,0 +1,20 @@
+{
+  "_about": "Open-vocabulary hazard lane (7 Nov). prompt = what YOLOE's text encoder reads; name = what the app uses. Order is the class index and must match HAZARD.names in docs/js/config.js (a test checks). Order follows RNIB 'In My Way' 2025: pavement clutter, e-scooters and bikes, A-boards, overhanging branches, poor pavements, crossings.",
+  "classes": [
+    { "prompt": "electric scooter", "name": "e_scooter" },
+    { "prompt": "parked bicycle", "name": "bicycle" },
+    { "prompt": "sandwich board sign on the pavement", "name": "a_board" },
+    { "prompt": "bollard", "name": "bollard" },
+    { "prompt": "wheelie bin", "name": "wheelie_bin" },
+    { "prompt": "black rubbish bag", "name": "rubbish_bag" },
+    { "prompt": "traffic cone", "name": "traffic_cone" },
+    { "prompt": "construction barrier", "name": "road_barrier" },
+    { "prompt": "low hanging tree branch", "name": "low_branch" },
+    { "prompt": "curb", "name": "kerb" },
+    { "prompt": "staircase", "name": "stairs" },
+    { "prompt": "pothole", "name": "pothole" },
+    { "prompt": "pedestrian traffic light", "name": "ped_signal" },
+    { "prompt": "bench", "name": "bench" },
+    { "prompt": "lamp post", "name": "lamp_post" }
+  ]
+}
