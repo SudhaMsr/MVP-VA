@@ -40,6 +40,7 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
   - **Recording consent:** turning on Record session (or `?record`) asks "Recording saves video and a log on this phone. Say yes to start, or no." Nothing is recorded until yes (spoken, or the Yes button). Consent lasts until the page is closed.
   - **Info pages:** `privacy.html`, `limits.html` ("What it cannot see") and `numbers.html` ("Our numbers": not measured yet; states the Stage 1 gate), linked from More options.
 - **Memory notes:** "remember the keys are in the drawer", "what do you remember?".
+- **Install and no signal (Package B):** Chrome offers "Install app" / "Add to Home screen" (manifest, icons, `sw.js`). After one start with signal, the app opens and starts detection with no internet: the page and scripts come from the offline app shell, the models from the phone's model cache. With no internet it says "No internet. I can still spot obstacles, but directions and Google listening need signal." and "Internet is back." when it returns. After an update it says "Vision Assist has updated." once on the next start; it never reloads itself mid-walk. Check with `npm install` then `npm run check:offline` (headless Chrome).
 - **Text reading:** on. Say "read" or tap Read; runs on the phone.
 
 See `RESEARCH.md` for the 12 reference videos, their links, and what we learned from each.
@@ -65,8 +66,8 @@ Poco M2 Pro (Android, Chrome).
 The app is a web page in `docs/`, published with GitHub Pages at https://sudhamsr.github.io/MVP-VA/ (turn on once: Settings > Pages > Deploy from a branch > `main` / `docs`).
 Open it in Chrome on the phone, tap **Start**, allow camera and microphone.
 - One link is enough: https://sudhamsr.github.io/MVP-VA/ . Supervisor tools (camera view with boxes, recording, saving the session log) are under More options > Supervisor tools. The `?debug` and `?debug&record` links still work and just switch those on at start.
-- `coi-sw.js` is a helper file for the optional speed experiment (`?mt=1`). It is not a page; ignore it.
-- `?size=416` uses the larger fast-lane model (slower, sees smaller things).
+- `sw.js` is the offline service worker (it also serves the optional speed experiment, `?mt=1`). It is not a page; ignore it.
+- `?model=rod2` runs the 416-pixel stairs model as the main model (slower). The old `?size=416` and `?model=rod` files were removed on 7 Nov; those options now fall back to the normal model.
 - `?lane=off` turns the stairs/manhole lane off (for speed tests). `?model=rod` runs the ROD model alone.
 - The line "Speed check" on screen shows frame time on the phone. Send it to the developer.
 

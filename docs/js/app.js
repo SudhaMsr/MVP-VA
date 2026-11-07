@@ -1,6 +1,6 @@
 // Vision Assist - app wiring: camera, detection loop, speech, voice commands, error handling.
 // Rule for this file: every failure is spoken. No silent states.
-import { CONFIG, MODELS, DEFAULT_MODEL, SECONDARY, TERTIARY, WATCH_CLASSES, HAZARD, GOOGLE_KEY, FEATURES, IGNORE_FAST } from './config.js';
+import { CONFIG, MODELS, pickModel, SECONDARY, TERTIARY, WATCH_CLASSES, HAZARD, GOOGLE_KEY, FEATURES, IGNORE_FAST } from './config.js';
 import { filterAllowed, mergeLanes, confirmSlow } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
@@ -26,13 +26,13 @@ import { Dialogue, parseAnswer } from './dialogue.js';
 import { recogniseText, readingSpeech } from './reader.js';
 import { CROSSING_TEXT, LIMITS_TEXT } from './safetext.js';
 import { firstStartPrivacy, PRIVACY_TEXT, RecordingConsent } from './privacy.js';
+import { OnlineWatch, updateNotice } from './pwa.js';
 
 const params = new URLSearchParams(location.search);
 // Listening: Google Cloud Speech-to-Text, tap to talk (default), or Chrome's own always-on recogniser (?stt=chrome, and the
 // automatic fallback when Google cannot be reached).
 const WANT_CLOUD_STT = params.get('stt') !== 'chrome' && !!GOOGLE_KEY;
-const SIZE = params.get('size') === '416' ? 416 : CONFIG.inputSize;
-const MODEL_KEY = MODELS[params.get('model')] ? params.get('model') : DEFAULT_MODEL;
+const { key: MODEL_KEY, size: SIZE } = pickModel(params.get('model'), params.get('size'), CONFIG.inputSize);
 const MODEL = MODELS[MODEL_KEY];
 let DEBUG = params.has('debug'); // supervisor: show the camera view and boxes. ?debug still works, but there is a switch in More options
 let RECORD = false; // supervisor: record raw video + per-frame detections for review (switch in More options too)
@@ -568,6 +568,11 @@ setInterval(() => {
   }
 }, 1000);
 
+// No signal: obstacle warnings still work (the models and app are kept on the phone); say so, and when it is back.
+const online = new OnlineWatch({ say: (t, k) => { logEvent('online', t); say(t, k); } });
+window.addEventListener('offline', () => { if (state.running) online.update(false); else online.online = false; });
+window.addEventListener('online', () => { if (state.running) online.update(true); else { online.online = true; online.saidOffline = false; } });
+
 // ---------- start / stop ----------
 async function start() {
   if (state.running || state.starting) return;
@@ -618,6 +623,8 @@ async function start() {
   cues.play('ok');
   say(RECORD ? 'Ready, recording.' : wasFirst ? 'Ready. Hold the phone at chest height, camera facing forward. Keep using your cane or guide dog. This app helps, but does not replace them. Tap the screen, then speak.' : 'Ready.', 'status');
   const priv = firstStartPrivacy(); if (priv) { say(priv, 'status'); logEvent('privacy-said', ''); } // once ever, on the first start
+  const upd = updateNotice(document.getElementById('ver')?.textContent); if (upd) say(upd, 'status'); // a new version since the last start
+  online.start(navigator.onLine);
   if (WANT_RECORD && !RECORD && !state.recordAsked) { state.recordAsked = true; setRecording(true); }
   startRecording();
   lockScreen();
@@ -634,7 +641,7 @@ async function runSelfCheck(full) {
   const text = selfCheckText({
     camera: state.running && !!(el.video && el.video.srcObject),
     location: state.locProblem ? false : (fixAge < 120000 ? true : null),
-    internet: navigator.onLine,
+    internet: online.saidOffline ? null : navigator.onLine, // the walker has just been told about no internet: not twice
     listening: WANT_CLOUD_STT ? (cloudOff ? false : true) : null,
     battery, charging,
   }, full);

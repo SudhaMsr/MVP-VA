@@ -139,3 +139,24 @@ Each package is one branch and one PR, stacked in order (each branch starts from
 - New intents: `limits`, `privacy`; traffic-light questions all map to `cross`. `Dialogue.confirm()` is a generic yes/no used for
   recording consent (`privacy.js` `RecordingConsent`).
 - Pages: `docs/privacy.html`, `docs/limits.html`, `docs/numbers.html`.
+
+### Package B: installable and offline (`feat/pwa-offline`)
+- `docs/manifest.webmanifest` + `docs/icons/` (made by `tools/make_icons.py`: a yellow eye on black, no text; maskable version
+  kept inside the safe zone). Linked from index.html with an apple-touch-icon.
+- `docs/sw.js`: one service worker. Pages network-first with the cached copy offline; scripts, the onnxruntime files, manifest and icons
+  cache-first. Models are not touched (modelcache.js keeps them in `va-models-v1`). The cache name carries the version stamp, and
+  `tools/stamp.py` now also writes the version and precache list into sw.js, so every release changes the worker.
+  Precached: every page, every `docs/js` file at its stamped address, `ort.min.js` and `ort-wasm-simd.wasm` (what the phone uses);
+  the other three runtime files are cached the first time they are fetched (about 30 MB nobody normally needs).
+- **?mt=1 choice:** the cross-origin isolation headers from `coi-sw.js` are folded into sw.js and added only for pages opened with
+  `?mt=1`. Two workers cannot share one scope, so registering coi-sw.js for mt=1 would have replaced the offline worker (and the
+  other way round). `coi-sw.js` is deleted; phones that had it get sw.js on the next open. Checked: `?mt=1` is crossOriginIsolated,
+  a plain open is not.
+- `docs/js/pwa.js`: `OnlineWatch` (no-internet / back lines) and `updateNotice()` (compares the version with the last start).
+- **Removed models:** `docs/models/best416.onnx`, `rod416.onnx`, `rod640.onnx` (about 37 MB). Nothing in the app loaded them except the
+  supervisor options `?size=416` and `?model=rod`, which now fall back to the normal model (`pickModel` in config.js). They are in git
+  history: `git show 352ec39:docs/models/best416.onnx > best416.onnx` (same for the other two). `tools/analyze_session.py` still
+  expects best416 and rod416 in docs/models: restore them locally that way before running it. `du -sh docs`: 138 MB before, 102 MB after.
+- `tools/offline_check.mjs` (`npm run check:offline`): installability from Chrome DevTools, then online start, offline reload,
+  offline start, the spoken lines. Gotcha found while writing it: where /tmp is a RAM disk (WSL), headless Chrome refuses Cache
+  Storage entries over about 10 MB, so the check keeps its profile in `node_modules/.cache/`.

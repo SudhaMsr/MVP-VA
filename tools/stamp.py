@@ -3,6 +3,8 @@
 GitHub Pages lets browsers reuse a script for up to 10 minutes, so right after an update a phone can run a mix of old and
 new files. The import map below gives every script a version in its address, so a new version is always fetched fresh.
 Run after editing anything in docs/js:  python3 tools/stamp.py
+It also writes the version and the list of files to keep offline into docs/sw.js (Package B), so every release changes the
+service worker and phones pick up the new app shell.
 """
 import hashlib, pathlib, re
 root = pathlib.Path(__file__).resolve().parent.parent / 'docs'
@@ -17,3 +19,15 @@ if 'id="ver"' in html:
     html = re.sub(r'(<span id="ver">)[^<]*(</span>)', rf'\g<1>{ver}\2', html)
 (root / 'index.html').write_text(html)
 print('stamped', ver)
+
+# The offline app shell (docs/sw.js): every page, every script at its stamped address, the detection runtime the phone
+# normally uses (the other runtime files are cached the first time they are fetched), the manifest and the icons.
+pages = ['./', 'index.html'] + sorted(p.name for p in root.glob('*.html') if p.name != 'index.html')
+shell = pages + [f'js/{f.name}?v={ver}' for f in files] + ['vendor/ort/ort.min.js', 'vendor/ort/ort-wasm-simd.wasm', 'manifest.webmanifest'] \
+    + sorted(f'icons/{p.name}' for p in (root / 'icons').glob('*.png'))
+sw = root / 'sw.js'
+if sw.exists():
+    listing = ',\n  '.join(f"'{u}'" for u in shell)
+    text = re.sub(r'/\* stamp \*/.*?/\* /stamp \*/', f"/* stamp */\nconst VERSION = '{ver}';\nconst PRECACHE = [\n  {listing},\n];\n/* /stamp */", sw.read_text(), flags=re.S)
+    sw.write_text(text)
+    print('stamped sw.js with', len(shell), 'files')
