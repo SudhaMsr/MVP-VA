@@ -6,7 +6,7 @@
 // One shared setting, so navigation prompts, hazard alerts and scene descriptions always agree.
 // Numbers are rounded on purpose: "0.7 miles" is easier to take in, and to trust, than "1118 metres".
 export const UNIT_MODES = ['miles', 'metres', 'steps'];
-export const DEFAULT_UNITS = 'miles';
+export const DEFAULT_UNITS = 'steps'; // the user's choice (7 Nov): distances in steps by default; "use miles" or "use metres" still switch
 export const DEFAULT_STEP_METRES = 0.7;
 export const STEP_LIMITS = [0.3, 1.2]; // metres: anything outside this is not a believable step
 const YARD = 0.9144, MILE = 1609.344;

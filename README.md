@@ -18,7 +18,7 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
   - "Slower" / "faster" changes how fast it speaks (7 notches from 60% to 110%, default 95%, saved on the phone; also a button).
   - "Share my location" gets a link ready (street plus a map link); then tap the empty screen and choose who to send it to. The browser only opens the share sheet from a real tap.
   - "I am lost" says where you are and what to do next.
-  - Distances are spoken in **yards by default** (miles for longer distances: "50 yards", "0.3 miles"). Say "use metres" or "use steps", or tap the units button in More options. Steps: one step is taken as 70 cm; say "my step is 60 centimetres" or tap the step button to change it. Step counts are approximate.
+  - Distances are spoken in **steps by default** ("about 4 steps", "in 60 steps, turn right"); walks longer than about 700 m are said in miles ("0.7 miles"). Say "use miles" (yards and miles) or "use metres", or tap the units button in More options. One step is taken as 70 cm; say "my step is 60 centimetres" or tap the step button to change it. Step counts are approximate.
   - Distances and times are rounded on purpose ("about 8 minutes", "0.7 miles") so they are easy to take in.
   - "Battery" tells the charge. The app also warns once at 20, 10 and 5 percent while not charging, and logs battery level in the session log.
 - Voice commands: start, stop, repeat, help, plus the ones above. While it is asking a question you can answer at once, even over its voice. Talking over the app to interrupt it only works with "voice commands on" (the phone-listening fallback, always-on); with Google Cloud listening (the default) you tap Talk first, then speak.

@@ -14,9 +14,15 @@ const W = 640;
 const T = (name, dist, x, hits = 5) => ({ name, dist, hits, box: { x1: x, x2: x + 60, y1: 100, y2: 300 } });
 
 // ---------------- units ----------------
-test('miles is the default, with yards for short distances and simple fractions for long ones', () => {
-  assert.equal(DEFAULT_UNITS, 'miles');
-  assert.equal(getUnits(), 'miles');
+test('steps is the default (user choice, 7 Nov): hazards and turns are said in steps', () => {
+  assert.equal(DEFAULT_UNITS, 'steps');
+  assert.equal(getUnits(), 'steps');
+  assert.equal(nearDistance(3), 'about 4 steps'); // 70 cm step
+  assert.equal(roundDistance(40), '60 steps'); // the turn warning distance
+  assert.equal(roundDistance(1118), '0.7 miles'); // long walks are still said in miles, not thousands of steps
+});
+test('miles mode: yards for short distances and simple fractions for long ones', () => {
+  setUnits('miles');
   const say = (m) => roundDistance(m);
   assert.equal(say(8), 'a few yards');
   assert.equal(say(36), '40 yards');

@@ -21,7 +21,7 @@ Paste this at the start of a new chat, together with the repo link.
   - Test-only: `depth_s_q.onnx` (Depth Anything V2 Small) behind `?depth=1`, never speaks.
 - **Navigation:**
   - Google Places (New) and Routes (WALK), called from the browser with a referrer-restricted key. Falls back to OpenStreetMap (Nominatim and routed-foot). `?maps=osm` forces OSM.
-  - Wayfindr-style wording. Heading check after about 10 m. Off-route detection. Turn warning at 40 m, "now" at 8 m. Distances are spoken in yards by default.
+  - Wayfindr-style wording. Heading check after about 10 m. Off-route detection. Turn warning at 40 m, "now" at 8 m. Distances are spoken in steps by default (changed 7 Nov at the user's request; it was yards). A phone that already saved another unit keeps it until the walker says "use steps".
   - "Navigate me to ..." goes straight to the best match and aims at its nearest entrance, Google-Maps style.
 - **Dialogue:** idle, choose and confirm states. Yes, no and number answers. 40 s timeout (75 s while choosing from a list). On-screen answer buttons.
 - **Voice:** TTS is browser speechSynthesis (en-GB), rate 0.95. STT is tap-to-talk: the walker taps, the app goes quiet, records until they stop talking (or 7 s), and the clip goes to Google Cloud Speech-to-Text (same restricted key as navigation); Chrome's built-in recogniser is the fallback if Google fails. Repeated and chatty speech is capped: once per encounter, per-minute caps, no chatter in quiet mode.
