@@ -160,6 +160,7 @@ const navigator_ = new Navigator({
   providers: makeProviders({
     googleKey: new URLSearchParams(location.search).get('maps') === 'osm' ? '' : GOOGLE_KEY,
     onFallback: (what, e) => session.events.push({ t: Date.now(), kind: 'nav-fallback', text: `${what}: ${e && e.message}` }),
+    notify: (t) => say(t, 'status'), // "Google directions are not available, using backup maps." (Package G)
   }),
   // The first fix Chrome gives is often a rough network guess (it can be streets out). So wait up to 10 seconds for a
   // proper GPS fix (25 m or better) and use the best one seen.

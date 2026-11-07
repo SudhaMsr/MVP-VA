@@ -5,6 +5,7 @@
 export const BANNED = [
   'safe to cross', 'you can cross', 'all clear', 'path is clear', 'clear path', 'the light is green', 'green light',
   'no obstacles', 'clear ahead', 'looks clear', 'safe to walk', 'safe to go', 'it is safe', "it's safe",
+  'you have arrived', // Package G: GPS cannot be that sure; the app says "You should be near your destination"
 ];
 
 // The shared wording for crossings and traffic signals (Package A, 7 Nov): the app cannot read signals, so it says so.

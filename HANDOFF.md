@@ -229,3 +229,30 @@ Record for each step: done alone / needed help / could not do it, and the tester
 - `tools/score_walk.mjs`: sheets carry `box_m` and `floor_m` per warning; add `true_m` by hand; `compare` prints median and 90th
   percentile error per method and which is better. **Not measured yet: needs walks with true distances.**
 - Tested with synthetic geometry (known height, pitch and field of view give the known distance to 1 cm).
+
+### Package G: navigation you can rely on (`feat/nav-robust`)
+#### Audit of navigation before Package G (7 Nov)
+- **Off-route detection:** each usable fix (accuracy 60 m or better) is compared with the current and previous route legs; more than
+  max(40 m, 1.5 x the fix's accuracy) away on 2 fixes in a row counts as off route. Tested indirectly (interface tests).
+- **Rerouting:** at most every 15 s; "Off route. Finding a new way." then a new route from Google/OSM ("New route. ..."). A recorded
+  route is never rerouted ("walk back toward the path you took"). The reroute timer uses `Date.now()`, not the injected clock, so it is
+  awkward to test; **untested** end to end.
+- **Arrival:** within 16 m of the arrival point: "You have arrived at X." and navigation ends. Tested, but the wording over-claimed:
+  GPS can be 10 to 50 m out.
+- **Google to OSM fallback:** `makeProviders` tries Google for place search and route; any error (HTTP error or network) falls back to
+  OpenStreetMap and is logged as `nav-fallback`, **but the walker was not told**. Only a 403 was tested; **429 and network errors
+  were untested.**
+- **Weak GPS:** fixes worse than 60 m were ignored and "My location signal is weak..." said after 15 s. Fixes between 25 and 60 m
+  were used without warning, and could trigger "turn now" on a single jump. **Untested:** turn prompts under weak GPS.
+- **Also untested:** route preview (none existed), crossings count, orientation check after reroute.
+
+#### What changed
+- **Route preview** (`routePreview`): "About 6 minutes. This route crosses 2 roads." (steps instead of minutes under 250 m). With no
+  crossing found: "I do not know of any road crossings on it." (OSRM does not report every crossing, so never "no crossings").
+  Said at the start of every new route, before the first instruction.
+- **Weak GPS:** accuracy worse than 25 m for 10 s: "GPS is weak here, so directions may be late." once; "Location signal is back." when
+  it improves. While weak, "turn now" waits for a second fix that agrees. Fixes worse than 60 m are still not used.
+- **Arrival:** "You should be near your destination. It may be a few steps either way." "you have arrived" is now a banned phrase
+  (safetext.js); route step texts say "your destination".
+- **Fallback:** "Google directions are not available, using backup maps." once a minute at most (one request can fall back twice),
+  through `makeProviders({ notify })`. Tested for 429, 403 and a network error.
