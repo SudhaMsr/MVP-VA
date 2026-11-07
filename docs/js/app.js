@@ -27,6 +27,7 @@ import { recogniseText, readingSpeech } from './reader.js';
 import { CROSSING_TEXT, LIMITS_TEXT } from './safetext.js';
 import { firstStartPrivacy, PRIVACY_TEXT, RecordingConsent } from './privacy.js';
 import { OnlineWatch, updateNotice } from './pwa.js';
+import { PerfMeter, SlowMode, WalkStats, summaryText } from './perf.js';
 
 const params = new URLSearchParams(location.search);
 // Listening: Google Cloud Speech-to-Text, tap to talk (default), or Chrome's own always-on recogniser (?stt=chrome, and the
@@ -67,6 +68,13 @@ const coco = { dets: [], t: null, ranAt: 0 };
 const hazard = { dets: [], t: null, ranAt: 0 }; // open-vocabulary hazard lane: log and on-request only
 let hazardDetector = null;
 let frameCount = 0;
+// Walk measurements (Package C): a 'perf' event every 30 s, slow-phone mode, and a summary of each walk.
+const perf = new PerfMeter();
+const slowMode = new SlowMode();
+const walk = new WalkStats();
+const PERF_EVERY_MS = 30000;
+let fpsTick = { t: 0, frames: 0 };
+const batteryNow = () => (battery && battery.battery ? { level: battery.battery.level, charging: !!battery.battery.charging } : { level: null, charging: false });
 const USE_SLOW = params.get('lane') !== 'off' && MODEL_KEY !== SECONDARY.model;
 let stream = null;
 let recognition = null;
@@ -376,13 +384,16 @@ async function loop() {
   const t0 = performance.now();
   try {
     const { dets: fastAll, width, height } = await detector.detect(el.video, CONFIG.confThreshold, CONFIG.nmsIou);
+    perf.lane('main', performance.now() - t0);
     const fast = fastAll.filter((d) => !IGNORE_FAST.includes(d.name));
     if (!state.running) return; // stopped while this frame was in flight
-    frameCount += 1;
-    if (slowDetector && performance.now() - slow.ranAt >= SECONDARY.everyMs) {
+    frameCount += 1; perf.frame();
+    // In slow-phone mode the extra lanes run half as often (the hazard lane not at all); the main lane never slows.
+    if (slowDetector && performance.now() - slow.ranAt >= slowMode.every(SECONDARY.everyMs)) {
       slow.ranAt = performance.now();
       try {
         const r = await slowDetector.detect(el.video, SECONDARY.conf, CONFIG.nmsIou);
+        perf.lane('rod2', performance.now() - slow.ranAt);
         logWatchClasses(r.dets, WATCH_CLASSES.rod2);
         const c = confirmSlow(filterAllowed(r.dets, SECONDARY.classes), slow.prevNames, SECONDARY.confirm || {});
         slow.dets = c.dets; slow.prevNames = c.names;
@@ -390,10 +401,11 @@ async function loop() {
       } catch (e) { logEvent('slow-frame-error', e && e.message); }
       if (!state.running) return;
     }
-    if (cocoDetector && performance.now() - coco.ranAt >= TERTIARY.everyMs) {
+    if (cocoDetector && performance.now() - coco.ranAt >= slowMode.every(TERTIARY.everyMs)) {
       coco.ranAt = performance.now();
       try {
         const r = await cocoDetector.detect(el.video, TERTIARY.conf, CONFIG.nmsIou);
+        perf.lane('coco', performance.now() - coco.ranAt);
         logWatchClasses(r.dets, WATCH_CLASSES.coco);
         coco.dets = filterAllowed(r.dets, TERTIARY.classes).map((d) => ({ ...d, cls: d.cls + TERTIARY.clsOffset }));
         coco.t = performance.now();
@@ -404,10 +416,11 @@ async function loop() {
       try { const ms = await depthLane.run(el.video, performance.now()); if (RECORD) logEvent('depth-ms', String(Math.round(ms))); } catch (e) { logEvent('depth-frame-error', e && e.message); }
       if (!state.running) return;
     }
-    if (hazardDetector && performance.now() - hazard.ranAt >= HAZARD.everyMs) {
+    if (hazardDetector && performance.now() - hazard.ranAt >= slowMode.every(HAZARD.everyMs, true)) {
       hazard.ranAt = performance.now();
       try {
         const r = await hazardDetector.detect(el.video, HAZARD.conf, CONFIG.nmsIou);
+        perf.lane('hazard', performance.now() - hazard.ranAt);
         hazard.dets = r.dets.map((d) => ({ ...d, box: { x1: d.x1, y1: d.y1, x2: d.x2, y2: d.y2 }, w: r.width }));
         hazard.t = performance.now();
         logHazards(r.dets, r.width, r.height);
@@ -424,6 +437,7 @@ async function loop() {
       const hk = Haptics.kindFor(alert); if (hk) haptics.buzz(hk);
       speaker.speak(alert.text, alert.urgent ? 'urgent' : 'normal');
       logEvent('alert', `${alert.priority}|${alert.text}`);
+      walk.alert(alert.text, alert.priority);
       state.lastAlertText = alert.text;
       state.lastAlert = alert;
     }
@@ -556,10 +570,26 @@ function sessionBlob() {
 }
 
 // ---------- health checks ----------
+// Once a second while running: main-lane speed for slow-phone mode, and the 30 s 'perf' event.
+function measure(now) {
+  if (fpsTick.t && now > fpsTick.t) {
+    const change = slowMode.update(((frameCount - fpsTick.frames) * 1000) / (now - fpsTick.t), now);
+    if (change === 'slow') { logEvent('slow-mode', 'on'); const t = slowMode.announce(); if (t) say(t, 'status'); }
+    else if (change === 'normal') logEvent('slow-mode', 'off');
+  }
+  fpsTick = { t: now, frames: frameCount };
+  if (now - perf.since < PERF_EVERY_MS) return;
+  const snap = perf.snapshot(now), b = batteryNow();
+  const heap = performance.memory ? Math.round(performance.memory.usedJSHeapSize / 1048576) : null;
+  logEvent('perf', JSON.stringify({ fps: snap.fps, ms: snap.ms, battery: b.level, charging: b.charging, heapMB: heap, slow: slowMode.slow }));
+  walk.perf(snap.fps, b.level, b.charging);
+}
+
 setInterval(() => {
   navigator_.tick(); // speaks if location updates stop, even when the camera side is not running
   if (!state.running) return;
   const now = performance.now();
+  measure(now);
   if (now - state.lastFrameOk > 5000 && now - state.lastWarnAt > 10000) {
     state.lastWarnAt = now;
     say('Detection has paused. Retrying.', 'status');
@@ -614,6 +644,7 @@ async function start() {
   state.lastFrameOk = performance.now();
   tracker.tracks = [];
   slow.dets = []; slow.t = null; slow.ranAt = 0; slow.prevNames = null; frameCount = 0;
+  perf.reset(performance.now()); slowMode.reset(); fpsTick = { t: 0, frames: 0 }; walk.start(Date.now(), batteryNow().level);
   engine.reset();
   camWatch.reset(); camCheckedAt = 0;
   const wasFirst = state.welcomed !== true;
@@ -650,6 +681,10 @@ async function runSelfCheck(full) {
 }
 
 function stopInternal() {
+  if (state.running && walk.startedAt != null) {
+    walk.stop(Date.now(), batteryNow().level);
+    logEvent('walk-summary', JSON.stringify(walk.summary(Date.now())));
+  }
   speaker.hold(false);
   stopListening(); // nothing should hear the app's own 'Stopped' and treat it as a command
   state.running = false;
@@ -1000,6 +1035,7 @@ function handleTranscript(text) {
     case 'cross': say(state.running && state.scene ? crossingAdvice(state.scene.tracks) : CROSSING_TEXT, 'status'); break; // never a colour, never "safe"
     case 'limits': say(LIMITS_TEXT, 'status'); state.lastSpoken = LIMITS_TEXT; break;
     case 'privacy': say(PRIVACY_TEXT, 'status'); state.lastSpoken = PRIVACY_TEXT; break;
+    case 'walkSummary': { const t = summaryText(walk.summary(Date.now())); say(t, 'status'); state.lastSpoken = t; break; }
     case 'noteAdd': { const r = notes.add(cmd.arg); say(r ? `Noted: ${r.text}.${r.persisted ? '' : ' I could only keep it until you close the page.'}` : 'What should I remember?', 'status'); break; }
     case 'noteList': { const l = notes.list().slice(-3).reverse(); say(l.length ? `Your latest notes: ${l.map((n) => n.text).join('. ')}.` : 'You have no notes yet. Say remember, then what to remember.', 'status'); break; }
     case 'noteFind': { const f = notes.find(cmd.arg); say(f.length ? `You told me: ${f[0].text}.` : 'I have no note about that.', 'status'); break; }

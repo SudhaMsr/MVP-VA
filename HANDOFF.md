@@ -160,3 +160,13 @@ Each package is one branch and one PR, stacked in order (each branch starts from
 - `tools/offline_check.mjs` (`npm run check:offline`): installability from Chrome DevTools, then online start, offline reload,
   offline start, the spoken lines. Gotcha found while writing it: where /tmp is a RAM disk (WSL), headless Chrome refuses Cache
   Storage entries over about 10 MB, so the check keeps its profile in `node_modules/.cache/`.
+
+### Package C: walk instrumentation (`feat/walk-metrics`)
+- `docs/js/perf.js`: `PerfMeter` (counters only in the frame loop), `SlowMode` (under 4 fps for 20 s on, over 6 fps for 30 s off;
+  doubles the rod2/coco intervals and skips the hazard lane; the main lane is never gated), `WalkStats` + `summaryText`.
+- Session log events: `perf` every 30 s (JSON: fps, ms per lane, battery, charging, heapMB, slow), `slow-mode` on/off,
+  `walk-summary` on stop. Voice: "walk summary".
+- `tools/score_walk.mjs`: `perfFromLog()` adds a `perf` block to each review sheet (avg fps, ms per lane, battery per hour);
+  the report prints speed and battery; `numbers SHEETS...` writes `docs/numbers.html` (`numbersPage()`; with no sheets it is the
+  "Not measured yet" page, and a test checks the committed page matches). How to run and score a walk: README, last section.
+- Headless check (fake camera, 34 s): one perf event (12.6 fps, main 68 ms, rod2 127 ms, coco 81 ms), walk summary spoken and logged.

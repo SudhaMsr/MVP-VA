@@ -41,6 +41,7 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
   - **Info pages:** `privacy.html`, `limits.html` ("What it cannot see") and `numbers.html` ("Our numbers": not measured yet; states the Stage 1 gate), linked from More options.
 - **Memory notes:** "remember the keys are in the drawer", "what do you remember?".
 - **Install and no signal (Package B):** Chrome offers "Install app" / "Add to Home screen" (manifest, icons, `sw.js`). After one start with signal, the app opens and starts detection with no internet: the page and scripts come from the offline app shell, the models from the phone's model cache. With no internet it says "No internet. I can still spot obstacles, but directions and Google listening need signal." and "Internet is back." when it returns. After an update it says "Vision Assist has updated." once on the next start; it never reloads itself mid-walk. Check with `npm install` then `npm run check:offline` (headless Chrome).
+- **Walk measurements (Package C):** every 30 s while running the session log gets a `perf` event (main-lane frames per second, average inference ms per lane, battery, memory). If the main lane stays under 4 frames per second for 20 s, slow-phone mode makes the stairs and COCO lanes run half as often and skips the hazard lane, and says once "The phone is running slowly, so I am checking less often."; it goes back to normal after 30 s over 6. The main lane and vehicle warnings are never slowed. On stop a `walk-summary` event is logged; say "walk summary" to hear the time, warnings, vehicle warnings, speed and battery used.
 - **Text reading:** on. Say "read" or tap Read; runs on the phone.
 
 See `RESEARCH.md` for the 12 reference videos, their links, and what we learned from each.
@@ -110,3 +111,13 @@ After changing anything in `docs/js`, run `python3 tools/stamp.py` (a test fails
 ## Fewer repeats
 
 A hazard is spoken once when it first comes into view. It is spoken again only if it gets clearly closer, or (for stairs and red lights) as a reminder every 30 seconds. Vehicle warnings are never closer together than 8 seconds. Each talkativeness level has a per-minute cap (quiet 4, normal 6, detailed 10, not counting vehicle warnings). The same sentence is not spoken twice within 30 seconds. "Keep going" reassurance comes after 90 seconds of quiet, and the periodic status check is off in quiet mode.
+
+## Running and scoring a test walk (Stage 1 gate)
+1. More options > Supervisor tools > **Record session: on**, say yes. Tap Start, hold the phone at chest height, walk.
+2. Tap Stop, then **Save recording**: you get the video and the session log (`vision-assist-log-*.json`).
+3. Make a review sheet: `node tools/score_walk.mjs template vision-assist-log-123.json > sheets/walk1.json`.
+   Watch the video; set each warning's `verdict` to `correct` or `false`; add anything missed under `missed`
+   (`{ "t": 41.5, "kind": "vehicle", "note": "van reversing" }`). The sheet also carries the walk's speed and battery figures.
+4. Score: `node tools/score_walk.mjs score sheets/*.json` (exit code 1 if the gate fails).
+5. Publish: `node tools/score_walk.mjs numbers sheets/*.json` rewrites `docs/numbers.html` with walks, minutes, missed moving
+   vehicles, false warnings per minute, average speed, battery per hour and the date. Commit it on a branch and open a PR.
