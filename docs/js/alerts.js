@@ -141,6 +141,7 @@ export class AlertEngine {
       const inPath = inCorridor(tr.box, frameW, frameH, c.corridor);
       for (let i = start; i < out.length; i++) {
         out[i].d = d; out[i].dir = dir; out[i].kind = kind; out[i].inPath = inPath;
+        out[i].name = name; out[i].sp = sp; out[i].score = tr.score ?? null; // for "why did you say that?"
         // Someone or something moving, straight ahead and very close: never held back by the talk budget.
         out[i].closeAhead = kind === 'moving' && dir === 'ahead' && d != null && d < (c.closeAheadMetres ?? 1.5);
       }
@@ -170,7 +171,7 @@ export class AlertEngine {
       const nearest = Math.min(...nearPeople.map((t) => t.dist));
       cands = cands.filter((a) => !a.key.startsWith('person:') || a.closeAhead);
       if (!cands.some((a) => a.key.startsWith('person:'))) {
-        cands.push({ key: 'crowd', text: 'Busy ahead, people close.', priority: 2, kind: 'moving', dir: 'ahead', d: nearest, inPath: true, crowd: true, once: true });
+        cands.push({ key: 'crowd', text: 'Busy ahead, people close.', priority: 2, kind: 'moving', dir: 'ahead', d: nearest, inPath: true, crowd: true, once: true, count: nearPeople.length });
       }
     }
     const clear = this.free.peekClear();

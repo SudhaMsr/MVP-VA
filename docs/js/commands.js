@@ -102,6 +102,9 @@ export function parseCommand(raw) {
   if (/\b(how far|how much further|how much farther|how long (?:is )?left|how long until|distance left)\b/.test(t)) return { type: 'navinfo', arg: 'far' };
   if (/\b(what(?:'s| is) next|next (?:turn|instruction|step|direction)|what do i do next)\b/.test(t)) return { type: 'navinfo', arg: 'next' };
   if (/\b(?:am i|are we) (?:on|going|walking|heading) (?:the )?(?:right|correct) (?:route|way|path|direction|track)\b|\bam i on (?:the )?route\b/.test(t)) return { type: 'navinfo', arg: 'onroute' };
+  // Trust (7 Nov): why the last warning was given, and whether everything is working
+  if (/^why\??$|\bwhy (?:did you|have you) (?:say|said|warn|tell)|\bwhy (?:that|this) (?:warning|alert)|\bexplain (?:that|the last|your last)/.test(t)) return { type: 'why' };
+  if (/\b(are you working|is everything working|self check|system check|check yourself|run a check)\b/.test(t)) return { type: 'selfcheck' };
   // The walker reports a wrong alert: logged for tuning ("that was wrong", "false alarm", "there is no car")
   if (/\b(that was wrong|that's wrong|thats wrong|wrong alert|false alarm|there is no (?:car|bus|person|one|thing)|nothing there)\b/.test(t)) return { type: 'wrong' };
   if (/\bquiet mode\b/.test(t)) return { type: 'level', arg: 'quiet' };
@@ -123,6 +126,7 @@ export const HELP_TEXT =
   'Say what is in front of me, where am I, or battery. Say is there a bench, or find a bin, to look for something. ' +
   'Say save this place as home, and later, take me home. ' +
   'On a route, say how far, what is next, or am I on the right route. If a warning was wrong, say that was wrong. ' +
+  'Say why did you say that, to hear the reason for the last warning, or are you working, to check the app. ' +
   'Say use miles, use metres or use steps for distances, and my step is, with a length, to set your step. ' +
   'Say save my home address as, and the address, to set home from an address. ' +
   'Say slower or faster to change how fast I speak. Say share my location to send where you are to someone. If you are lost, say I am lost. ' +

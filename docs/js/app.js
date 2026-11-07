@@ -18,6 +18,7 @@ import { NoteStore, crossingAdvice } from './notes.js';
 import { reverseLookup, describePlace, PlaceStore, normaliseName } from './places.js';
 import { BatteryWatch } from './battery.js';
 import { Speaker, stepRate, RATES } from './speech.js';
+import { explainAlert, selfCheckText } from './trustcheck.js';
 import { parseCommand, HELP_TEXT } from './commands.js';
 import { Navigator, makeProviders, locationMessage, haversine, roundMetres } from './nav.js';
 import { looksLikeEcho, isBargeIn } from './barge.js';
@@ -219,8 +220,16 @@ function logEvent(type, detail) {
 
 // Step C: a class the walker never hears about yet, straight from the raw model output (not the tracker or alert
 // engine, so this cannot change anything that is actually spoken). Watch the session log for false alarms.
+// At most once per class every 2 s, so a traffic light in view for a minute cannot push the start of a walk out of the
+// 2000-event log.
+const watchLoggedAt = new Map();
 function logWatchClasses(dets, names) {
-  for (const d of filterAllowed(dets, names)) logEvent('watch-detect', `${d.name}|${(d.score ?? 0).toFixed(2)}`);
+  const now = performance.now();
+  for (const d of filterAllowed(dets, names)) {
+    if (now - (watchLoggedAt.get(d.name) ?? -1e9) < 2000) continue;
+    watchLoggedAt.set(d.name, now);
+    logEvent('watch-detect', `${d.name}|${(d.score ?? 0).toFixed(2)}`);
+  }
 }
 
 // ---------- camera ----------
@@ -382,6 +391,7 @@ async function loop() {
       speaker.speak(alert.text, alert.urgent ? 'urgent' : 'normal');
       logEvent('alert', `${alert.priority}|${alert.text}`);
       state.lastAlertText = alert.text;
+      state.lastAlert = alert;
     }
     checkCamera(t);
     if (DEBUG) drawOverlay(tracks, width, height);
@@ -576,6 +586,23 @@ async function start() {
   lockScreen();
   loop();
   loadLanes();
+  setTimeout(() => runSelfCheck(wasFirst), 2500); // after the welcome; on later starts only problems are spoken
+}
+
+// What is and is not working, in one line (trust: silence must never be mistaken for "all fine").
+async function runSelfCheck(full) {
+  let battery = null, charging = false;
+  try { if (navigator.getBattery) { const b = await navigator.getBattery(); battery = b.level; charging = b.charging; } } catch (_) { /* not available */ }
+  const fixAge = window.__lastFix ? Date.now() - window.__lastFix.t : Infinity;
+  const text = selfCheckText({
+    camera: state.running && !!(el.video && el.video.srcObject),
+    location: state.locProblem ? false : (fixAge < 120000 ? true : null),
+    internet: navigator.onLine,
+    listening: WANT_CLOUD_STT ? (cloudOff ? false : true) : null,
+    battery, charging,
+  }, full);
+  logEvent('selfcheck', text || 'ok');
+  if (text) say(text, 'status');
 }
 
 function stopInternal() {
@@ -943,6 +970,8 @@ function handleTranscript(text) {
     case 'start': start(); break;
     case 'stop': stop(); break;
     case 'repeat': repeat(); break;
+    case 'why': say(explainAlert(state.lastAlert), 'status'); logEvent('why', state.lastAlertText || ''); break;
+    case 'selfcheck': runSelfCheck(true); break;
     case 'read': readText(); break;
     case 'help': say(HELP_TEXT, 'status'); break;
     case 'cancel': if (!navigator_.cancel()) say('No navigation is active.', 'status'); break;
