@@ -4,7 +4,7 @@ import { CONFIG, MODELS, pickModel, canonical, SECONDARY, TERTIARY, WATCH_CLASSE
 import { filterAllowed, mergeLanes, confirmSlow } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
-import { AlertEngine, LEVELS, inCorridor, directionOf } from './alerts.js';
+import { AlertEngine, LEVELS, inCorridor, directionOf, VEHICLES } from './alerts.js';
 import { Haptics } from './haptics.js';
 import { RouteStore, RouteRecorder, routeFromPoints, pathLength } from './routes.js';
 import { Cues } from './cues.js';
@@ -30,6 +30,7 @@ import { OnlineWatch, updateNotice } from './pwa.js';
 import { PerfMeter, SlowMode, WalkStats, summaryText } from './perf.js';
 import { routeOutput, OUTPUT_MODES, OUTPUT_NAMES, outputText } from './output.js';
 import { hazardCandidates } from './hazardalerts.js';
+import { floorDistance, pitchFromBeta, parseHeight, cameraHeightM, PitchCalibrator } from './floordist.js';
 
 const params = new URLSearchParams(location.search);
 // Listening: Google Cloud Speech-to-Text, tap to talk (default), or Chrome's own always-on recogniser (?stt=chrome, and the
@@ -76,6 +77,20 @@ const perf = new PerfMeter();
 const slowMode = new SlowMode();
 const walk = new WalkStats();
 const PERF_EVERY_MS = 30000;
+// Floor-based distance (Package F). ?dist=floor speaks it (not for vehicles: their warnings keep the measured box distance
+// and speed); without the flag it is only logged next to the box estimate for every alert.
+const DIST_FLOOR = params.get('dist') === 'floor';
+const DEFAULT_HEIGHT_CM = 170;
+let lastBeta = null;
+const calibrator = new PitchCalibrator();
+const floorCal = (() => { try { return JSON.parse(localStorage.getItem('va.floor')) || {}; } catch (_) { return {}; } })();
+function saveFloorCal() { try { localStorage.setItem('va.floor', JSON.stringify(floorCal)); } catch (_) { /* storage can be unavailable */ } }
+window.addEventListener('deviceorientation', (e) => { lastBeta = e.beta; calibrator.add(e.beta, performance.now()); });
+function floorFor(tr, frameH) {
+  const pitch = pitchFromBeta(lastBeta) ?? floorCal.pitch ?? null; // live tilt first; the calibrated one if there is no sensor
+  return floorDistance({ yBottom: tr.box.y2, frameH, pitchDeg: pitch, camHeightM: cameraHeightM(floorCal.heightCm || DEFAULT_HEIGHT_CM, CONFIG.floor.heightShare),
+    vfovDeg: CONFIG.floor.vfovDeg, edgeMargin: CONFIG.floor.edgeMargin, minAngleDeg: CONFIG.floor.minAngleDeg });
+}
 let fpsTick = { t: 0, frames: 0 };
 const batteryNow = () => (battery && battery.battery ? { level: battery.battery.level, charging: !!battery.battery.charging } : { level: null, charging: false });
 const USE_SLOW = params.get('lane') !== 'off' && MODEL_KEY !== SECONDARY.model;
@@ -450,7 +465,8 @@ async function loop() {
     const tracks = tracker.update(dets, t, width, height);
     state.scene = { tracks, w: width, h: height, t };
     const hzFresh = hazard.confirmed && hazard.t != null && t - hazard.t <= HAZARD.maxAgeMs;
-    const alert = engine.next(tracks, width, height, t, hzFresh ? hazardCandidates(hazard.confirmed, width, height, HAZARD.speakClasses, { corridor: CONFIG.corridor }) : []);
+    const forEngine = DIST_FLOOR ? tracks.map((tr) => (VEHICLES.has(tr.name) ? tr : { ...tr, dist: floorFor(tr, height) ?? tr.dist })) : tracks;
+    const alert = engine.next(forEngine, width, height, t, hzFresh ? hazardCandidates(hazard.confirmed, width, height, HAZARD.speakClasses, { corridor: CONFIG.corridor }) : []);
     if (alert && (alert.urgent || performance.now() > state.talkUntil)) { // routine alerts wait while the walker is speaking
       const route = routeOutput(alert.urgent ? 'urgent' : 'normal', out); // vibration only: buzz instead, but vehicles are still spoken
       if (alert.urgent) cues.play('urgent');
@@ -459,6 +475,8 @@ async function loop() {
       else { el.last.textContent = alert.text; state.lastSpoken = alert.text; }
       logEvent('alert', `${alert.priority}|${alert.text}`);
       walk.alert(alert.text, alert.priority);
+      const at = tracks.find((x) => x.id === alert.trackId);
+      if (at) logEvent('alert-dist', JSON.stringify({ text: alert.text, name: at.name, box: at.dist == null ? null : +at.dist.toFixed(2), floor: (() => { const f = floorFor(at, height); return f == null ? null : +f.toFixed(2); })(), used: DIST_FLOOR && !VEHICLES.has(at.name) ? 'floor' : 'box', pitch: pitchFromBeta(lastBeta) }));
       state.lastAlertText = alert.text;
       state.lastAlert = alert;
     }
@@ -812,6 +830,27 @@ function describeNow() {
   state.lastSpoken = text;
 }
 
+// "Calibrate" (Package F): average the phone's tilt over 2 seconds, then ask the walker's height once.
+let calibrating = false;
+function calibrate() {
+  if (calibrating) return;
+  if (!('DeviceOrientationEvent' in window)) { say('This phone cannot tell me how it is tilted, so I cannot calibrate.', 'status'); return; }
+  calibrating = true;
+  say('Hold the phone at chest height, pointing straight ahead, and keep still.', 'status');
+  setTimeout(() => calibrator.start(performance.now()), 3000);
+  setTimeout(() => {
+    calibrating = false;
+    const pitch = calibrator.done();
+    if (pitch == null) { say('I could not read the phone\'s tilt. Try again, or check the browser can use motion sensors.', 'status'); return; }
+    floorCal.pitch = pitch; saveFloorCal(); logEvent('calibrate', JSON.stringify({ pitch }));
+    const done = () => say(`Calibrated. The phone is tilted about ${Math.round(Math.abs(pitch))} degrees ${pitch >= 0 ? 'down' : 'up'}.`, 'status');
+    if (floorCal.heightCm) { done(); return; }
+    dialogue.askValue('How tall are you, in feet and inches or centimetres?', parseHeight, (cm) => {
+      floorCal.heightCm = cm; saveFloorCal(); logEvent('height', String(cm)); done();
+    }, 'Say your height, for example, 5 foot 8, or 172 centimetres.');
+  }, 5200);
+}
+
 // ---------- recording a walk and following it again ----------
 function startRouteRecording(rawName) {
   if (routeRecorder.active) { say('Already recording. Say stop recording when you have finished.', 'status'); return; }
@@ -1053,7 +1092,7 @@ function bargeIn(text) {
 function handleTranscript(text) {
   logEvent('heard', text);
   const inTalk = performance.now() < state.talkUntil;
-  const answering = dialogue.waiting && (dialogue.state === 'where' || !!parseAnswer(text).type); // an answer to our question always counts, even over our own voice
+  const answering = dialogue.waiting && (dialogue.state === 'where' || dialogue.state === 'value' || !!parseAnswer(text).type); // an answer to our question always counts, even over our own voice
   if (!inTalk && !answering && isEcho(text)) { logEvent('ignored-echo', text); return; }
   addConvo('You', text);
   if (answering) speaker.skip(); // stop reading the question out
@@ -1068,6 +1107,7 @@ function handleTranscript(text) {
     case 'save': savePlace(cmd.arg); break;
     case 'cross': say(state.running && state.scene ? crossingAdvice(state.scene.tracks) : CROSSING_TEXT, 'status'); break; // never a colour, never "safe"
     case 'limits': say(LIMITS_TEXT, 'status'); state.lastSpoken = LIMITS_TEXT; break;
+    case 'calibrate': calibrate(); break;
     case 'privacy': say(PRIVACY_TEXT, 'status'); state.lastSpoken = PRIVACY_TEXT; break;
     case 'walkSummary': { const t = summaryText(walk.summary(Date.now())); say(t, 'status'); state.lastSpoken = t; break; }
     case 'noteAdd': { const r = notes.add(cmd.arg); say(r ? `Noted: ${r.text}.${r.persisted ? '' : ' I could only keep it until you close the page.'}` : 'What should I remember?', 'status'); break; }
