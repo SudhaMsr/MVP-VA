@@ -500,6 +500,7 @@ function startRecording() {
     el.saveRec.textContent = `Save recording (${(recBlob.size / 1048576).toFixed(1)} MB)`;
   };
   recorder.start(1000);
+  logEvent('record-start', recMime); // time zero of the video, so a reviewer can line the log up with it (tools/score_walk.mjs)
 }
 
 function stopRecording() {
