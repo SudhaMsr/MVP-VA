@@ -133,7 +133,7 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
 - **Route preview:** "I do not know of any road crossings on it." and the crossing count are gone; the per-crossing warning at the
   step is unchanged.
 - **Wrong place:** "Lakeside" matched Lakeside Shopping Centre, Thurrock ("about 49 hours"). Routes over `MAX_WALK_M` (10 km) are
-  not started; the walker is asked for the postcode.
+  never refused: the app says the distance and asks yes or no before starting.
 - **"Are there cars in front of me":** where-words are stripped before the object lookup (it said "I cannot recognise cars in front
   of me").
 - Tests: `tests/field_test_nov8.test.js`.

@@ -145,10 +145,13 @@ export class Dialogue {
     const route = await this.nav.plan(pos, dest);
     if (!route) { if (!this.nav.active) this.say('I could not find a walking route there.', 'status'); return this._set('idle'); }
     if (!(route.distance >= 25)) { this.say(`You are already at ${dest.name}, or very close to it.`, 'status'); return this._set('idle'); }
-    // A match hours away is almost always the wrong place (a same-named shop in another town). Do not start; ask for more.
+    // A long way off may be the wrong place (a same-named shop in another town), or where the walker really wants to go.
+    // Say how far and let them choose; never refuse and never call it too far.
     if (route.distance > MAX_WALK_M) {
-      this.say(`The ${dest.name} I found is ${roundMetres(route.distance)} away, too far to walk, so I have not started. Say the address with the postcode, or a nearby street.`, 'status');
-      return this._set('idle');
+      this._ask(`${dest.name} is ${roundMetres(route.distance)} away. Shall I start? Say yes or no.`);
+      this._set('confirm', [{ label: 'Yes, start', value: 'yes' }, { label: 'No', value: 'no' }]);
+      this.pending = { pos, dest, route };
+      return;
     }
     this.nav.begin(pos, dest, route, true, false);
   }

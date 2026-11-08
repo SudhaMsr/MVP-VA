@@ -65,13 +65,23 @@ function dialogueWith(route) {
   return { d: new Dialogue({ say: (t) => said.push(t), nav, onPrompt: () => {}, timeoutMs: 50 }), said, calls };
 }
 
-test('a place too far to walk is not started, and the walker is asked for the postcode', async () => {
+test('a place a long way off is not refused: the walker hears how far and chooses', async () => {
   setUnits('steps');
   const { d, said, calls } = dialogueWith({ distance: 230000, duration: 176000, steps: [{ text: 'walk' }] });
   await d.navigateTo('lakeside');
-  assert.equal(calls.length, 0, 'no route started');
-  assert.match(said.at(-1), /too far to walk, so I have not started\. Say the address with the postcode/);
-  assert.match(said.at(-1), /miles away/);
+  assert.equal(calls.length, 0, 'not started before the walker answers');
+  assert.match(said.at(-1), /^Lakeside Shopping Centre, W Thurrock Way is .+ miles away\. Shall I start\? Say yes or no\.$/);
+  assert.doesNotMatch(said.join(' '), /too far|cannot|can't/i);
+  assert.equal(d.answer('yes'), true);
+  assert.equal(calls.length, 1, 'yes starts the route');
+});
+
+test('a no to a far place cancels without starting', async () => {
+  const { d, said, calls } = dialogueWith({ distance: 230000, duration: 176000, steps: [{ text: 'walk' }] });
+  await d.navigateTo('lakeside');
+  d.answer('no');
+  assert.equal(calls.length, 0);
+  assert.match(said.at(-1), /cancelled/);
 });
 
 test('a place within walking distance still starts at once', async () => {
