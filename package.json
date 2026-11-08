@@ -5,7 +5,8 @@
   "scripts": {
     "test": "node --test",
     "check:offline": "node tools/offline_check.mjs",
-    "check:a11y": "node tools/a11y_check.mjs"
+    "check:a11y": "node tools/a11y_check.mjs",
+    "check:hazard": "node tools/phase4/check_hazard_model.mjs"
   },
   "devDependencies": {
     "playwright": "1.65.0",

@@ -44,6 +44,7 @@ export const LEVELS = ['quiet', 'normal', 'detailed'];
 // normal: everything except those static things.   detailed: everything.
 export function levelAllows(a, level, quietNearMetres = 2) {
   if (level === 'detailed' || a.priority <= 1) return true;
+  if (a.kind === 'hazard') return true; // graduated hazard-lane classes: already limited to things near and in the path
   if (level === 'normal') return a.kind !== 'static';
   return a.kind === 'moving' && a.dir === 'ahead' && a.d != null && a.d < quietNearMetres; // quiet
 }
@@ -158,10 +159,12 @@ export class AlertEngine {
   // it is spoken again only if it gets clearly closer, or, for fall hazards and red lights, as a reminder every
   // reminderMs. An encounter ends when the object has been out of view for forgetMs. Dangerous vehicles (priority 0) keep
   // the old rule: repeats wait longer each time. Routine alerts are also capped per 10 s and per minute; urgent ones are exempt.
-  next(tracks, frameW, frameH, tMs) {
+  // extra: ready-made candidates from other sources (the hazard lane's graduated classes, Package E). They go through the
+  // same priority order, encounter memory and talk budget as everything else.
+  next(tracks, frameW, frameH, tMs, extra = []) {
     const c = this.cfg;
     const advice = this.free.update(tracks, frameW, frameH); // every frame, so the smoothing keeps up
-    let cands = this.candidates(tracks, frameW, frameH);
+    let cands = this.candidates(tracks, frameW, frameH).concat((extra || []).filter((a) => levelAllows(a, this.level, c.quietNearMetres)));
     // Busy pavement (7 Nov): three or more people close in the walking path. Naming each one, each with "No clear way.
     // Stop.", was stressful and wrong (people move aside). Say it once as a crowd; keep the single, real warning for
     // someone very close straight ahead. Set crowdMin to 0 to turn this off.

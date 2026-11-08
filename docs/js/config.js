@@ -66,12 +66,15 @@ export const TERTIARY = {
 };
 
 // Hazard lane (7 Nov): an open-vocabulary detector (YOLOE, set by text to RNIB's obstacle list; no training) made by
-// tools/phase4/export_hazard_model.py. Optional: the app runs without the file. LOG ONLY: every sighting is a
-// 'hazard-detect' session-log event, and "is there an e-scooter?" can answer from it with a hedge. Nothing here is spoken
-// as a warning until a class passes tools/phase4/eval_hazard_model.py and the walk gate (tools/score_walk.mjs).
+// tools/phase4/export_hazard_model.py. Optional: the app runs without the file. Every sighting is a 'hazard-detect'
+// session-log event, and "is there an e-scooter?" can answer from it with a hedge. A class is spoken as a warning only when
+// it is in speakClasses, which needs it to pass tools/phase4/graduate.mjs (and then the walk gate, tools/score_walk.mjs).
 // names must match tools/phase4/hazard_vocab.json (a test checks).
 export const HAZARD = {
-  file: 'models/hazard320.onnx', size: 320, everyMs: 4000, conf: 0.35, maxAgeMs: 6000, speak: false,
+  file: 'models/hazard320.onnx', size: 320, everyMs: 4000, conf: 0.35, maxAgeMs: 6000,
+  // Package E: the classes allowed to speak, each only after it graduates (tools/phase4/graduate.mjs on hazard_eval.json).
+  // Empty until there is an evaluation: then everything from this lane stays log and on-request only.
+  speakClasses: [],
   names: ['e_scooter', 'bicycle', 'a_board', 'bollard', 'wheelie_bin', 'rubbish_bag', 'traffic_cone', 'road_barrier', 'low_branch',
     'kerb', 'stairs', 'pothole', 'ped_signal', 'bench', 'lamp_post'],
 };

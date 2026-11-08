@@ -9,7 +9,7 @@ import { findObject, objectNames } from '../docs/js/describe.js';
 test('config names match the vocabulary the export script uses, in order', () => {
   const vocab = JSON.parse(fs.readFileSync(new URL('../tools/phase4/hazard_vocab.json', import.meta.url))).classes.map((c) => c.name);
   assert.deepEqual(HAZARD.names, vocab);
-  assert.equal(HAZARD.speak, false, 'nothing from this lane is spoken as a warning until it passes evaluation');
+  assert.deepEqual(HAZARD.speakClasses, [], 'nothing from this lane is spoken as a warning until a class graduates (Package E)');
 });
 
 test('decode reads a YOLOE seg output (4 + classes + 32 mask channels) by ignoring the mask channels', () => {
