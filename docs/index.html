@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#000000">
+<meta name="description" content="A voice-first walking aid for blind and partially sighted people.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Vision Assist</title>
 <style>
   :root { --bg:#000; --fg:#fff; --accent:#ffd400; --ok:#1fd655; --danger:#ff5a5a; }
@@ -90,7 +97,7 @@
       <button id="recordBtn" type="button" aria-pressed="false">Record session: off</button>
       <button id="saveRecBtn" type="button" hidden disabled aria-label="Save the recording and log" style="min-height:64px;font-size:1.1rem">Save recording</button>
       <button id="logBtn" type="button" aria-label="Save session log" style="min-height:56px;font-size:1rem">Save session log</button>
-      <p class="small">Version: <span id="ver">cbfa7e3</span></p>
+      <p class="small">Version: <span id="ver">895c620</span></p>
     </details>
   </details>
 
@@ -108,50 +115,58 @@
 </main>
 
 <script>
-  // Opt-in speed experiment: ?mt=1 registers a service worker that enables multi-threaded detection.
+  // Offline app shell (docs/sw.js): the app installs to the home screen and starts with no signal. The same worker adds the
+  // cross-origin isolation headers for the opt-in speed experiment (?mt=1: multi-threaded detection), which needs one
+  // reload the first time. That reload only ever happens here, as the page opens, never while walking.
   try {
-    if (/[?&]mt=1/.test(location.search) && !self.crossOriginIsolated && 'serviceWorker' in navigator
-        && !sessionStorage.getItem('coiTried')) {
-      sessionStorage.setItem('coiTried', '1');
-      navigator.serviceWorker.register('coi-sw.js').then(() => navigator.serviceWorker.ready)
-        .then(() => location.reload()).catch(() => {});
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(() => {});
+      if (/[?&]mt=1/.test(location.search) && !self.crossOriginIsolated && !sessionStorage.getItem('coiTried')) {
+        sessionStorage.setItem('coiTried', '1');
+        const reload = () => location.reload();
+        navigator.serviceWorker.ready.then(() => {
+          if (navigator.serviceWorker.controller) reload();
+          else navigator.serviceWorker.addEventListener('controllerchange', reload, { once: true });
+        }).catch(() => {});
+      }
     }
   } catch (e) { /* ignore */ }
 </script>
 <!--stamp-->
 <script type="importmap">{"imports": {
-    "./js/alerts.js": "./js/alerts.js?v=cbfa7e3",
-    "./js/app.js": "./js/app.js?v=cbfa7e3",
-    "./js/barge.js": "./js/barge.js?v=cbfa7e3",
-    "./js/battery.js": "./js/battery.js?v=cbfa7e3",
-    "./js/camcheck.js": "./js/camcheck.js?v=cbfa7e3",
-    "./js/cloudstt.js": "./js/cloudstt.js?v=cbfa7e3",
-    "./js/commands.js": "./js/commands.js?v=cbfa7e3",
-    "./js/config.js": "./js/config.js?v=cbfa7e3",
-    "./js/cues.js": "./js/cues.js?v=cbfa7e3",
-    "./js/depth.js": "./js/depth.js?v=cbfa7e3",
-    "./js/describe.js": "./js/describe.js?v=cbfa7e3",
-    "./js/detector.js": "./js/detector.js?v=cbfa7e3",
-    "./js/dialogue.js": "./js/dialogue.js?v=cbfa7e3",
-    "./js/freespace.js": "./js/freespace.js?v=cbfa7e3",
-    "./js/haptics.js": "./js/haptics.js?v=cbfa7e3",
-    "./js/lanes.js": "./js/lanes.js?v=cbfa7e3",
-    "./js/modelcache.js": "./js/modelcache.js?v=cbfa7e3",
-    "./js/nav.js": "./js/nav.js?v=cbfa7e3",
-    "./js/notes.js": "./js/notes.js?v=cbfa7e3",
-    "./js/places.js": "./js/places.js?v=cbfa7e3",
-    "./js/privacy.js": "./js/privacy.js?v=cbfa7e3",
-    "./js/reader.js": "./js/reader.js?v=cbfa7e3",
-    "./js/routes.js": "./js/routes.js?v=cbfa7e3",
-    "./js/safetext.js": "./js/safetext.js?v=cbfa7e3",
-    "./js/speech.js": "./js/speech.js?v=cbfa7e3",
-    "./js/tracker.js": "./js/tracker.js?v=cbfa7e3",
-    "./js/trustcheck.js": "./js/trustcheck.js?v=cbfa7e3",
-    "./js/units.js": "./js/units.js?v=cbfa7e3"
+    "./js/alerts.js": "./js/alerts.js?v=895c620",
+    "./js/app.js": "./js/app.js?v=895c620",
+    "./js/barge.js": "./js/barge.js?v=895c620",
+    "./js/battery.js": "./js/battery.js?v=895c620",
+    "./js/camcheck.js": "./js/camcheck.js?v=895c620",
+    "./js/cloudstt.js": "./js/cloudstt.js?v=895c620",
+    "./js/commands.js": "./js/commands.js?v=895c620",
+    "./js/config.js": "./js/config.js?v=895c620",
+    "./js/cues.js": "./js/cues.js?v=895c620",
+    "./js/depth.js": "./js/depth.js?v=895c620",
+    "./js/describe.js": "./js/describe.js?v=895c620",
+    "./js/detector.js": "./js/detector.js?v=895c620",
+    "./js/dialogue.js": "./js/dialogue.js?v=895c620",
+    "./js/freespace.js": "./js/freespace.js?v=895c620",
+    "./js/haptics.js": "./js/haptics.js?v=895c620",
+    "./js/lanes.js": "./js/lanes.js?v=895c620",
+    "./js/modelcache.js": "./js/modelcache.js?v=895c620",
+    "./js/nav.js": "./js/nav.js?v=895c620",
+    "./js/notes.js": "./js/notes.js?v=895c620",
+    "./js/places.js": "./js/places.js?v=895c620",
+    "./js/privacy.js": "./js/privacy.js?v=895c620",
+    "./js/pwa.js": "./js/pwa.js?v=895c620",
+    "./js/reader.js": "./js/reader.js?v=895c620",
+    "./js/routes.js": "./js/routes.js?v=895c620",
+    "./js/safetext.js": "./js/safetext.js?v=895c620",
+    "./js/speech.js": "./js/speech.js?v=895c620",
+    "./js/tracker.js": "./js/tracker.js?v=895c620",
+    "./js/trustcheck.js": "./js/trustcheck.js?v=895c620",
+    "./js/units.js": "./js/units.js?v=895c620"
 }}</script>
 <!--/stamp-->
 <script>window.ORT_BASE = new URL('vendor/ort/', location.href).href;</script>
 <script src="vendor/ort/ort.min.js" onerror="window.ORT_BASE='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/';var s=document.createElement('script');s.src=window.ORT_BASE+'ort.min.js';document.head.appendChild(s);"></script>
-<script type="module" src="js/app.js?v=cbfa7e3"></script>
+<script type="module" src="js/app.js?v=895c620"></script>
 </body>
 </html>

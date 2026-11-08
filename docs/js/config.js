@@ -17,12 +17,21 @@ export const ROD2_NAMES = [...ROD_NAMES, 'Bollard', 'Downstairs', 'Upstairs', 'R
 export const COCO_NAMES = ['person','bicycle','car','motorcycle','airplane','bus','train','truck','boat','traffic light','fire hydrant','stop sign','parking meter','bench','bird','cat','dog','horse','sheep','cow','elephant','bear','zebra','giraffe','backpack','umbrella','handbag','tie','suitcase','frisbee','skis','snowboard','sports ball','kite','baseball bat','baseball glove','skateboard','surfboard','tennis racket','bottle','wine glass','cup','fork','knife','spoon','bowl','banana','apple','sandwich','orange','broccoli','carrot','hot dog','pizza','donut','cake','chair','couch','potted plant','bed','dining table','toilet','tv','laptop','mouse','remote','keyboard','cell phone','microwave','oven','toaster','sink','refrigerator','book','clock','vase','scissors','teddy bear','hair drier','toothbrush'];
 export const CLASSES = WOTR_NAMES; // kept for older imports
 
+// sizes: the input sizes whose .onnx file is on the site. best416, rod416 and rod640 were removed on 7 Nov (Package B,
+// about 38 MB nobody loaded); they are in git history at commit 352ec39 (see HANDOFF.md).
 export const MODELS = {
-  wotr: { names: WOTR_NAMES, url: (size) => `models/best${size}.onnx` },
-  rod: { names: ROD_NAMES, url: (size) => `models/rod${size}.onnx` },
-  rod2: { names: ROD2_NAMES, url: (size) => `models/rod2_${size}.onnx` },
-  coco: { names: COCO_NAMES, url: (size) => `models/coco${size}.onnx` },
+  wotr: { names: WOTR_NAMES, url: (size) => `models/best${size}.onnx`, sizes: [320] },
+  rod: { names: ROD_NAMES, url: (size) => `models/rod${size}.onnx`, sizes: [] },
+  rod2: { names: ROD2_NAMES, url: (size) => `models/rod2_${size}.onnx`, sizes: [416] },
+  coco: { names: COCO_NAMES, url: (size) => `models/coco${size}.onnx`, sizes: [320] },
 };
+// ?model= and ?size= for supervisors: only a model and size whose file exists; anything else falls back to the default.
+export function pickModel(modelParam, sizeParam, fallbackSize) {
+  const key = MODELS[modelParam] && MODELS[modelParam].sizes.length ? modelParam : DEFAULT_MODEL;
+  const want = Number(sizeParam) || fallbackSize;
+  const sizes = MODELS[key].sizes;
+  return { key, size: sizes.includes(want) ? want : sizes.includes(fallbackSize) ? fallbackSize : sizes[0] };
+}
 export const DEFAULT_MODEL = 'wotr'; // switch to 'rod' once the rod*.onnx files are in docs/models
 
 // Different datasets name the same thing differently; the alert code only sees these names.
@@ -77,7 +86,7 @@ export const WATCH_CLASSES = {
 };
 
 export const CONFIG = {
-  // Input size: 320 is faster, 416 sees smaller objects. Override with ?size=416 (and ?model=rod or ?model=wotr)
+  // Input size of the main model. ?model=rod2 (416) is the only other main model on the site now; see pickModel.
   inputSize: 320,
   confThreshold: 0.45,
   nmsIou: 0.5,
