@@ -74,7 +74,7 @@ export function instructionText(step) {
   if (step.text) return step.text;
   const m = step.maneuver || {};
   const name = step.name ? ` onto ${step.name}` : '';
-  if (m.type === 'arrive') return 'you have arrived';
+  if (m.type === 'arrive') return 'your destination'; // never "you have arrived": GPS can be 10 to 50 m out (Package G)
   if (m.type === 'depart') return step.name ? `walk along ${step.name}` : 'walk ahead';
   if (m.type === 'roundabout' || m.type === 'rotary') return `at the roundabout, take exit ${m.exit ?? 'ahead'}${name}`;
   const verb = MOD[m.modifier] || 'continue';
@@ -214,12 +214,35 @@ export async function googleRoute(from, to, fetchFn, key) {
       path: (s.polyline?.geoJsonLinestring?.coordinates || []).map(([lon, lat]) => ({ lat, lon })),
     };
   });
-  steps.push({ distance: 0, name: '', text: 'you have arrived', maneuver: { type: 'arrive', location: [to.lon, to.lat] }, at: { lat: to.lat, lon: to.lon }, path: [] });
+  steps.push({ distance: 0, name: '', text: 'your destination', maneuver: { type: 'arrive', location: [to.lon, to.lat] }, at: { lat: to.lat, lon: to.lon }, path: [] });
   return { distance: r.distanceMeters || steps.reduce((a, s) => a + (s.distance || 0), 0), duration: parseInt(r.duration, 10) || 0, steps };
 }
 
+// Package G: what the walker hears when Google cannot be used (quota, key refused, no connection) and OpenStreetMap takes
+// over. Said at most once a minute: one request can fall back twice (place search, then route).
+export const FALLBACK_TEXT = 'Google directions are not available, using backup maps.';
+// Arrival: GPS can be 10 to 50 m out, so the app never claims the walker has arrived.
+export const ARRIVE_TEXT = 'You should be near your destination. It may be a few steps either way.';
+// Weak GPS: accuracy worse than weakMetres for weakMs.
+export const WEAK_GPS_TEXT = 'GPS is weak here, so directions may be late.';
+
+// "About 6 minutes. This route crosses 2 roads." Short walks are said in steps (or the walker's units) instead of minutes.
+// OSRM does not report every crossing (see crossesRoad), so with none found it says it does not know of any, not "none".
+export function routePreview(route) {
+  const n = (route.steps || []).filter(crossesRoad).length;
+  const how = route.distance < 250 ? cap(roundMetres(route.distance)) : cap(minutesText(route.duration || route.distance / 1.2));
+  const cross = n === 0 ? 'I do not know of any road crossings on it.' : `This route crosses ${n} ${n === 1 ? 'road' : 'roads'}.`;
+  return `${how}. ${cross}`;
+}
+
 // Google first (better place search, street names), OpenStreetMap as the fallback so navigation never goes silent.
-export function makeProviders({ googleKey, fetchFn = (...a) => fetch(...a), onFallback = () => {} }) {
+export function makeProviders({ googleKey, fetchFn = (...a) => fetch(...a), onFallback = () => {}, notify = null, now = () => Date.now() }) {
+  let notifiedAt = -Infinity;
+  const fellBack = onFallback;
+  onFallback = (what, e) => {
+    fellBack(what, e);
+    if (notify && now() - notifiedAt >= 60000) { notifiedAt = now(); notify(FALLBACK_TEXT); }
+  };
   return {
     async geocode(query, pos) {
       if (googleKey) {
@@ -265,9 +288,9 @@ export class Navigator {
     this.say('I lost your location signal.', 'status');
   }
 
-  constructor({ say, fetchFn = (...a) => fetch(...a), providers, getPosition, watch, unwatch, warnMetres = 40, nowMetres = 8, offRouteMetres = 40, reassureMs = 90000, reassureMetres = 80, now = () => Date.now(), trace = null }) {
+  constructor({ say, fetchFn = (...a) => fetch(...a), providers, getPosition, watch, unwatch, warnMetres = 40, nowMetres = 8, offRouteMetres = 40, reassureMs = 90000, reassureMetres = 80, weakMetres = 25, weakMs = 10000, now = () => Date.now(), trace = null }) {
     this.providers = providers || makeProviders({ fetchFn });
-    Object.assign(this, { say, fetchFn, getPosition, watch, unwatch, warnMetres, nowMetres, offRouteMetres, reassureMs, reassureMetres, now, trace });
+    Object.assign(this, { say, fetchFn, getPosition, watch, unwatch, warnMetres, nowMetres, offRouteMetres, reassureMs, reassureMetres, weakMetres, weakMs, now, trace });
     this.say = (t, k) => { this.lastSayAt = this.now(); say(t, k); }; // remember when we last spoke, for reassurance
     this.active = false;
     this.destination = null;
@@ -314,12 +337,12 @@ export class Navigator {
 
   _begin(pos, dest, route, first) {
     this.destination = dest; this.route = route; this.crossSaid = new Set(); this.idx = 1; this.warned = -1; this.nowSaid = -1; this.offCount = 0;
-    this.lastReroute = Date.now(); this.lastSayAt = this.now(); this.lastFixAt = this.now(); this.silentSaid = false; this.weakSince = 0; this.weakSaid = false; this.active = true; this.oriented = false; this.startFix = null; this.large = !!dest.large; this.source = route.source;
+    this.lastReroute = Date.now(); this.lastSayAt = this.now(); this.lastFixAt = this.now(); this.silentSaid = false; this.weakSince = null; this.weakSaid = false; this.weakNow = false; this.nowPending = -1; this.active = true; this.oriented = false; this.startFix = null; this.large = !!dest.large; this.source = route.source;
     const first0 = route.steps[0];
     this.say(first && this.brief
-      ? `Starting. ${cap(instructionText(first0))} for ${roundMetres(first0.distance)}. I will tell you if you need to turn.`
+      ? `${routePreview(route)} Starting. ${cap(instructionText(first0))} for ${roundMetres(first0.distance)}. I will tell you if you need to turn.`
       : first
-      ? `Going to ${dest.name}. ${roundMetres(route.distance)}, ${minutesText(route.duration)}.${this.large && first ? ' This is a large site, so I am heading for its middle. For a particular building, say its name.' : ''} ${route.steps.some((x) => /stairs|steps/i.test(x.text || '')) ? 'The route includes stairs. ' : ''}First, ${instructionText(first0)} for ${roundMetres(first0.distance)}.`
+      ? `Going to ${dest.name}. ${routePreview(route)}${this.large && first ? ' This is a large site, so I am heading for its middle. For a particular building, say its name.' : ''} ${route.steps.some((x) => /stairs|steps/i.test(x.text || '')) ? 'The route includes stairs. ' : ''}First, ${instructionText(first0)} for ${roundMetres(first0.distance)}.`
       : `New route. ${instructionText(first0)} for ${roundMetres(first0.distance)}.`, 'status');
     const c0 = this._crossing(first0); if (c0) this.say(c0.trim(), 'nav');
     this.watchId = this.watch((p) => this.onPosition(p), () => this.locationLost());
@@ -347,13 +370,18 @@ export class Navigator {
     const t = this.now();
     this.lastFixAt = t; this.silentSaid = false;
     if (this.lostSaid && !(p.accuracy != null && p.accuracy > 60)) { this.lostSaid = false; this.say('Location signal is back.', 'status'); }
-    if (p.accuracy != null && p.accuracy > 60) { // ignore poor fixes, but never silently: tell the walker if it goes on
-      if (!this.weakSince) this.weakSince = t;
-      if (!this.weakSaid && t - this.weakSince > 15000) { this.weakSaid = true; this.say('My location signal is weak. I may be late with turns, so go carefully.', 'status'); }
-      return;
+    // Weak GPS (Package G): worse than weakMetres for weakMs is said once, and turn prompts wait for a second fix to agree.
+    // Very poor fixes (over 60 m) are not used at all.
+    const weak = p.accuracy != null && p.accuracy > (this.weakMetres ?? 25);
+    if (weak) {
+      if (this.weakSince == null) this.weakSince = t;
+      if (!this.weakSaid && t - this.weakSince >= (this.weakMs ?? 10000)) { this.weakSaid = true; this.say(WEAK_GPS_TEXT, 'status'); }
+    } else {
+      this.weakSince = null;
+      if (this.weakSaid) { this.weakSaid = false; this.say('Location signal is back.', 'status'); }
     }
-    this.weakSince = 0;
-    if (this.weakSaid) { this.weakSaid = false; this.say('Location signal is back.', 'status'); }
+    if (p.accuracy != null && p.accuracy > 60) return;
+    this.weakNow = this.weakSaid;
     this.lastPos = p;
     this.checkOrientation(p);
     // GPS can jump (or the walker can be past a turn we never announced): if a later turn point is right here, go to it.
@@ -370,12 +398,16 @@ export class Navigator {
     this.minD = Math.min(this.minD, d);
     if (this.trace) this.trace({ lat: p.lat, lon: p.lon, accuracy: p.accuracy ?? null, step: this.idx, toTurn: Math.round(d) });
     if (step.maneuver.type === 'arrive' && d <= this.nowMetres + 8) {
-      this.say(`You have arrived at ${this.destination.name}.`, 'nav');
+      this.say(ARRIVE_TEXT, 'nav');
       return this.cancel(true);
     }
     // Reached the point, or came within 25 m and is now moving away from it (fixes were too far apart to land inside 12 m).
     const passed = step.maneuver.type !== 'arrive' && this.minD <= 25 && d > this.minD + 8;
-    if (d <= this.nowMetres || passed) {
+    // With weak GPS one fix can jump onto the turn: wait for a second fix that agrees before saying "now".
+    const nowHere = d <= this.nowMetres || passed;
+    if (nowHere && this.weakNow && this.nowPending !== this.idx) { this.nowPending = this.idx; return; }
+    if (!nowHere && this.nowPending === this.idx) this.nowPending = -1;
+    if (nowHere) {
       if (this.nowSaid !== this.idx && step.maneuver.type !== 'arrive') {
         this.nowSaid = this.idx;
         const next = this.route.steps[this.idx];

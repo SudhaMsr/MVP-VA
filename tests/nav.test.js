@@ -21,7 +21,7 @@ test('wording', () => {
   assert.equal(roundMetres(260), '250 metres');
   assert.equal(instructionText({ name: 'High Street', maneuver: { type: 'turn', modifier: 'left' } }), 'turn left onto High Street');
   assert.equal(instructionText({ name: '', maneuver: { type: 'turn', modifier: 'slight right' } }), 'keep right');
-  assert.equal(instructionText({ maneuver: { type: 'arrive' } }), 'you have arrived');
+  assert.equal(instructionText({ maneuver: { type: 'arrive' } }), 'your destination');
 });
 
 function fakeNet(routeSteps) {
@@ -51,7 +51,7 @@ test('navigator speaks route, warning, turn and arrival', async () => {
   cb({ lat: 51, lon: 0.00145, accuracy: 10 });
   assert.match(said.at(-1), /Turn left onto High Street now/);
   cb({ lat: 51.0010, lon: 0.0015, accuracy: 10 });
-  assert.match(said.at(-1), /arrived/);
+  assert.equal(said.at(-1), 'You should be near your destination. It may be a few steps either way.');
   assert.equal(nav.active, false);
 });
 

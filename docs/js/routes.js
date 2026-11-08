@@ -58,7 +58,7 @@ export function routeFromPoints(points, name = 'your route', { reverse = false, 
     steps.push({ distance: pathLength(leg), name: '', text, maneuver: { type, location: [leg[0].lon, leg[0].lat] }, at: { lat: leg[0].lat, lon: leg[0].lon }, path: leg });
   }
   const end = v[v.length - 1];
-  steps.push({ distance: 0, name: '', text: 'you have arrived', maneuver: { type: 'arrive', location: [end.lon, end.lat] }, at: { lat: end.lat, lon: end.lon }, path: [] });
+  steps.push({ distance: 0, name: '', text: 'your destination', maneuver: { type: 'arrive', location: [end.lon, end.lat] }, at: { lat: end.lat, lon: end.lon }, path: [] });
   const distance = steps.reduce((s, x) => s + x.distance, 0);
   return { distance, duration: distance / WALK_SPEED_MPS, steps, source: 'recorded', start: v[0], end, name };
 }

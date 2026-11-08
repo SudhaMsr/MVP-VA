@@ -80,13 +80,13 @@ test('a precise fix well off the line (accuracy 8 m, 45 m away) still triggers a
   } finally { w.done(); }
 });
 
-test('a weak location signal is announced once after 15 s, and its return is announced', async () => {
+test('a weak location signal is announced once after 10 s, and its return is announced', async () => {
   const w = walker(straight());
   try {
     await w.nav.start('x'); w.said.length = 0;
     w.at(1000); w.fix(40, 0, 100); assert.equal(w.said.length, 0, 'not yet: could be a blip');
     w.at(10000); w.fix(41, 0, 120); assert.equal(w.said.length, 0);
-    w.at(17000); w.fix(42, 0, 100); assert.deepEqual(w.said, ['My location signal is weak. I may be late with turns, so go carefully.']);
+    w.at(17000); w.fix(42, 0, 100); assert.deepEqual(w.said, ['GPS is weak here, so directions may be late.']);
     w.at(25000); w.fix(43, 0, 100); assert.equal(w.said.length, 1, 'said once, not every fix');
     w.at(30000); w.fix(44, 0, 10); assert.equal(w.said.at(-1), 'Location signal is back.');
   } finally { w.done(); }

@@ -17,7 +17,7 @@ test('simplify keeps the corner and drops the straight middle', () => {
 
 test('an L-shaped walk becomes: walk straight, turn right, arrive', () => {
   const r = routeFromPoints(L, 'shop');
-  assert.deepEqual(r.steps.map((s) => s.text), ['walk straight', 'turn right', 'you have arrived']);
+  assert.deepEqual(r.steps.map((s) => s.text), ['walk straight', 'turn right', 'your destination']);
   assert.ok(Math.abs(r.steps[0].distance - 100) < 2 && Math.abs(r.steps[1].distance - 100) < 2);
   assert.ok(Math.abs(r.distance - 200) < 4);
   assert.equal(r.steps.at(-1).maneuver.type, 'arrive');
@@ -25,14 +25,14 @@ test('an L-shaped walk becomes: walk straight, turn right, arrive', () => {
 
 test('walking it backwards turns left at the corner', () => {
   const r = routeFromPoints(L, 'shop', { reverse: true });
-  assert.deepEqual(r.steps.map((s) => s.text), ['walk straight', 'turn left', 'you have arrived']);
+  assert.deepEqual(r.steps.map((s) => s.text), ['walk straight', 'turn left', 'your destination']);
   assert.ok(haversine(r.start, at(100, 100)) < 1, 'starts where the walk ended');
 });
 
 test('GPS wobble does not create fake turns', () => {
   const noisy = L.map((p, i) => ({ lat: p.lat + Math.sin(i * 7) * 1.5 * M_LAT, lon: p.lon + Math.cos(i * 5) * 1.5 * M_LON }));
   const r = routeFromPoints(noisy, 'x');
-  assert.deepEqual(r.steps.map((s) => s.text), ['walk straight', 'turn right', 'you have arrived']);
+  assert.deepEqual(r.steps.map((s) => s.text), ['walk straight', 'turn right', 'your destination']);
 });
 
 test('a U-turn is "turn around" and a sharp bend says sharp', () => {
@@ -71,7 +71,7 @@ test('Navigator can walk a recorded route: turn warning, turn now, arrival', asy
   const all = said.join(' | ');
   assert.match(all, /turn right/i);
   assert.match(all, /now/);
-  assert.match(all, /You have arrived at the end of shop/);
+  assert.match(all, /You should be near your destination\. It may be a few steps either way\./);
 });
 
 import { parseCommand } from '../docs/js/commands.js';
