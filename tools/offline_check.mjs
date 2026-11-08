@@ -42,7 +42,7 @@ try {
 
   await startAndWait();
   console.log('Online start: detection running');
-  await page.click('#stopBtn');
+  await page.click('#startBtn'); // Start walking / Stop walking
   await page.waitForTimeout(500);
 
   console.log('Models kept on the phone:', JSON.stringify(await page.evaluate(async () => (await (await caches.open('va-models-v1')).keys()).map((r) => r.url.replace(location.origin, '')))));

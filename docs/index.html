@@ -22,11 +22,15 @@
   button, summary { width:100%; min-height: 84px; margin: 0 0 12px; border-radius: 16px; border: 3px solid var(--fg);
            background:#111; color:var(--fg); font-size:1.6rem; font-weight:700; }
   button:focus-visible, summary:focus-visible, input:focus-visible { outline: 6px solid var(--accent); outline-offset: 3px; }
-  /* One big main control: green "Start" before running, yellow "Talk" while running. */
-  #startBtn { min-height: 38vh; background: var(--ok); color:#000; border-color:#000; font-size: 2.6rem; }
-  #startBtn.talk { background: var(--accent); }
+  /* Two main controls (Package D): Start/Stop walking and Talk, the biggest things on the screen, in its lower half. */
+  main { display:flex; flex-direction:column; min-height: calc(100vh - 32px); min-height: calc(100dvh - 32px); }
+  .controls { margin-top:auto; }
+  #startBtn, #talkBtn { min-height: max(120px, 19vh); font-size: 2.4rem; border-color:#000; color:#000; }
+  #startBtn { background: var(--ok); }
+  #startBtn.running { background: var(--danger); }
   #startBtn.busy { background: #888; }
-  #stopBtn { background: var(--danger); color:#000; border-color:#000; }
+  #talkBtn { background: var(--accent); }
+  .sr { position:absolute; width:1px; height:1px; margin:-1px; overflow:hidden; clip:rect(0 0 0 0); white-space:nowrap; }
   #status { font-size:1.4rem; font-weight:700; margin: 8px 0 4px; }
   #lastAlert { font-size:1.3rem; color: var(--accent); min-height: 1.6em; margin:4px 0 12px; }
   #mode { display:inline-block; font-size:1rem; font-weight:700; padding:4px 12px; border-radius:999px; border:2px solid #fff; margin:0 0 10px; }
@@ -53,65 +57,73 @@
 <body>
 <main>
   <h1>Vision Assist</h1>
-  <p id="status" aria-live="off">Ready. Tap start.</p>
+  <p id="status" aria-live="off">Ready. Tap Start walking.</p>
   <p id="lastAlert" aria-live="off"></p>
   <p id="mode" aria-hidden="true" data-m="Ready">Ready</p>
+  <!-- Screen reader mode: status lines are put here for TalkBack to read, instead of being spoken by the app. -->
+  <p id="srLive" class="sr" role="status" aria-live="polite"></p>
 
-  <button id="startBtn" type="button" aria-label="Start Vision Assist">Start</button>
-  <button id="stopBtn" type="button" aria-label="Stop Vision Assist">Stop</button>
-  <div id="answerRow" hidden aria-label="Answer the question"></div>
+  <!-- The two main controls, first in focus order and in the lower half of the screen (Package D). -->
+  <div class="controls">
+    <button id="startBtn" type="button">Start walking</button>
+    <button id="talkBtn" type="button" aria-describedby="talkHint">Talk</button>
+    <p id="talkHint" class="sr">Tap, then say what you want. If Vision Assist is stopped, it starts first.</p>
+    <div id="answerRow" hidden role="group" aria-label="Answer the question"></div>
 
-  <details id="more">
-    <summary>More options</summary>
-    <div class="row">
-      <button id="repeatBtn" type="button" aria-label="Repeat last alert">Repeat</button>
-      <button id="levelBtn" type="button" aria-label="How much I say. Tap to change.">How much I say: quiet</button>
-    </div>
-    <button id="micBtn" type="button" aria-label="Voice commands" aria-pressed="false">Voice commands off</button>
-    <button id="tapBtn" type="button" aria-label="Tap anywhere to talk" aria-pressed="true">Tap anywhere to talk: on</button>
-    <button id="unitsBtn" type="button" aria-label="Distances in miles, metres or steps. Tap to change.">Distances in: steps</button>
-    <button id="hapticsBtn" type="button" aria-label="Vibration for urgent warnings and turns. Tap to switch on or off." aria-pressed="true">Vibration: on</button>
-    <button id="rateBtn" type="button" aria-label="How fast I speak. Tap to change.">Speech speed: 95%</button>
-    <button id="shareBtn" type="button" aria-label="Get your location ready to send to someone. Then tap the screen.">Share my location</button>
-    <button id="stepBtn" type="button" aria-label="Your step length, used when distances are in steps. Tap to change.">Step length: 70 cm</button>
-    <button id="readBtn" hidden type="button" aria-label="Read the text in front of the camera aloud">Read</button>
-
-    <nav aria-label="About Vision Assist" class="info">
-      <a class="btn" href="limits.html">What it cannot see</a>
-      <a class="btn" href="privacy.html">Privacy</a>
-      <a class="btn" href="numbers.html">Our numbers</a>
-    </nav>
-
-    <form id="navForm" style="margin:0 0 12px">
-      <label for="navInput" style="display:block;font-weight:700;margin-bottom:6px">Walk to (or say "navigate to ...")</label>
-      <input id="navInput" type="text" autocomplete="off" placeholder="e.g. Tesco, High Street" style="width:100%;min-height:64px;font-size:1.3rem;padding:0 12px;border-radius:12px;border:3px solid #fff;background:#111;color:#fff">
-      <div class="row" style="margin-top:12px">
-        <button id="navGo" type="submit" style="margin:0;font-size:1.3rem">Go</button>
-        <button id="navCancel" type="button" style="margin:0;font-size:1.3rem">Cancel route</button>
+    <details id="more">
+      <summary>More options</summary>
+      <div class="row">
+        <button id="repeatBtn" type="button">Repeat</button>
+        <button id="levelBtn" type="button">How much I say: quiet</button>
       </div>
-    </form>
+      <button id="outputBtn" type="button">Output: speech and vibration</button>
+      <button id="srBtn" type="button" aria-pressed="false">Screen reader mode: off</button>
+      <button id="micBtn" type="button" aria-pressed="false">Voice commands off</button>
+      <button id="tapBtn" type="button" aria-pressed="true">Tap anywhere to talk: on</button>
+      <button id="unitsBtn" type="button">Distances in: steps</button>
+      <button id="rateBtn" type="button">Speech speed: 95%</button>
+      <button id="shareBtn" type="button" aria-describedby="shareHint">Share my location</button>
+      <p id="shareHint" class="sr">Gets your location ready. Then tap the screen and choose who to send it to.</p>
+      <button id="stepBtn" type="button">Step length: 70 cm</button>
+      <button id="readBtn" hidden type="button">Read</button>
 
-    <details id="sup">
-      <summary>Supervisor tools</summary>
-      <button id="debugBtn" type="button" aria-pressed="false">Camera view: off</button>
-      <button id="recordBtn" type="button" aria-pressed="false">Record session: off</button>
-      <button id="saveRecBtn" type="button" hidden disabled aria-label="Save the recording and log" style="min-height:64px;font-size:1.1rem">Save recording</button>
-      <button id="logBtn" type="button" aria-label="Save session log" style="min-height:56px;font-size:1rem">Save session log</button>
-      <p class="small">Version: <span id="ver">fd0698a</span></p>
+      <nav aria-label="About Vision Assist" class="info">
+        <a class="btn" href="limits.html">What it cannot see</a>
+        <a class="btn" href="privacy.html">Privacy</a>
+        <a class="btn" href="numbers.html">Our numbers</a>
+      </nav>
+
+      <form id="navForm" style="margin:0 0 12px">
+        <label for="navInput" style="display:block;font-weight:700;margin-bottom:6px">Walk to (or say "navigate to ...")</label>
+        <input id="navInput" type="text" autocomplete="off" placeholder="e.g. Tesco, High Street" style="width:100%;min-height:64px;font-size:1.3rem;padding:0 12px;border-radius:12px;border:3px solid #fff;background:#111;color:#fff">
+        <div class="row" style="margin-top:12px">
+          <button id="navGo" type="submit" style="margin:0;font-size:1.3rem">Go</button>
+          <button id="navCancel" type="button" style="margin:0;font-size:1.3rem">Cancel route</button>
+        </div>
+      </form>
+
+      <details id="convo">
+        <summary>Conversation</summary>
+        <ol id="convoLog" aria-live="off"></ol>
+      </details>
+
+      <details id="sup">
+        <summary>Supervisor tools</summary>
+        <button id="debugBtn" type="button" aria-pressed="false">Camera view: off</button>
+        <button id="recordBtn" type="button" aria-pressed="false">Record session: off</button>
+        <button id="saveRecBtn" type="button" hidden disabled style="min-height:64px;font-size:1.1rem">Save recording</button>
+        <button id="logBtn" type="button" style="min-height:56px;font-size:1rem">Save session log</button>
+        <p id="stats" class="small"></p>
+        <p class="small">Version: <span id="ver">881a1e5</span></p>
+      </details>
+      <p class="small">Say: start, stop, repeat, help, less talk, more detail, what is in front of me, where am I, battery, what can't you see, privacy, or navigate to a place.</p>
     </details>
-  </details>
+  </div>
 
-  <details id="convo">
-    <summary>Conversation</summary>
-    <ol id="convoLog" aria-live="off"></ol>
-  </details>
-
-  <p id="stats" aria-hidden="true"></p>
   <div class="preview" aria-hidden="true">
     <video id="video" playsinline muted></video>
     <canvas id="overlay"></canvas>
   </div>
-  <p class="small">Say: start, stop, repeat, help, less talk, more detail, what is in front of me, where am I, battery, what can't you see, privacy, or navigate to a place.</p>
 </main>
 
 <script>
@@ -134,40 +146,41 @@
 </script>
 <!--stamp-->
 <script type="importmap">{"imports": {
-    "./js/alerts.js": "./js/alerts.js?v=fd0698a",
-    "./js/app.js": "./js/app.js?v=fd0698a",
-    "./js/barge.js": "./js/barge.js?v=fd0698a",
-    "./js/battery.js": "./js/battery.js?v=fd0698a",
-    "./js/camcheck.js": "./js/camcheck.js?v=fd0698a",
-    "./js/cloudstt.js": "./js/cloudstt.js?v=fd0698a",
-    "./js/commands.js": "./js/commands.js?v=fd0698a",
-    "./js/config.js": "./js/config.js?v=fd0698a",
-    "./js/cues.js": "./js/cues.js?v=fd0698a",
-    "./js/depth.js": "./js/depth.js?v=fd0698a",
-    "./js/describe.js": "./js/describe.js?v=fd0698a",
-    "./js/detector.js": "./js/detector.js?v=fd0698a",
-    "./js/dialogue.js": "./js/dialogue.js?v=fd0698a",
-    "./js/freespace.js": "./js/freespace.js?v=fd0698a",
-    "./js/haptics.js": "./js/haptics.js?v=fd0698a",
-    "./js/lanes.js": "./js/lanes.js?v=fd0698a",
-    "./js/modelcache.js": "./js/modelcache.js?v=fd0698a",
-    "./js/nav.js": "./js/nav.js?v=fd0698a",
-    "./js/notes.js": "./js/notes.js?v=fd0698a",
-    "./js/perf.js": "./js/perf.js?v=fd0698a",
-    "./js/places.js": "./js/places.js?v=fd0698a",
-    "./js/privacy.js": "./js/privacy.js?v=fd0698a",
-    "./js/pwa.js": "./js/pwa.js?v=fd0698a",
-    "./js/reader.js": "./js/reader.js?v=fd0698a",
-    "./js/routes.js": "./js/routes.js?v=fd0698a",
-    "./js/safetext.js": "./js/safetext.js?v=fd0698a",
-    "./js/speech.js": "./js/speech.js?v=fd0698a",
-    "./js/tracker.js": "./js/tracker.js?v=fd0698a",
-    "./js/trustcheck.js": "./js/trustcheck.js?v=fd0698a",
-    "./js/units.js": "./js/units.js?v=fd0698a"
+    "./js/alerts.js": "./js/alerts.js?v=881a1e5",
+    "./js/app.js": "./js/app.js?v=881a1e5",
+    "./js/barge.js": "./js/barge.js?v=881a1e5",
+    "./js/battery.js": "./js/battery.js?v=881a1e5",
+    "./js/camcheck.js": "./js/camcheck.js?v=881a1e5",
+    "./js/cloudstt.js": "./js/cloudstt.js?v=881a1e5",
+    "./js/commands.js": "./js/commands.js?v=881a1e5",
+    "./js/config.js": "./js/config.js?v=881a1e5",
+    "./js/cues.js": "./js/cues.js?v=881a1e5",
+    "./js/depth.js": "./js/depth.js?v=881a1e5",
+    "./js/describe.js": "./js/describe.js?v=881a1e5",
+    "./js/detector.js": "./js/detector.js?v=881a1e5",
+    "./js/dialogue.js": "./js/dialogue.js?v=881a1e5",
+    "./js/freespace.js": "./js/freespace.js?v=881a1e5",
+    "./js/haptics.js": "./js/haptics.js?v=881a1e5",
+    "./js/lanes.js": "./js/lanes.js?v=881a1e5",
+    "./js/modelcache.js": "./js/modelcache.js?v=881a1e5",
+    "./js/nav.js": "./js/nav.js?v=881a1e5",
+    "./js/notes.js": "./js/notes.js?v=881a1e5",
+    "./js/output.js": "./js/output.js?v=881a1e5",
+    "./js/perf.js": "./js/perf.js?v=881a1e5",
+    "./js/places.js": "./js/places.js?v=881a1e5",
+    "./js/privacy.js": "./js/privacy.js?v=881a1e5",
+    "./js/pwa.js": "./js/pwa.js?v=881a1e5",
+    "./js/reader.js": "./js/reader.js?v=881a1e5",
+    "./js/routes.js": "./js/routes.js?v=881a1e5",
+    "./js/safetext.js": "./js/safetext.js?v=881a1e5",
+    "./js/speech.js": "./js/speech.js?v=881a1e5",
+    "./js/tracker.js": "./js/tracker.js?v=881a1e5",
+    "./js/trustcheck.js": "./js/trustcheck.js?v=881a1e5",
+    "./js/units.js": "./js/units.js?v=881a1e5"
 }}</script>
 <!--/stamp-->
 <script>window.ORT_BASE = new URL('vendor/ort/', location.href).href;</script>
 <script src="vendor/ort/ort.min.js" onerror="window.ORT_BASE='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/';var s=document.createElement('script');s.src=window.ORT_BASE+'ort.min.js';document.head.appendChild(s);"></script>
-<script type="module" src="js/app.js?v=fd0698a"></script>
+<script type="module" src="js/app.js?v=881a1e5"></script>
 </body>
 </html>

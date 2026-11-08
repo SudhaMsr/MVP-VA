@@ -28,6 +28,7 @@ import { CROSSING_TEXT, LIMITS_TEXT } from './safetext.js';
 import { firstStartPrivacy, PRIVACY_TEXT, RecordingConsent } from './privacy.js';
 import { OnlineWatch, updateNotice } from './pwa.js';
 import { PerfMeter, SlowMode, WalkStats, summaryText } from './perf.js';
+import { routeOutput, OUTPUT_MODES, OUTPUT_NAMES, outputText } from './output.js';
 
 const params = new URLSearchParams(location.search);
 // Listening: Google Cloud Speech-to-Text, tap to talk (default), or Chrome's own always-on recogniser (?stt=chrome, and the
@@ -43,9 +44,9 @@ const EP = params.get('ep') || 'wasm';
 
 const $ = (id) => document.getElementById(id);
 const el = {
-  start: $('startBtn'), stop: $('stopBtn'), repeat: $('repeatBtn'), mic: $('micBtn'),
+  start: $('startBtn'), talk: $('talkBtn'), output: $('outputBtn'), sr: $('srBtn'), srLive: $('srLive'), repeat: $('repeatBtn'), mic: $('micBtn'),
   status: $('status'), last: $('lastAlert'), stats: $('stats'), video: $('video'), overlay: $('overlay'),
-  dl: $('logBtn'), saveRec: $('saveRecBtn'), level: $('levelBtn'), tap: $('tapBtn'), units: $('unitsBtn'), step: $('stepBtn'), rate: $('rateBtn'), haptics: $('hapticsBtn'), shareBtn: $('shareBtn'), dbg: $('debugBtn'), rec: $('recordBtn'),
+  dl: $('logBtn'), saveRec: $('saveRecBtn'), level: $('levelBtn'), tap: $('tapBtn'), units: $('unitsBtn'), step: $('stepBtn'), rate: $('rateBtn'), shareBtn: $('shareBtn'), dbg: $('debugBtn'), rec: $('recordBtn'),
 };
 
 const speaker = new Speaker(window.speechSynthesis, window.SpeechSynthesisUtterance, {
@@ -119,14 +120,25 @@ speaker.onSpoken = (item) => {
   session.events.push({ t: Date.now(), kind: item.kind, text: item.text });
 };
 
+// Output settings (Package D): output mode (speech and vibration / vibration only / speech only) and screen reader mode.
+const out = { mode: 'both', screenReader: false };
+// In screen reader mode, status lines go to the live region for TalkBack to read; warnings and turns are still spoken.
+function toLive(text) {
+  const r = el.srLive; if (!r) return;
+  r.textContent = ''; setTimeout(() => { r.textContent = text; }, 50); // cleared first, so the same line is read again
+  el.last.textContent = text; addConvo('App', text);
+  session.events.push({ t: Date.now(), kind: 'status-live', text });
+}
 function say(text, kind = 'status') {
+  const route = routeOutput(kind, out);
+  if (route.live) { toLive(text); state.lastSpeechAt = performance.now(); return; }
   if (!speaker.supported) setStatus('Speech is not available on this phone. Alerts will only show on screen.');
   speaker.speak(text, kind);
 }
 
 let lastTraceAt = 0;
 const navigator_ = new Navigator({
-  say: (t, k) => { if (k === 'nav' && /\bnow\.$/.test(t)) haptics.buzz('turn'); say(t, k); },
+  say: (t, k) => { const hk = out.mode !== 'speech' && Haptics.kindForNav(t); if (hk) haptics.buzz(hk); say(t, k); }, // turn left / right, arrived, lost signal
   trace: (f) => { const n = Date.now(); if (n - lastTraceAt < 3000) return; lastTraceAt = n; logEvent('fix', JSON.stringify(f)); },
   providers: makeProviders({
     googleKey: new URLSearchParams(location.search).get('maps') === 'osm' ? '' : GOOGLE_KEY,
@@ -433,9 +445,11 @@ async function loop() {
     state.scene = { tracks, w: width, h: height, t };
     const alert = engine.next(tracks, width, height, t);
     if (alert && (alert.urgent || performance.now() > state.talkUntil)) { // routine alerts wait while the walker is speaking
+      const route = routeOutput(alert.urgent ? 'urgent' : 'normal', out); // vibration only: buzz instead, but vehicles are still spoken
       if (alert.urgent) cues.play('urgent');
-      const hk = Haptics.kindFor(alert); if (hk) haptics.buzz(hk);
-      speaker.speak(alert.text, alert.urgent ? 'urgent' : 'normal');
+      const hk = route.vibrate && Haptics.kindFor(alert, out.mode); if (hk) haptics.buzz(hk);
+      if (route.speak) speaker.speak(alert.text, alert.urgent ? 'urgent' : 'normal');
+      else { el.last.textContent = alert.text; state.lastSpoken = alert.text; }
       logEvent('alert', `${alert.priority}|${alert.text}`);
       walk.alert(alert.text, alert.priority);
       state.lastAlertText = alert.text;
@@ -712,11 +726,9 @@ function stop() {
 // ---------- talk, main button, how much I say ----------
 function updateMain() {
   const b = el.start;
-  b.classList.toggle('talk', state.running);
+  b.classList.toggle('running', state.running);
   b.classList.toggle('busy', state.starting);
-  const label = state.starting ? 'Starting' : state.running ? 'Talk' : 'Start';
-  b.textContent = label;
-  b.setAttribute('aria-label', state.running ? 'Talk to Vision Assist. Double tap, then say what you want.' : state.starting ? 'Starting' : 'Start Vision Assist');
+  b.textContent = state.starting ? 'Starting' : state.running ? 'Stop walking' : 'Start walking'; // the visible text is the name
 }
 
 const cloud = new CloudListener({ key: GOOGLE_KEY, lang: CONFIG.speechLang, log: (k, v) => logEvent(k, v) });
@@ -833,14 +845,28 @@ async function followRoute(rawName, reverse) {
   navigator_.begin(pos, dest, route, true, false);
 }
 
-function changeVibration(on, speak = true) {
-  haptics.set(on);
-  try { localStorage.setItem('va.haptics', on ? '1' : '0'); } catch (_) { /* storage can be unavailable */ }
-  if (el.haptics) { el.haptics.textContent = `Vibration: ${on ? 'on' : 'off'}`; el.haptics.setAttribute('aria-pressed', String(on)); }
+// "vibration on/off" (older command) maps onto the output modes.
+function changeVibration(on, speak = true) { setOutput(on ? 'both' : 'speech', speak); }
+function setOutput(mode, speak = true) {
+  if (!OUTPUT_MODES.includes(mode)) return;
+  out.mode = mode;
+  haptics.set(mode !== 'speech');
+  cues.vibrate = mode === 'speech' ? null : cues.vibrateFn;
+  el.output.textContent = `Output: ${OUTPUT_NAMES[mode]}`;
+  try { localStorage.setItem('va.output', mode); } catch (_) { /* storage can be unavailable */ }
+  logEvent('output', mode);
   if (!speak) return;
-  if (on && !haptics.available) { say('Vibration is on, but this phone or browser cannot vibrate.', 'status'); return; }
-  if (on) haptics.buzz('turn');
-  say(on ? 'Vibration is on. You will feel urgent warnings and turns.' : 'Vibration is off.', 'status');
+  if (mode !== 'speech' && !haptics.available) { say(`${outputText(mode)} But this phone or browser cannot vibrate.`, 'status'); return; }
+  if (mode !== 'speech') haptics.buzz('obstacle');
+  say(outputText(mode), 'status');
+}
+function setScreenReader(on, speak = true) {
+  out.screenReader = !!on;
+  el.sr.setAttribute('aria-pressed', String(!!on));
+  el.sr.textContent = `Screen reader mode: ${on ? 'on' : 'off'}`;
+  try { localStorage.setItem('va.sr', on ? '1' : '0'); } catch (_) { /* storage can be unavailable */ }
+  logEvent('screen-reader', on ? 'on' : 'off');
+  if (speak) say(on ? 'Screen reader mode on. Your screen reader will read my answers. I will still speak warnings and turns myself.' : 'Screen reader mode off. I will speak everything myself.', 'status');
 }
 
 function changeRate(dir) {
@@ -1047,6 +1073,8 @@ function handleTranscript(text) {
     case 'routeFollow': followRoute(cmd.arg, cmd.reverse); break;
     case 'routeList': { const n = routes.list(); say(n.length ? `You have ${n.length} ${n.length === 1 ? 'route' : 'routes'}: ${n.join(', ')}.` : 'You have no recorded routes. Say record a route, to start one.', 'status'); break; }
     case 'vibration': changeVibration(cmd.arg === 'on'); break;
+    case 'output': setOutput(cmd.arg); break;
+    case 'screenReader': setScreenReader(cmd.arg === 'on'); break;
     case 'rate': changeRate(cmd.arg === 'slower' ? -1 : 1); break;
     case 'share': prepareShare(); break;
     case 'find': if (!state.running || !state.scene) say(NO_CAMERA, 'status');
@@ -1123,7 +1151,7 @@ function updateMic() {
 }
 
 // ---------- buttons ----------
-el.start.addEventListener('click', () => { cues.unlock(); if (state.running) talk(); else start(); });
+el.start.addEventListener('click', () => { cues.unlock(); if (state.running || state.starting) stop(); else start(); });
 prefetchAssets();
 
 // Ask for location as soon as the app opens, not later. A precise (high accuracy) request is what makes Chrome on Android
@@ -1149,7 +1177,8 @@ askLocation();
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !state.running) askLocation(); });
 el.units.addEventListener('click', () => changeUnits(UNIT_MODES[(UNIT_MODES.indexOf(getUnits()) + 1) % UNIT_MODES.length]));
 el.step.addEventListener('click', cycleStep);
-el.haptics.addEventListener('click', () => changeVibration(!haptics.enabled));
+el.output.addEventListener('click', () => setOutput(OUTPUT_MODES[(OUTPUT_MODES.indexOf(out.mode) + 1) % OUTPUT_MODES.length]));
+el.sr.addEventListener('click', () => setScreenReader(!out.screenReader));
 el.rate.addEventListener('click', () => changeRate(speaker.rate >= RATES.at(-1) ? -(RATES.length - 1) : 1)); // up a step, wrapping back to the slowest
 el.shareBtn.addEventListener('click', prepareShare);
 el.dbg.addEventListener('click', () => setCameraView(!DEBUG));
@@ -1172,7 +1201,7 @@ document.addEventListener('click', (e) => {
   state.lastTapAt = now;
   talk();
 });
-el.stop.addEventListener('click', stop);
+el.talk.addEventListener('click', () => { cues.unlock(); talk(); });
 el.repeat.addEventListener('click', repeat);
 el.mic.addEventListener('click', () => {
   if (state.listening) { stopListening(); say('Voice commands off.', 'status'); }
@@ -1197,7 +1226,9 @@ try {
   const lv = localStorage.getItem('va.level'); if (LEVELS.includes(lv)) engine.setLevel(lv);
   el.rate.textContent = `Speech speed: ${Math.round(speaker.rate * 100)}%`;
   const rt = parseFloat(localStorage.getItem('va.rate')); if (rt >= RATES[0] && rt <= RATES.at(-1)) { speaker.rate = rt; el.rate.textContent = `Speech speed: ${Math.round(rt * 100)}%`; }
-  if (localStorage.getItem('va.haptics') === '0') changeVibration(false, false);
+  const om = localStorage.getItem('va.output');
+  if (OUTPUT_MODES.includes(om)) setOutput(om, false); else if (localStorage.getItem('va.haptics') === '0') setOutput('speech', false); // older setting
+  if (localStorage.getItem('va.sr') === '1') setScreenReader(true, false);
   const un = localStorage.getItem('va.units'); if (UNIT_MODES.includes(un)) setUnits(un);
   const st = parseFloat(localStorage.getItem('va.step')); if (st) setStep(st);
   if (localStorage.getItem('va.tap') === '0') { state.tapToTalk = false; el.tap.setAttribute('aria-pressed', 'false'); el.tap.textContent = 'Tap anywhere to talk: off'; }

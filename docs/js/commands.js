@@ -64,6 +64,12 @@ export function parseCommand(raw) {
   if (save) return { type: 'save', arg: (save[1] || '').trim() };
   if (/\b(?:save|remember|mark|bookmark)\s+(?:my\s+)?(home|work)$/.test(t)) return { type: 'save', arg: t.match(/(home|work)$/)[1] }; // only when nothing follows: "save my home" = here
 
+  // Output mode and screen reader mode (Package D)
+  if (/\b(?:vibration|vibrate|buzz|buzzing) only\b|\bonly (?:vibration|vibrate|buzz)\b|\bno (?:speech|talking)\b/.test(t)) return { type: 'output', arg: 'vibration' };
+  if (/\b(?:speech|voice|talking) only\b|\bonly (?:speech|voice)\b/.test(t)) return { type: 'output', arg: 'speech' };
+  if (/\b(?:speech|voice) and (?:vibration|buzz|buzzing)\b|\b(?:vibration|buzz) and (?:speech|voice)\b|\bboth\b.*\b(?:speech|vibration)\b/.test(t)) return { type: 'output', arg: 'both' };
+  const sr = t.match(/\b(?:screen reader|talkback|talk back)(?: mode)?\s+(on|off)\b/) || t.match(/\b(?:turn|switch)\s+(on|off)\s+(?:the\s+)?(?:screen reader|talkback|talk back)(?: mode)?\b/);
+  if (sr) return { type: 'screenReader', arg: sr[1] };
   // Vibration on or off: "vibration off", "turn off the vibration", "stop vibrating", "vibration on"
   const vib = t.match(/\b(?:turn|switch)\s+(on|off)\s+(?:the\s+)?(?:vibration|vibrations|buzz|buzzing|haptics?)\b/) || t.match(/\b(?:vibration|vibrations|vibrate|buzz|buzzing|haptics?)\s+(on|off)\b/);
   if (vib) return { type: 'vibration', arg: vib[1] };
@@ -137,6 +143,7 @@ export const HELP_TEXT =
   'Say what can\'t you see, to hear my limits, or privacy, to hear what I send. Say walk summary, after a walk. ' +
   'Say use miles, use metres or use steps for distances, and my step is, with a length, to set your step. ' +
   'Say save my home address as, and the address, to set home from an address. ' +
+  'Say vibration only, speech only, or speech and vibration. Say screen reader mode on, if you use TalkBack. ' +
   'Say slower or faster to change how fast I speak. Say share my location to send where you are to someone. If you are lost, say I am lost. ' +
   'Say less talk or more detail to change how much I say. ' +
   'Say help to hear this again.';

@@ -170,3 +170,33 @@ Each package is one branch and one PR, stacked in order (each branch starts from
   the report prints speed and battery; `numbers SHEETS...` writes `docs/numbers.html` (`numbersPage()`; with no sheets it is the
   "Not measured yet" page, and a test checks the committed page matches). How to run and score a walk: README, last section.
 - Headless check (fake camera, 34 s): one perf event (12.6 fps, main 68 ms, rod2 127 ms, coco 81 ms), walk summary spoken and logged.
+
+### Package D: accessibility (`feat/a11y`)
+- Controls: `#startBtn` is Start walking / Stop walking; `#talkBtn` is Talk (starts the app first if stopped). The old `#stopBtn` is gone.
+  Both are at least 120 px tall (19% of the screen), in the lower half (flex column, controls pushed down), and first in focus order:
+  Start/Stop, Talk, More options. Conversation, help text and speed stats moved inside More options so nothing pushes them up.
+- axe found one serious issue (label-content-name-mismatch on level/mic/tap/units buttons): all `aria-label`s on buttons removed,
+  hints moved to `aria-describedby`. `tools/a11y_check.mjs` (`npm run check:a11y`): axe on the home page, with menus open, while
+  running, and on the three info pages; plus sizes (72x72 main, 48x48 others), lower half, focus order, "Stop walking" name. PASS.
+- `docs/js/output.js`: `routeOutput(kind, {mode, screenReader})`. `docs/js/haptics.js`: named patterns VEHICLE, OBSTACLE, TURN_LEFT,
+  TURN_RIGHT, ARRIVED, LOST_SIGNAL (+ STOP, STAIRS), all different (tested); `kindForNav()` for turns, arrival, lost signal. A vehicle
+  buzz is never held back by the 1.5 s spacing. Settings saved as `va.output` and `va.sr` (old `va.haptics=0` becomes speech only).
+
+#### TalkBack test script (15 minutes, for a blind tester; a sighted helper only watches and notes)
+Before: Android phone with TalkBack on, Chrome, headphones optional. The helper writes down every point where the tester is stuck,
+hears something unclear, or needs help. Do it indoors first, then on a quiet pavement.
+1. **Install (3 min).** Open Chrome, go to `sudhamsr.github.io/MVP-VA`. Open the Chrome menu, choose "Install app" (or "Add to Home
+   screen"). Find "Vision Assist" on the home screen and open it. *Check:* the icon is announced as "Vision Assist".
+2. **Find the controls (2 min).** Swipe right from the top. *Check:* TalkBack reads the title, the status line, then "Start walking,
+   button", "Talk, button", "More options". Explore by touch on the lower half of the screen: both big buttons are easy to find.
+3. **Screen reader mode (2 min).** Open More options, find "Screen reader mode: off", double tap. *Check:* TalkBack reads "Screen
+   reader mode on..." in its own voice. Close More options.
+4. **Start (2 min).** Double tap "Start walking". Allow camera, microphone and location if asked. *Check:* the welcome and privacy
+   lines are heard (first time only); the button is now "Stop walking".
+5. **Ask for help (2 min).** Double tap "Talk", then say "help". *Check:* TalkBack reads the help text. Then Talk, "what can't you
+   see?". Then Talk, "vibration only", and back with Talk, "speech and vibration".
+6. **Start a route (3 min).** Talk, "navigate to" a place about 5 minutes away. *Check:* the route summary is read; walk a few steps
+   outside with the helper; a turn prompt is spoken by the app even while TalkBack is reading something; a turn buzzes (one short = left,
+   two short = right).
+7. **Stop (1 min).** Talk, "cancel" (the route stops). Double tap "Stop walking". Talk, "walk summary".
+Record for each step: done alone / needed help / could not do it, and the tester's own words. Fix anything "needed help" before the pilot.
