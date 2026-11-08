@@ -87,7 +87,7 @@ const ASK = { bin: 'ashcan', 'rubbish bin': 'ashcan', 'litter bin': 'ashcan', 't
   'tree branch': 'low_branch', 'street light': 'lamp_post', 'lamppost': 'lamp_post', 'roadworks': 'road_barrier',
   'crossing light': ['ped_signal', 'red_light', 'green_light'], 'green man': ['ped_signal', 'green_light'] };
 export function objectNames(query) {
-  const q = String(query || '').toLowerCase().replace(/[?.!]/g, '').replace(/^(?:a|an|the|any|some)\s+/, '').replace(/-/g, ' ').trim();
+  const q = stripWhere(query).replace(/-/g, ' ');
   if (!q) return [];
   const tryWord = (w) => {
     if (ASK[w]) return [].concat(ASK[w]);
@@ -98,8 +98,15 @@ export function objectNames(query) {
   if (!names.length && q.endsWith('s')) names = tryWord(q.slice(0, -1));
   return names;
 }
+// "are there cars in front of me" asks about cars: the where-words are not part of the thing (field test, 8 Nov).
+const WHERE_TAIL = /\s+(?:(?:right\s+|just\s+)?in front(?:\s+of\s+me)?|ahead(?:\s+of\s+me)?|near(?:\s+me|by)?|nearby|around(?:\s+me|\s+here)?|here|there|on (?:my|the) (?:left|right)|to (?:my|the) (?:left|right)|close(?:\s+by|\s+to\s+me)?|now)$/;
+function stripWhere(query) {
+  let q = String(query || '').toLowerCase().replace(/[?.!,]/g, '').trim();
+  for (let i = 0; i < 3; i++) q = q.replace(WHERE_TAIL, '').trim();
+  return q.replace(/^(?:a|an|the|any|some)\s+/, '').trim();
+}
 export function findObject(tracks, query, frameW, { minHits = 2, extra = [] } = {}) {
-  const q = String(query || '').toLowerCase().replace(/^(?:a|an|the|any|some)\s+/, '').replace(/[?.!]/g, '').trim();
+  const q = stripWhere(query);
   const names = objectNames(q);
   if (!names.length) return `I cannot recognise ${q || 'that'} yet. I can look for things like a bench, a bin, a crossing, a person, a car or stairs.`;
   const seen = (tracks || []).filter((t) => names.includes(t.name) && (t.hits ?? minHits) >= minHits)

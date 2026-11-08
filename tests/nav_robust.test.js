@@ -7,14 +7,13 @@ import { isSafeText } from '../docs/js/safetext.js';
 
 const step = (type, lat, lon, text, distance, path = []) => ({ distance, text, maneuver: { type }, at: { lat, lon }, path });
 
-test('route preview: time (or steps when short) and how many roads it crosses', () => {
+test('route preview: only the time (or steps when short), no crossing count and no "do not know" line', () => {
   setUnits('steps');
   const steps = [step('depart', 51, 0, 'walk ahead', 200), step('turn', 51, 0.002, 'cross the road, then turn left', 150),
     step('turn', 51.001, 0.002, 'take the zebra crossing', 100), step('arrive', 51.002, 0.002, 'your destination', 0)];
-  assert.equal(routePreview({ distance: 450, duration: 360, steps }), 'About 6 minutes. This route crosses 2 roads.');
-  assert.equal(routePreview({ distance: 140, duration: 120, steps: steps.slice(0, 2) }), '200 steps. This route crosses 1 road.');
-  assert.equal(routePreview({ distance: 600, duration: 480, steps: [steps[0], steps[3]] }), 'About 8 minutes. I do not know of any road crossings on it.',
-    'none found is not said as "no crossings"');
+  assert.equal(routePreview({ distance: 450, duration: 360, steps }), 'About 6 minutes.');
+  assert.equal(routePreview({ distance: 140, duration: 120, steps: steps.slice(0, 2) }), '200 steps.');
+  assert.equal(routePreview({ distance: 600, duration: 480, steps: [steps[0], steps[3]] }), 'About 8 minutes.');
 });
 
 function walker(route, opts = {}) {

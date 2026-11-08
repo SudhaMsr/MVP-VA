@@ -19,7 +19,7 @@ test('wording', () => {
   assert.equal(roundMetres(8), 'a few metres');
   assert.equal(roundMetres(43), '40 metres');
   assert.equal(roundMetres(260), '250 metres');
-  assert.equal(instructionText({ name: 'High Street', maneuver: { type: 'turn', modifier: 'left' } }), 'turn left onto High Street');
+  assert.equal(instructionText({ name: 'High Street', maneuver: { type: 'turn', modifier: 'left' } }), 'turn left', 'street names are never spoken');
   assert.equal(instructionText({ name: '', maneuver: { type: 'turn', modifier: 'slight right' } }), 'keep right');
   assert.equal(instructionText({ maneuver: { type: 'arrive' } }), 'your destination');
 });
@@ -45,11 +45,11 @@ test('navigator speaks route, warning, turn and arrival', async () => {
   });
   assert.equal(await nav.start('test cafe'), true);
   assert.match(said.join(' | '), /Going to Test Cafe/);
-  assert.match(said.join(' | '), /First, walk along Mill Lane/);
+  assert.match(said.join(' | '), /First, walk straight/);
   cb({ lat: 51, lon: 0.0010, accuracy: 10 }); // ~35 m from turn
-  assert.match(said.at(-1), /^In \d+ metres, turn left onto High Street/);
+  assert.match(said.at(-1), /^In \d+ metres, turn left\./);
   cb({ lat: 51, lon: 0.00145, accuracy: 10 });
-  assert.match(said.at(-1), /Turn left onto High Street now/);
+  assert.match(said.at(-1), /Turn left now/);
   cb({ lat: 51.0010, lon: 0.0015, accuracy: 10 });
   assert.equal(said.at(-1), 'You should be near your destination. It may be a few steps either way.');
   assert.equal(nav.active, false);
@@ -89,11 +89,11 @@ test('tiny consecutive steps are spoken together', async () => {
   const nav = new Navigator({ say: (t) => said.push(t), fetchFn: fakeNet(st), getPosition: async () => ({ lat: 51, lon: 0 }), watch: (f) => { cb = f; return 1; }, unwatch: () => {} });
   await nav.start('x');
   cb({ lat: 51, lon: 0.00069, accuracy: 5 });
-  assert.match(said.at(-1), /Turn left onto B now, then turn right onto C\./);
+  assert.match(said.at(-1), /Turn left now, then turn right\./);
   assert.equal(nav.idx, 3);
 });
 
-test('google route is converted to navigator steps, with street names and an arrival step', async () => {
+test('google route is converted to navigator steps, without street names, and an arrival step', async () => {
   const { googleRoute } = await import('../docs/js/nav.js');
   const f = async () => ({ ok: true, json: async () => ({ routes: [{ distanceMeters: 300, duration: '240s', legs: [{ steps: [
     { distanceMeters: 100, startLocation: { latLng: { latitude: 51, longitude: 0 } }, navigationInstruction: { instructions: 'Head east on Mill Lane' }, polyline: { geoJsonLinestring: { coordinates: [[0, 51], [0.0015, 51]] } } },
@@ -102,7 +102,7 @@ test('google route is converted to navigator steps, with street names and an arr
   const r = await googleRoute({ lat: 51, lon: 0 }, { lat: 51.002, lon: 0.0015 }, f, 'KEY');
   assert.equal(r.duration, 240);
   assert.equal(r.steps.length, 3);
-  assert.equal(r.steps[1].text, 'turn left onto High Street, then take the stairs');
+  assert.equal(r.steps[1].text, 'turn left, then take the stairs');
   assert.equal(r.steps[2].maneuver.type, 'arrive');
 });
 
@@ -158,8 +158,8 @@ test('odd Google stop and ferry names are dropped from spoken instructions', asy
   const c = (t) => cleanStreetNames(plainWords(t));
   assert.equal(c('Head northwest on Temple Meads - Castle Park/Temple Meads Ferry'), 'walk straight');
   assert.equal(c('Turn left onto Temple Meads - Castle Park/Temple Meads Ferry'), 'Turn left');
-  assert.equal(c('Turn right onto Victoria Street'), 'Turn right onto Victoria Street');
-  assert.equal(c('Head east on Mill Lane'), 'walk along Mill Lane');
+  assert.equal(c('Turn right onto Victoria Street'), 'Turn right');
+  assert.equal(c('Head east on Mill Lane'), 'walk straight');
   assert.equal(c('Continue onto A/B'), 'continue straight');
 });
 

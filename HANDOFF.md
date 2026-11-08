@@ -124,6 +124,20 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
 - **Evaluate before speaking anything:** download VIP-Mobility360 (LJMU open data, CC BY 4.0; UK footage of the RNIB obstacles) on your computer and run `python3 tools/phase4/eval_hazard_model.py DATASET --map "..."`. A class becomes a candidate only at precision >= 0.9 and recall >= 0.6, then it must pass the walk gate (`tools/score_walk.mjs`) on Bristol walks.
 - **Next model step:** use the best open-vocabulary classes to auto-label VIP-Mobility360 and our walk frames, check the labels by hand, and fine-tune a small fixed-class YOLO (fast enough for every frame, unlike YOLOE every 4 s).
 
+## Field test fixes (8 Nov, branch fix/field-test-nov8)
+- **Live detection felt slow:** the hazard lane (40 MB YOLOE, Package E) ran in the same loop as the main detector every 4 s and
+  speaks nothing yet. It is now off unless `?hazard=on` (or a class is in `HAZARD.speakClasses`). Not yet measured on the Poco:
+  compare the `perf` events of a walk with and without `?hazard=on`.
+- **No street names in directions:** `cleanStreetNames` (nav.js) now drops every name ("walk along Church Rd towards Southey Ave"
+  became "walk straight"); "on the right", "at the roundabout / end / top / bottom", stairs and crossings stay.
+- **Route preview:** "I do not know of any road crossings on it." and the crossing count are gone; the per-crossing warning at the
+  step is unchanged.
+- **Wrong place:** "Lakeside" matched Lakeside Shopping Centre, Thurrock ("about 49 hours"). Routes over `MAX_WALK_M` (10 km) are
+  not started; the walker is asked for the postcode.
+- **"Are there cars in front of me":** where-words are stripped before the object lookup (it said "I cannot recognise cars in front
+  of me").
+- Tests: `tests/field_test_nov8.test.js`.
+
 ## Build plan packages (from "Vision Assist — Build Plan & Claude Code Playbook", 7 Nov)
 Each package is one branch and one PR, stacked in order (each branch starts from the previous one), so merge them in order.
 `CLAUDE.md` holds the project rules every Claude Code session reads first.

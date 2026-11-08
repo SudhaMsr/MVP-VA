@@ -1,6 +1,6 @@
 // Vision Assist - app wiring: camera, detection loop, speech, voice commands, error handling.
 // Rule for this file: every failure is spoken. No silent states.
-import { CONFIG, MODELS, pickModel, canonical, SECONDARY, TERTIARY, WATCH_CLASSES, HAZARD, GOOGLE_KEY, FEATURES, IGNORE_FAST } from './config.js';
+import { CONFIG, MODELS, pickModel, canonical, SECONDARY, TERTIARY, WATCH_CLASSES, HAZARD, GOOGLE_KEY, FEATURES, IGNORE_FAST, hazardOnByDefault } from './config.js';
 import { filterAllowed, mergeLanes, confirmSlow } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
@@ -348,6 +348,11 @@ async function loadModel() {
 let lanesLoading = null;
 const USE_DEPTH = params.get('depth') === '1'; // test only: measure a depth model's speed on the phone
 let depthLane = null;
+// The hazard lane (40 MB YOLOE) runs in the same loop as the main detector, so each run holds up live detection for a
+// second or more on the Poco. While it speaks nothing (speakClasses empty) it only runs when asked for with ?hazard=on
+// (for logging walks). Field test, 8 Nov: detection did not feel real-time with it on.
+function hazardWanted() { return params.get('hazard') !== 'off' && (params.get('hazard') === 'on' || HAZARD_ON_BY_DEFAULT); }
+const HAZARD_ON_BY_DEFAULT = hazardOnByDefault(HAZARD);
 function loadLanes() {
   if (!USE_SLOW || lanesLoading) return lanesLoading;
   lanesLoading = (async () => {
@@ -375,7 +380,7 @@ function loadLanes() {
         cocoDetector = cd;
       } catch (e) { logEvent('coco-model-missing', e && e.message); } // optional: no message to the walker
     }
-    if (!hazardDetector && params.get('hazard') !== 'off') {
+    if (!hazardDetector && hazardWanted()) {
       try {
         const hd = new Detector(window.ort, HAZARD.size, HAZARD.names);
         await hd.load(HAZARD.file, [EP]);
@@ -392,7 +397,7 @@ function prefetchAssets() {
     try {
       const urls = [MODEL.url(SIZE)];
       if (USE_SLOW) urls.push(MODELS[SECONDARY.model].url(SECONDARY.size));
-      if ((HAZARD.speakClasses || []).length && params.get('hazard') !== 'off') urls.push(HAZARD.file); // only once a class may speak
+      if (HAZARD_ON_BY_DEFAULT && params.get('hazard') !== 'off') urls.push(HAZARD.file); // only once a class may speak
       urls.forEach((u) => warmModel(u).catch(() => {}));
     } catch (_) { /* best effort only */ }
   };

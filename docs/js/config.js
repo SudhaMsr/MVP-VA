@@ -79,6 +79,9 @@ export const HAZARD = {
     'kerb', 'stairs', 'pothole', 'ped_signal', 'bench', 'lamp_post'],
 };
 
+// The hazard lane loads by default only once a class may speak; until then only with ?hazard=on (see app.js hazardWanted).
+export function hazardOnByDefault(hazard) { return (hazard.speakClasses || []).length > 0; }
+
 // Step C: classes a model already sees but no alert speaks. rod2's five (SECONDARY.classes does not list them, so they
 // never reach the tracker) and coco's traffic_light/stop_sign (in TERTIARY.classes, reach the tracker, but alerts.js has
 // no wording for them). Logged every time the slow or coco lane sees one (a new 'watch-detect' session-log event), so
