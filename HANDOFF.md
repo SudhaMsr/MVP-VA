@@ -123,3 +123,19 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
 - **In the app:** loads in the background if the file is there (`?hazard=off` turns it off); runs every 4 s; LOG ONLY: `hazard-detect` events (name|score|side|box height), and "is there an e-scooter / a bollard / a kerb?" answers with a hedge ("I think there is... check with your cane"). `HAZARD.speak` is false: no class is spoken as a warning yet.
 - **Evaluate before speaking anything:** download VIP-Mobility360 (LJMU open data, CC BY 4.0; UK footage of the RNIB obstacles) on your computer and run `python3 tools/phase4/eval_hazard_model.py DATASET --map "..."`. A class becomes a candidate only at precision >= 0.9 and recall >= 0.6, then it must pass the walk gate (`tools/score_walk.mjs`) on Bristol walks.
 - **Next model step:** use the best open-vocabulary classes to auto-label VIP-Mobility360 and our walk frames, check the labels by hand, and fine-tune a small fixed-class YOLO (fast enough for every frame, unlike YOLOE every 4 s).
+
+## Build plan packages (from "Vision Assist — Build Plan & Claude Code Playbook", 7 Nov)
+Each package is one branch and one PR, stacked in order (each branch starts from the previous one), so merge them in order.
+`CLAUDE.md` holds the project rules every Claude Code session reads first.
+
+### Package A: safety honesty (`feat/safety-honesty`)
+- `docs/js/safetext.js`: `BANNED` phrases, `isSafeText()`, and the shared `CROSSING_TEXT` and `LIMITS_TEXT`. `tests/safetext.test.js`
+  scans every string and template literal in `docs/js` (comments and regexes skipped, model class names exempt) and fails on any banned phrase.
+- Wording changed because it implied safety: "Clear ahead." is now "I no longer see anything in your way."; "The way ahead looks clear."
+  is now "I see nothing in your way, but check with your cane."; the "Green light, ahead." alert is gone, and describe/find call a green
+  light "a traffic light". `crossingAdvice()` no longer reports a colour (it used to say "The light looks red/green").
+- Crossings: `crossesRoad(step)` in nav.js (Google instruction words, OSRM street names and intersection classes). OSRM does not pass on
+  OSM `highway=crossing` nodes, so a crossing that is not named in the route is missed; querying Overpass along the route would fix that.
+- New intents: `limits`, `privacy`; traffic-light questions all map to `cross`. `Dialogue.confirm()` is a generic yes/no used for
+  recording consent (`privacy.js` `RecordingConsent`).
+- Pages: `docs/privacy.html`, `docs/limits.html`, `docs/numbers.html`.

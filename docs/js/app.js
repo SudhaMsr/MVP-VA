@@ -24,6 +24,8 @@ import { Navigator, makeProviders, locationMessage, haversine, roundMetres } fro
 import { looksLikeEcho, isBargeIn } from './barge.js';
 import { Dialogue, parseAnswer } from './dialogue.js';
 import { recogniseText, readingSpeech } from './reader.js';
+import { CROSSING_TEXT, LIMITS_TEXT } from './safetext.js';
+import { firstStartPrivacy, PRIVACY_TEXT, RecordingConsent } from './privacy.js';
 
 const params = new URLSearchParams(location.search);
 // Listening: Google Cloud Speech-to-Text, tap to talk (default), or Chrome's own always-on recogniser (?stt=chrome, and the
@@ -33,7 +35,9 @@ const SIZE = params.get('size') === '416' ? 416 : CONFIG.inputSize;
 const MODEL_KEY = MODELS[params.get('model')] ? params.get('model') : DEFAULT_MODEL;
 const MODEL = MODELS[MODEL_KEY];
 let DEBUG = params.has('debug'); // supervisor: show the camera view and boxes. ?debug still works, but there is a switch in More options
-let RECORD = params.has('record'); // supervisor: record raw video + per-frame detections for review (switch in More options too)
+let RECORD = false; // supervisor: record raw video + per-frame detections for review (switch in More options too)
+const WANT_RECORD = params.has('record'); // ?record asks for consent at start, like the switch does (Package A)
+const consent = new RecordingConsent();
 const EP = params.get('ep') || 'wasm';
 
 const $ = (id) => document.getElementById(id);
@@ -502,7 +506,7 @@ function logFrame(tracks, ms) {
 }
 
 function startRecording() {
-  if (!RECORD || !stream) return;
+  if (!RECORD || !stream || (recorder && recorder.state === 'recording')) return;
   if (typeof MediaRecorder === 'undefined') {
     logEvent('record-unsupported', '');
     say('Recording is not supported in this browser.', 'status');
@@ -613,6 +617,8 @@ async function start() {
   updateMain();
   cues.play('ok');
   say(RECORD ? 'Ready, recording.' : wasFirst ? 'Ready. Hold the phone at chest height, camera facing forward. Keep using your cane or guide dog. This app helps, but does not replace them. Tap the screen, then speak.' : 'Ready.', 'status');
+  const priv = firstStartPrivacy(); if (priv) { say(priv, 'status'); logEvent('privacy-said', ''); } // once ever, on the first start
+  if (WANT_RECORD && !RECORD && !state.recordAsked) { state.recordAsked = true; setRecording(true); }
   startRecording();
   lockScreen();
   loop();
@@ -892,11 +898,19 @@ function setCameraView(on, speak = true) {
   if (speak) say(on ? 'Camera view on.' : 'Camera view off.', 'status');
 }
 function setRecording(on, speak = true) {
+  // Recording needs a spoken (or tapped) yes first, once per page session. Nothing is recorded until then.
+  if (on && !consent.granted) {
+    consent.request((q, yes, no) => dialogue.confirm(q, yes, no), () => setRecording(true, speak),
+      () => { logEvent('record-refused', ''); say('Okay. Recording stays off.', 'status'); });
+    return;
+  }
+  if (on && !RECORD) logEvent('record-consent', '');
   RECORD = on;
+  if (state.running) { if (on) startRecording(); else stopRecording(); }
   el.rec.setAttribute('aria-pressed', String(on));
   el.rec.textContent = `Record session: ${on ? 'on' : 'off'}`;
   el.saveRec.hidden = !on;
-  if (speak) say(on ? (state.running ? 'Recording is on. It starts the next time you tap start.' : 'Recording is on. It starts when you tap start.') : 'Recording is off.', 'status');
+  if (speak) say(on ? (state.running ? 'Recording now.' : 'Recording is on. It starts when you tap start.') : 'Recording is off.', 'status');
 }
 
 const battery = new BatteryWatch({
@@ -976,7 +990,9 @@ function handleTranscript(text) {
     case 'describe': describeNow(); break;
     case 'whereami': whereAmI(); break;
     case 'save': savePlace(cmd.arg); break;
-    case 'cross': if (!state.running || !state.scene) say(NO_CAMERA, 'status'); else say(crossingAdvice(state.scene.tracks), 'status'); break;
+    case 'cross': say(state.running && state.scene ? crossingAdvice(state.scene.tracks) : CROSSING_TEXT, 'status'); break; // never a colour, never "safe"
+    case 'limits': say(LIMITS_TEXT, 'status'); state.lastSpoken = LIMITS_TEXT; break;
+    case 'privacy': say(PRIVACY_TEXT, 'status'); state.lastSpoken = PRIVACY_TEXT; break;
     case 'noteAdd': { const r = notes.add(cmd.arg); say(r ? `Noted: ${r.text}.${r.persisted ? '' : ' I could only keep it until you close the page.'}` : 'What should I remember?', 'status'); break; }
     case 'noteList': { const l = notes.list().slice(-3).reverse(); say(l.length ? `Your latest notes: ${l.map((n) => n.text).join('. ')}.` : 'You have no notes yet. Say remember, then what to remember.', 'status'); break; }
     case 'noteFind': { const f = notes.find(cmd.arg); say(f.length ? `You told me: ${f[0].text}.` : 'I have no note about that.', 'status'); break; }

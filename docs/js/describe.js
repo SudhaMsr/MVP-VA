@@ -12,7 +12,7 @@ const NOUNS = {
   roadblock: ['barrier', 'barriers'], guard_rail: ['barrier', 'barriers'], tree: ['tree', 'trees'], bench: ['bench', 'benches'],
   chair: ['chair', 'chairs'], plant_pot: ['plant pot', 'plant pots'], electrical_box: ['electrical box', 'electrical boxes'],
   bicycle_rack: ['bicycle rack', 'bicycle racks'], fire_hydrant: ['hydrant', 'hydrants'], manhole: ['manhole', 'manholes'],
-  crosswalk: ['crossing', 'crossings'], red_light: ['red light', 'red lights'], green_light: ['green light', 'green lights'],
+  crosswalk: ['crossing', 'crossings'], red_light: ['red light', 'red lights'], green_light: ['traffic light', 'traffic lights'], // never "green light": see safetext.js
   cat: ['cat', 'cats'], horse: ['horse', 'horses'], sheep: ['sheep', 'sheep'], cow: ['cow', 'cows'], suitcase: ['suitcase', 'suitcases'],
   skateboard: ['skateboard', 'skateboards'], parking_meter: ['parking meter', 'parking meters'], couch: ['sofa', 'sofas'], dining_table: ['table', 'tables'],
   stairs: ['stairs', 'stairs', 'none'], blind_road: ['tactile paving', 'tactile paving', 'none'],
@@ -40,7 +40,7 @@ export const NO_CAMERA = 'The camera is not on. Tap start first, then ask me aga
 // path: the free-space advice for the walker's way ahead ({text}), null when it is open, undefined when unknown.
 export function pathSentence(path) {
   if (path === undefined) return '';
-  if (!path) return 'The way ahead looks clear.';
+  if (!path) return 'I see nothing in your way, but check with your cane.'; // never "clear": see safetext.js
   return path.stop ? 'No clear way ahead. Stop.' : `Ahead is blocked. ${path.text}`;
 }
 

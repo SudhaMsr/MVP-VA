@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#000000">
+<title>Privacy - Vision Assist</title>
+<style>
+  :root { --bg:#000; --fg:#fff; --accent:#ffd400; }
+  * { box-sizing: border-box; }
+  html, body { margin:0; background:var(--bg); color:var(--fg); font-family: system-ui, sans-serif; }
+  body { padding: 16px; max-width: 640px; margin: 0 auto; font-size: 1.3rem; line-height: 1.5; }
+  h1 { font-size: 2rem; margin: 8px 0 16px; } h2 { font-size: 1.5rem; margin: 28px 0 8px; color: var(--accent); }
+  a { color: var(--accent); } a:focus-visible { outline: 6px solid var(--accent); outline-offset: 3px; }
+  a.back { display:flex; align-items:center; justify-content:center; min-height:72px; margin: 24px 0; border:3px solid var(--fg);
+    border-radius:16px; background:#111; color:var(--fg); font-weight:700; text-decoration:none; font-size:1.4rem; }
+  .box { border:2px solid var(--accent); border-radius:12px; padding:10px 14px; margin: 12px 0; }
+  table { border-collapse: collapse; width: 100%; } th, td { text-align:left; padding: 8px 6px; border-bottom: 1px solid #555; vertical-align: top; }
+  li { margin: 6px 0; }
+</style>
+</head>
+<body>
+<main>
+<h1>Privacy</h1>
+<p class="box">Your voice and route searches go to Google so I can understand you and find routes. Camera pictures stay on this phone unless you record a session.</p>
+<h2>What leaves your phone</h2>
+<ul>
+  <li><strong>Your voice</strong>, when you tap to talk, goes to Google Speech-to-Text so the app can understand you.
+    If Google listening is off or not working, Chrome's own speech recogniser is used instead, which also sends sound to Google.</li>
+  <li><strong>Place and route searches</strong>, and your location at the time of the search, go to Google (Places and Routes).
+    If Google cannot be reached, they go to OpenStreetMap services (Nominatim and routing.openstreetmap.de) instead.</li>
+  <li><strong>"Where am I?"</strong> sends your location to OpenStreetMap to find the street name.</li>
+</ul>
+<h2>What stays on your phone</h2>
+<ul>
+  <li><strong>Camera pictures.</strong> Detection runs inside the browser on your phone. Pictures are never uploaded.</li>
+  <li><strong>Saved places, routes, notes and settings</strong> are kept in this browser only.</li>
+  <li><strong>Recordings.</strong> "Record session" asks first, and only starts after you say yes. The video and log are saved to this phone.
+    Nothing is sent anywhere unless you choose to share the files.</li>
+</ul>
+<h2>Ask the app</h2>
+<p>Say <strong>"privacy"</strong> at any time to hear the short version again.</p>
+<a class="back" href="./">Back to Vision Assist</a>
+</main>
+</body>
+</html>

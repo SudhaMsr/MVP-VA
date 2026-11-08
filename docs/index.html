@@ -38,6 +38,9 @@
   .preview canvas { position:absolute; inset:0; pointer-events:none; }
   body:not(.debug) .preview { display:none; }
   .small { font-size:.95rem; opacity:.85; }
+  a.btn { display:flex; align-items:center; justify-content:center; min-height:64px; margin:0 0 12px; border-radius:16px;
+    border:3px solid var(--fg); background:#111; color:var(--fg); font-size:1.3rem; font-weight:700; text-decoration:none; }
+  a.btn:focus-visible { outline: 6px solid var(--accent); outline-offset: 3px; }
 </style>
 </head>
 <body>
@@ -66,6 +69,12 @@
     <button id="stepBtn" type="button" aria-label="Your step length, used when distances are in steps. Tap to change.">Step length: 70 cm</button>
     <button id="readBtn" hidden type="button" aria-label="Read the text in front of the camera aloud">Read</button>
 
+    <nav aria-label="About Vision Assist" class="info">
+      <a class="btn" href="limits.html">What it cannot see</a>
+      <a class="btn" href="privacy.html">Privacy</a>
+      <a class="btn" href="numbers.html">Our numbers</a>
+    </nav>
+
     <form id="navForm" style="margin:0 0 12px">
       <label for="navInput" style="display:block;font-weight:700;margin-bottom:6px">Walk to (or say "navigate to ...")</label>
       <input id="navInput" type="text" autocomplete="off" placeholder="e.g. Tesco, High Street" style="width:100%;min-height:64px;font-size:1.3rem;padding:0 12px;border-radius:12px;border:3px solid #fff;background:#111;color:#fff">
@@ -81,7 +90,7 @@
       <button id="recordBtn" type="button" aria-pressed="false">Record session: off</button>
       <button id="saveRecBtn" type="button" hidden disabled aria-label="Save the recording and log" style="min-height:64px;font-size:1.1rem">Save recording</button>
       <button id="logBtn" type="button" aria-label="Save session log" style="min-height:56px;font-size:1rem">Save session log</button>
-      <p class="small">Version: <span id="ver">4c948c6</span></p>
+      <p class="small">Version: <span id="ver">cbfa7e3</span></p>
     </details>
   </details>
 
@@ -95,7 +104,7 @@
     <video id="video" playsinline muted></video>
     <canvas id="overlay"></canvas>
   </div>
-  <p class="small">Say: start, stop, repeat, help, less talk, more detail, what is in front of me, where am I, battery, or navigate to a place.</p>
+  <p class="small">Say: start, stop, repeat, help, less talk, more detail, what is in front of me, where am I, battery, what can't you see, privacy, or navigate to a place.</p>
 </main>
 
 <script>
@@ -111,36 +120,38 @@
 </script>
 <!--stamp-->
 <script type="importmap">{"imports": {
-    "./js/alerts.js": "./js/alerts.js?v=4c948c6",
-    "./js/app.js": "./js/app.js?v=4c948c6",
-    "./js/barge.js": "./js/barge.js?v=4c948c6",
-    "./js/battery.js": "./js/battery.js?v=4c948c6",
-    "./js/camcheck.js": "./js/camcheck.js?v=4c948c6",
-    "./js/cloudstt.js": "./js/cloudstt.js?v=4c948c6",
-    "./js/commands.js": "./js/commands.js?v=4c948c6",
-    "./js/config.js": "./js/config.js?v=4c948c6",
-    "./js/cues.js": "./js/cues.js?v=4c948c6",
-    "./js/depth.js": "./js/depth.js?v=4c948c6",
-    "./js/describe.js": "./js/describe.js?v=4c948c6",
-    "./js/detector.js": "./js/detector.js?v=4c948c6",
-    "./js/dialogue.js": "./js/dialogue.js?v=4c948c6",
-    "./js/freespace.js": "./js/freespace.js?v=4c948c6",
-    "./js/haptics.js": "./js/haptics.js?v=4c948c6",
-    "./js/lanes.js": "./js/lanes.js?v=4c948c6",
-    "./js/modelcache.js": "./js/modelcache.js?v=4c948c6",
-    "./js/nav.js": "./js/nav.js?v=4c948c6",
-    "./js/notes.js": "./js/notes.js?v=4c948c6",
-    "./js/places.js": "./js/places.js?v=4c948c6",
-    "./js/reader.js": "./js/reader.js?v=4c948c6",
-    "./js/routes.js": "./js/routes.js?v=4c948c6",
-    "./js/speech.js": "./js/speech.js?v=4c948c6",
-    "./js/tracker.js": "./js/tracker.js?v=4c948c6",
-    "./js/trustcheck.js": "./js/trustcheck.js?v=4c948c6",
-    "./js/units.js": "./js/units.js?v=4c948c6"
+    "./js/alerts.js": "./js/alerts.js?v=cbfa7e3",
+    "./js/app.js": "./js/app.js?v=cbfa7e3",
+    "./js/barge.js": "./js/barge.js?v=cbfa7e3",
+    "./js/battery.js": "./js/battery.js?v=cbfa7e3",
+    "./js/camcheck.js": "./js/camcheck.js?v=cbfa7e3",
+    "./js/cloudstt.js": "./js/cloudstt.js?v=cbfa7e3",
+    "./js/commands.js": "./js/commands.js?v=cbfa7e3",
+    "./js/config.js": "./js/config.js?v=cbfa7e3",
+    "./js/cues.js": "./js/cues.js?v=cbfa7e3",
+    "./js/depth.js": "./js/depth.js?v=cbfa7e3",
+    "./js/describe.js": "./js/describe.js?v=cbfa7e3",
+    "./js/detector.js": "./js/detector.js?v=cbfa7e3",
+    "./js/dialogue.js": "./js/dialogue.js?v=cbfa7e3",
+    "./js/freespace.js": "./js/freespace.js?v=cbfa7e3",
+    "./js/haptics.js": "./js/haptics.js?v=cbfa7e3",
+    "./js/lanes.js": "./js/lanes.js?v=cbfa7e3",
+    "./js/modelcache.js": "./js/modelcache.js?v=cbfa7e3",
+    "./js/nav.js": "./js/nav.js?v=cbfa7e3",
+    "./js/notes.js": "./js/notes.js?v=cbfa7e3",
+    "./js/places.js": "./js/places.js?v=cbfa7e3",
+    "./js/privacy.js": "./js/privacy.js?v=cbfa7e3",
+    "./js/reader.js": "./js/reader.js?v=cbfa7e3",
+    "./js/routes.js": "./js/routes.js?v=cbfa7e3",
+    "./js/safetext.js": "./js/safetext.js?v=cbfa7e3",
+    "./js/speech.js": "./js/speech.js?v=cbfa7e3",
+    "./js/tracker.js": "./js/tracker.js?v=cbfa7e3",
+    "./js/trustcheck.js": "./js/trustcheck.js?v=cbfa7e3",
+    "./js/units.js": "./js/units.js?v=cbfa7e3"
 }}</script>
 <!--/stamp-->
 <script>window.ORT_BASE = new URL('vendor/ort/', location.href).href;</script>
 <script src="vendor/ort/ort.min.js" onerror="window.ORT_BASE='https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.3/dist/';var s=document.createElement('script');s.src=window.ORT_BASE+'ort.min.js';document.head.appendChild(s);"></script>
-<script type="module" src="js/app.js?v=4c948c6"></script>
+<script type="module" src="js/app.js?v=cbfa7e3"></script>
 </body>
 </html>

@@ -127,7 +127,8 @@ export class AlertEngine {
       } else if (name === 'red_light') {
         out.push({ key: `red:${dir}`, text: `Red light, ${dir}.`, priority: 1 });
       } else if (name === 'green_light') {
-        out.push({ key: `green:${dir}`, text: `Green light, ${dir}.`, priority: 3 });
+        // Never spoken (Package A): a "green light" from a model that cannot reliably read signals could send a walker into
+        // traffic. Asked directly, the app says it cannot read the signal (safetext.js CROSSING_TEXT).
       } else if (name === 'crosswalk') {
         out.push({ key: `crosswalk:${dir}`, text: `Crossing, ${dir}.`, priority: 3 });
       } else if (name === 'blind_road') {

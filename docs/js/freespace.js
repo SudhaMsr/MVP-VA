@@ -8,6 +8,8 @@ const BLOCKERS = new Set(['person', 'dog', 'bicycle', 'car', 'truck', 'bus', 'mo
   'warning_column', 'reflective_cone', 'roadblock', 'tree', 'guard_rail', 'bench', 'chair', 'plant_pot', 'electrical_box',
   'bicycle_rack', 'stairs', 'manhole']);
 
+export const OPEN_AGAIN = 'I no longer see anything in your way.';
+
 export class FreeSpace {
   constructor(cfg = CONFIG) {
     this.cfg = cfg.freeSpace || { nearMetres: 3.5, on: 0.6, off: 0.3, alpha: 0.4, clearFrames: 10 };
@@ -59,10 +61,11 @@ export class FreeSpace {
     return { side, stop: false, text: `Clearer on the ${side}.` };
   }
 
-  // Said once, after a blocked warning, when the way ahead has stayed clear for a moment.
+  // Said once, after a blocked warning, when the way ahead has stayed clear for a moment. Worded as what the camera sees,
+  // never as a promise: "clear ahead" could be heard as "safe" (see safetext.js).
   // peekClear() only looks; call spokenClear() once it has really been said, so a message that lost out to a hazard is kept.
   peekClear() {
-    return this.announcedBlocked && !this.blocked.centre && this.clearRun >= (this.cfg.clearFrames ?? 10) ? 'Clear ahead.' : null;
+    return this.announcedBlocked && !this.blocked.centre && this.clearRun >= (this.cfg.clearFrames ?? 10) ? OPEN_AGAIN : null;
   }
   spokenClear() { this.announcedBlocked = false; }
 

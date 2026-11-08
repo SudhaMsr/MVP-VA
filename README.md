@@ -28,11 +28,17 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
 - Spoken errors: no silent failures.
 - **Screen off stops the app:** locking the phone or switching away stops detection and cancels speech at once (a Wake Lock keeps the screen on while running, when the phone allows it); coming back resumes automatically with "Vision Assist is resuming."
 - **Walking corridor:** only things in the walker's path are spoken about; things to the side only when very close. The supervisor view (?debug) draws the corridor.
-- **Free-space hints:** when the way ahead is blocked the alert adds "Clearer on the left." or "No clear way. Stop."; "Clear ahead." follows once it opens. Smoothed so it does not flicker.
+- **Free-space hints:** when the way ahead is blocked the alert adds "Clearer on the left." or "No clear way. Stop."; "I no longer see anything in your way." follows once it opens (never "clear ahead": see Safety honesty). Smoothed so it does not flicker.
 - **Vibration:** urgent alerts, stairs, "Stop" and turns buzz the phone with different patterns. Say "vibration off" / "vibration on", or use the button.
 - **Route recording:** "record this route as the bus stop", "stop recording", "follow route bus stop", "take me back along route bus stop", "list my routes". Routes are kept on the phone only.
-- **What is around me:** starts with the state of the path ("The way ahead looks clear." / "Ahead is blocked. Clearer on the left."), then lists what the camera recognises.
-- **Crossing help:** "can I cross?" answers from the lights and crossings the camera sees. It is not a safety guarantee.
+- **What is around me:** starts with the state of the path ("I see nothing in your way, but check with your cane." / "Ahead is blocked. Clearer on the left."), then lists what the camera recognises.
+- **Safety honesty (Package A):**
+  - **Crossings:** the app cannot read traffic signals, so it never reports a light's colour. "Can I cross?", "is the light green?", "traffic light" and any route step that crosses a road (Google's instruction, or an OSM crossing name) all get: "Crossing ahead. I can't read the traffic signal. Listen for traffic before you cross." A close vehicle is mentioned first. Green lights from the model are never spoken.
+  - **Limits:** "what can't you see?" answers "I can't reliably see kerbs, drops, potholes, low branches, ice, or traffic signals. Keep using your cane or guide dog." The same line ends the full "are you working?" check, and is in help.
+  - **Banned phrases:** `docs/js/safetext.js` lists phrases the app must never say ("safe to cross", "all clear", "clear path", "green light", "no obstacles", ...). `tests/safetext.test.js` checks every string in `docs/js` against it. "Clearer on the left" and "No clear way. Stop." stay allowed.
+  - **Privacy line:** said once, on the very first start; "privacy" repeats it.
+  - **Recording consent:** turning on Record session (or `?record`) asks "Recording saves video and a log on this phone. Say yes to start, or no." Nothing is recorded until yes (spoken, or the Yes button). Consent lasts until the page is closed.
+  - **Info pages:** `privacy.html`, `limits.html` ("What it cannot see") and `numbers.html` ("Our numbers": not measured yet; states the Stage 1 gate), linked from More options.
 - **Memory notes:** "remember the keys are in the drawer", "what do you remember?".
 - **Text reading:** on. Say "read" or tap Read; runs on the phone.
 
@@ -83,13 +89,13 @@ Offline review: `python3 tools/analyze_session.py VIDEO LOG.json` replays the vi
 Hold or mount the phone at chest height with the camera facing forward and **your arm out of the picture**. In our demo video the tester's own arm in view was detected as a person. A chest lanyard is the recommended mount for tests.
 
 ## Status
-Built: three-lane hazard detection, calm spoken alerts, spoken walking navigation (Google when available, OpenStreetMap as the fallback), tap-to-talk voice (Google Cloud Speech-to-Text, Chrome as fallback), the one-screen interface, and the ask-the-app features above. Not yet tested outdoors with blind testers. A known-limits list and a tester guide are still to be written.
+Built: three-lane hazard detection, calm spoken alerts, spoken walking navigation (Google when available, OpenStreetMap as the fallback), tap-to-talk voice (Google Cloud Speech-to-Text, Chrome as fallback), the one-screen interface, and the ask-the-app features above. Not yet tested outdoors with blind testers. The known-limits list is `docs/limits.html`; a tester guide is still to be written.
 
 ## Security
 Never commit service-account files or an unrestricted API key. The Google key in `docs/js/config.js` is the exception: a browser-only app on GitHub Pages cannot hide a key from whoever loads the page, so it is restricted in Google Cloud Console instead of hidden — locked to the `https://sudhamsr.github.io/*` referrer and to the Places (New), Routes and Speech-to-Text APIs only. It is useless if copied elsewhere. Check the Google Cloud Console quota and billing page occasionally for unexpected use, and keep the API restriction list as narrow as the app actually needs (new paid API usage should extend that list deliberately, not by leaving it open).
 
 ## Privacy note
-Each time you tap Talk, that recording is sent to Google Cloud Speech-to-Text and is not stored by the app. Place searches and routes also go to Google (OpenStreetMap as the fallback). Camera pictures never leave the phone. The session log includes location fixes (about every 3 seconds while navigating) and the words heard and spoken, so walks can be reviewed. Treat saved logs as personal data and delete them after review. Saved places stay in the phone's own storage.
+The walker-facing version is `docs/privacy.html` and the spoken "privacy" answer. Each time you tap Talk, that recording is sent to Google Cloud Speech-to-Text and is not stored by the app. Place searches and routes also go to Google (OpenStreetMap as the fallback). Camera pictures never leave the phone. The session log includes location fixes (about every 3 seconds while navigating) and the words heard and spoken, so walks can be reviewed. Treat saved logs as personal data and delete them after review. Saved places stay in the phone's own storage.
 
 ## Navigation trust
 Route data comes from Google (checked: spoken distances match Google's own figures). Position is the phone's raw GPS, so it can be 10 to 50 m out. The app says when the signal is weak or has stopped, ignores very imprecise fixes, and tolerates more drift before calling "off route". The voice wizard waits 40 seconds for a yes or no.

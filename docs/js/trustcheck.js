@@ -1,6 +1,7 @@
 // Trust features (7 Nov): the walker can always find out why the app said something, and whether it is working.
 // Blind users told us silence and unexplained warnings are what make them stop trusting an app.
 import { nearDistance } from './units.js';
+import { LIMITS_TEXT } from './safetext.js';
 
 const LABEL = { car: 'car', truck: 'lorry', bus: 'bus', motorcycle: 'motorbike', bicycle: 'bicycle', person: 'person', dog: 'dog' };
 const mph = (mps) => Math.max(1, Math.round(mps * 2.237));
@@ -12,7 +13,7 @@ export function explainAlert(a) {
   const name = LABEL[a.name] || (a.name ? a.name.replace(/_/g, ' ') : 'something');
   const dist = a.d != null && a.d > 0 ? `, ${nearDistance(a.d)}` : '';
   let why;
-  if (a.key === 'clear') why = 'The way ahead looked open again, after it had been blocked.';
+  if (a.key === 'clear') why = 'I no longer saw anything in your way, after it had been blocked. That is not a promise, so keep using your cane.';
   else if (a.crowd) why = `I could see ${a.count || 'several'} people close together in your walking path${dist}. People usually move aside, so I did not say stop.`;
   else if (a.priority === 0) why = `I saw a ${name} ${where(a.dir)}${dist}, coming towards you${a.sp != null ? ` at about ${mph(a.sp)} miles an hour` : ''}. Moving vehicles that close always get a warning.`;
   else if (a.key && a.key.endsWith(':pass')) why = `I saw a ${name} moving across in front of you${dist}.`;
@@ -27,7 +28,8 @@ export function explainAlert(a) {
 }
 
 // One spoken line about what is and is not working. On a normal start only problems are spoken; asked directly
-// ("are you working?") or on the very first start, everything is.
+// ("are you working?") or on the very first start, everything is, followed by what the app cannot see (Package A):
+// "working" must never be heard as "sees everything".
 export function selfCheckText({ camera = true, location, internet, listening, battery = null, charging = false }, full = false) {
   const problems = [];
   if (!camera) problems.push('the camera is not working, so I cannot warn you about anything');
@@ -35,7 +37,8 @@ export function selfCheckText({ camera = true, location, internet, listening, ba
   if (internet === false) problems.push('there is no internet, so directions and Google listening will not work, but warnings still do');
   else if (listening === false) problems.push('Google listening is not working, so I am using the phone\'s own listening');
   if (battery != null && battery <= 0.2 && !charging) problems.push(`the battery is at ${Math.round(battery * 100)} percent`);
-  if (!problems.length) return full ? 'Check done. Camera, location and internet are all working.' : '';
+  const limits = full ? ` ${LIMITS_TEXT}` : '';
+  if (!problems.length) return full ? `Check done. Camera, location and internet are all working.${limits}` : '';
   const s = problems.join('; and ');
-  return `Check done. ${s.charAt(0).toUpperCase()}${s.slice(1)}.`;
+  return `Check done. ${s.charAt(0).toUpperCase()}${s.slice(1)}.${limits}`;
 }

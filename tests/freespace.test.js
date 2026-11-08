@@ -41,8 +41,8 @@ test('clear ahead is said once after a blocked warning, not before', () => {
   run(fs, [T('person', 2, 235, 330)]);
   fs.announcedBlocked = true;
   run(fs, [], 30);
-  assert.equal(fs.peekClear(), 'Clear ahead.');
-  assert.equal(fs.peekClear(), 'Clear ahead.', 'looking does not use it up');
+  assert.equal(fs.peekClear(), 'I no longer see anything in your way.');
+  assert.equal(fs.peekClear(), 'I no longer see anything in your way.', 'looking does not use it up');
   fs.spokenClear();
   assert.equal(fs.peekClear(), null, 'only once, after it has been said');
 });
