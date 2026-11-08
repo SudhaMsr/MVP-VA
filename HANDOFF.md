@@ -31,7 +31,7 @@ Paste this at the start of a new chat, together with the repo link.
   - 209 Node tests pass (`npm test`).
   - `tools/` has frame extraction, Open Images and Colab training recipes (phase2/phase3), and a session-log analyser.
   - README documents everything.
-- **Google setup:** key restricted to the `https://sudhamsr.github.io/*` referrer and to the Places (New), Routes and Speech-to-Text APIs only; it lives in `docs/js/config.js` and is intentionally committed (a browser app cannot hide it). Check Cloud Console quota/billing occasionally for unexpected use.
+- **Google setup:** key restricted to the `https://sudhamsr.github.io/*` referrer and to the Places (New), Routes, Speech-to-Text and Text-to-Speech APIs only (Text-to-Speech must be added in Cloud Console, 8 Nov); it lives in `docs/js/config.js` and is intentionally committed (a browser app cannot hide it). Check Cloud Console quota/billing occasionally for unexpected use.
 
 ## Last retest (live, fake Bristol GPS, real Google APIs)
 - Working: screen-reader double speaking fixed, no "test" labels, a short start message, "You are going the right way", and the 30 m turn warning.
@@ -137,6 +137,11 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
 - **"Are there cars in front of me":** where-words are stripped before the object lookup (it said "I cannot recognise cars in front
   of me").
 - Tests: `tests/field_test_nov8.test.js`.
+- **Google voice and listening (8 Nov, same branch):** `cloudtts.js` (Cloud Text-to-Speech, voice `en-GB-Neural2-C`, kept in memory,
+  common lines fetched at Start) drives `Speaker` through `opts.cloud`/`opts.player`; the phone voice is the fallback per line and
+  is always used for an urgent line not already fetched. `cloudstt.js` no longer turns Google listening off after 2 failures: 6 s
+  timeout, one retry on network/5xx/429, off only on 401/403. Tests: `tests/google_speech.test.js`.
+  Cost: Neural2 voices are free for the first 1 million characters a month, then about $16 per million.
 
 ## Build plan packages (from "Vision Assist — Build Plan & Claude Code Playbook", 7 Nov)
 Each package is one branch and one PR, stacked in order (each branch starts from the previous one), so merge them in order.

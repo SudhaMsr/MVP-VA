@@ -152,6 +152,7 @@ export const CONFIG = {
   reassureMetres: 80, // ...and the next turn is at least this far away
   speechRate: 0.95, // calm but not slow (HANDOFF rule); 1.0 is the voice default. Walkers can change it by voice or the button
   speechLang: 'en-GB',
+  ttsVoice: 'en-GB-Neural2-C', // Google Cloud Text-to-Speech voice (cloudtts.js); the phone's voice is the fallback
 
   // Floor-based distance (Package F): camera's vertical field of view (degrees, portrait) for the ground geometry in
   // floordist.js. Calibrate per phone. Used for speech only with ?dist=floor; always logged next to the box estimate.

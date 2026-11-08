@@ -1,7 +1,8 @@
 // Google Cloud Speech-to-Text, tap to talk (31 Oct field feedback: "I screamed navigate me to this place and it did not
 // listen"; Chrome's always-on recogniser on Android stops every few seconds and misses speech while the phone talks).
 // The walker taps, the app goes quiet, records until they stop talking (or 7 s), sends the clip to Google, and hands the
-// words back. If Google fails (no internet, key not allowed), the caller falls back to Chrome's recogniser.
+// words back. A failed request is tried once more (a signal blip, a slow reply); Google is never switched off for the rest
+// of the walk because of the network, only when the key is refused (8 Nov: "make Google speech work all the time").
 
 // Words and phrases the walker is likely to say: Google weights these higher (better "navigate to", "take me home").
 export const PHRASES = [
@@ -50,12 +51,12 @@ export class EndOfSpeech {
 }
 
 export class CloudListener {
-  constructor({ key, lang = 'en-GB', log = () => {}, fetchFn = (...a) => fetch(...a) } = {}) {
-    Object.assign(this, { key, lang, log, fetchFn });
-    this.stream = null; this.busy = false; this.failed = 0; this.model = 'latest_short';
+  constructor({ key, lang = 'en-GB', log = () => {}, fetchFn = (...a) => fetch(...a), timeoutMs = 6000, retryMs = 400 } = {}) {
+    Object.assign(this, { key, lang, log, fetchFn, timeoutMs, retryMs });
+    this.stream = null; this.busy = false; this.refused = false; this.model = 'latest_short';
   }
 
-  get usable() { return !!(this.key && typeof MediaRecorder !== 'undefined' && navigator.mediaDevices && this.failed < 2); }
+  get usable() { return !!(this.key && !this.refused && typeof MediaRecorder !== 'undefined' && typeof navigator !== 'undefined' && navigator.mediaDevices); }
 
   async _mic() {
     if (this.stream && this.stream.getAudioTracks().some((t) => t.readyState === 'live')) return this.stream;
@@ -100,9 +101,7 @@ export class CloudListener {
       const blob = new Blob(parts, { type: mime });
       const b64 = await blobToBase64(blob);
       const st = (stream.getAudioTracks()[0] && stream.getAudioTracks()[0].getSettings && stream.getAudioTracks()[0].getSettings()) || {};
-      const text = await this._recognise(b64, ctx.sampleRate || 48000, st.channelCount || 1);
-      this.failed = 0;
-      return text;
+      return await this._recognise(b64, ctx.sampleRate || 48000, st.channelCount || 1);
     } finally {
       this.busy = false;
     }
@@ -111,7 +110,22 @@ export class CloudListener {
   async _recognise(b64, sampleRate, channels = 1) {
     const url = `https://speech.googleapis.com/v1/speech:recognize?key=${encodeURIComponent(this.key)}`;
     const t0 = performance.now();
-    const send = (opts) => this.fetchFn(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildRequest(b64, { lang: this.lang, sampleRate, channels, ...opts })) });
+    const post = async (opts) => {
+      const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = setTimeout(() => ctl && ctl.abort(), this.timeoutMs);
+      try {
+        return await this.fetchFn(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildRequest(b64, { lang: this.lang, sampleRate, channels, ...opts })), signal: ctl ? ctl.signal : undefined });
+      } finally { clearTimeout(timer); }
+    };
+    // No reply, a timeout, a Google hiccup (5xx) or too many requests (429): wait a moment and send it once more.
+    const send = async (opts) => {
+      let res = null;
+      try { res = await post(opts); } catch (e) { this.log('cloud-stt-retry', `network ${e && e.name}`); }
+      if (res && res.status !== 429 && res.status < 500) return res;
+      if (res) this.log('cloud-stt-retry', String(res.status));
+      await new Promise((r) => setTimeout(r, this.retryMs));
+      return post(opts);
+    };
     let res = await send({ model: this.model });
     if (res.status === 400) {
       // Google says what it did not like: the channel count, the sample rate or the model. Fix that one thing and try once more.
@@ -123,7 +137,7 @@ export class CloudListener {
       else if (this.model) { this.model = null; res = await send({ model: null }); }
     }
     if (!res.ok) {
-      this.failed += res.status === 401 || res.status === 403 ? 99 : 1; // key not allowed for Speech-to-Text: stop trying
+      if (res.status === 401 || res.status === 403) this.refused = true; // key not allowed for Speech-to-Text: a setup problem
       const body = await res.text().catch(() => '');
       this.log('cloud-stt-error', `${res.status} ${body.slice(0, 200)}`);
       throw new Error(`speech ${res.status}`);

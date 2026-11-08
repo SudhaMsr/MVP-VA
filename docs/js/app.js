@@ -28,6 +28,7 @@ import { CROSSING_TEXT, LIMITS_TEXT } from './safetext.js';
 import { firstStartPrivacy, PRIVACY_TEXT, RecordingConsent } from './privacy.js';
 import { OnlineWatch, updateNotice } from './pwa.js';
 import { PerfMeter, SlowMode, WalkStats, summaryText } from './perf.js';
+import { CloudVoice, WARM_LINES } from './cloudtts.js';
 import { routeOutput, OUTPUT_MODES, OUTPUT_NAMES, outputText } from './output.js';
 import { hazardCandidates } from './hazardalerts.js';
 import { floorDistance, pitchFromBeta, parseHeight, cameraHeightM, PitchCalibrator } from './floordist.js';
@@ -51,8 +52,26 @@ const el = {
   dl: $('logBtn'), saveRec: $('saveRecBtn'), level: $('levelBtn'), tap: $('tapBtn'), units: $('unitsBtn'), step: $('stepBtn'), rate: $('rateBtn'), shareBtn: $('shareBtn'), dbg: $('debugBtn'), rec: $('recordBtn'),
 };
 
+// The app's voice: Google Cloud Text-to-Speech, with the phone's own voice whenever Google cannot be reached (cloudtts.js).
+// ?voice=phone uses the phone's voice only.
+let ttsRefusedSaid = false;
+const cloudVoice = params.get('voice') === 'phone' || !GOOGLE_KEY ? null : new CloudVoice({
+  key: GOOGLE_KEY, lang: CONFIG.speechLang, voice: CONFIG.ttsVoice,
+  log: (k, v) => {
+    logEvent(k, v);
+    if (k === 'cloud-tts-refused' && !ttsRefusedSaid) { ttsRefusedSaid = true; say("Google voice is not switched on for this app, so I am using the phone's voice.", 'status'); }
+  },
+});
+const ttsAudio = typeof Audio !== 'undefined' ? new Audio() : null;
+function playTts(url, onEnd, onError) {
+  ttsAudio.onended = onEnd; ttsAudio.onerror = onError;
+  ttsAudio.src = url;
+  const p = ttsAudio.play(); if (p && p.catch) p.catch(onError);
+  return { stop() { ttsAudio.onended = null; ttsAudio.onerror = null; try { ttsAudio.pause(); } catch (_) { /* ignore */ } } };
+}
 const speaker = new Speaker(window.speechSynthesis, window.SpeechSynthesisUtterance, {
   rate: CONFIG.speechRate, lang: CONFIG.speechLang, staleMs: CONFIG.staleMs,
+  cloud: cloudVoice, player: cloudVoice && ttsAudio ? playTts : null,
 });
 const tracker = new Tracker();
 const engine = new AlertEngine(CONFIG, CONFIG.verbosity);
@@ -657,6 +676,7 @@ async function start() {
   updateMain();
   setStatus('Starting');
   cues.play('ok'); // a short sound to show it has started
+  if (cloudVoice) cloudVoice.warm(WARM_LINES, speaker.rate); // common lines ready in Google's voice before they are needed
   if (useCloud()) cloud._mic().catch((e) => { logEvent('mic-error', e && e.name); cloudOff = true; startListening(); }); // inside the tap, so the browser allows the microphone prompt
   else startListening();
   try { navigator.geolocation.getCurrentPosition(() => {}, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }); } catch (_) { /* ask for location now, so the prompt is not a surprise mid-walk */ }
@@ -776,12 +796,14 @@ async function cloudTalk() {
   } catch (e) {
     logEvent('cloud-stt-fail', e && e.message);
     endTalk();
-    if (!cloud.usable || (e && e.name === 'NotAllowedError')) {
+    if (cloud.refused || (e && e.name === 'NotAllowedError')) {
+      // The key is refused, or the microphone is blocked: a setup problem, not the signal. Only then switch over.
       cloudOff = true;
       say("Google listening is not working, so I will use the phone's own listening. Tap the screen and try again.", 'status');
       startListening();
     } else {
-      say('I could not hear that clearly. Tap the screen and try again.', 'status');
+      // Signal: it was already tried twice. Google is used again on the next tap.
+      say('I could not reach Google, the signal may be weak. Tap the screen and try again.', 'status');
     }
   }
 }
