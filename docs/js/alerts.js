@@ -144,6 +144,7 @@ export class AlertEngine {
       for (let i = start; i < out.length; i++) {
         out[i].d = d; out[i].dir = dir; out[i].kind = kind; out[i].inPath = inPath;
         out[i].name = name; out[i].sp = sp; out[i].score = tr.score ?? null; // for "why did you say that?"
+        out[i].trackId = tr.id; // to log the floor-based distance next to the box-based one (Package F)
         // Someone or something moving, straight ahead and very close: never held back by the talk budget.
         out[i].closeAhead = kind === 'moving' && dir === 'ahead' && d != null && d < (c.closeAheadMetres ?? 1.5);
       }

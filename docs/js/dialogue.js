@@ -48,7 +48,7 @@ export class Dialogue {
   constructor({ say, nav, places = null, onPrompt = () => {}, timeoutMs = 40000, chooseTimeoutMs = 75000 }) {
     Object.assign(this, { say, nav, places, onPrompt, timeoutMs, chooseTimeoutMs });
     this.lastAsk = '';
-    this.state = 'idle'; // idle | where | choose | confirm | savecheck | yesno
+    this.state = 'idle'; // idle | where | choose | confirm | savecheck | yesno | value
     this.misses = 0;
     this.timer = null;
   }
@@ -64,9 +64,18 @@ export class Dialogue {
     if (state === 'idle') { this.pending = null; this.onPrompt(null); return; }
     this.onPrompt(options);
     this.timer = setTimeout(() => {
+      if (state === 'value') { this._set('idle'); this.say('No answer, so I have cancelled that.', 'status'); return; }
       if (state === 'yesno') { const no = this.pending && this.pending.onNo; this._set('idle'); this.say('No answer, so I have taken that as no.', 'status'); if (no) no(); return; }
       this.say('I will cancel that. Say navigate to, and a place, to start again.', 'status'); this._set('idle');
     }, state === 'choose' ? this.chooseTimeoutMs : this.timeoutMs);
+  }
+
+  // A question with a spoken answer that parse() turns into a value (Package F: "How tall are you?"). parse returns null
+  // for an answer it cannot use; two of those, or silence, cancel. onValue gets the value.
+  askValue(question, parse, onValue, retry = 'Please say that again.') {
+    this._set('value', [{ label: 'Cancel', value: 'no' }]);
+    this.pending = { parse, onValue, retry };
+    this._ask(question);
   }
 
   // A plain yes/no question (Package A: recording consent). Nothing happens until the walker says yes; no, two misses or
@@ -150,6 +159,12 @@ export class Dialogue {
       this._set('idle'); this.navigateTo(q); return true;
     }
     if (a.type === 'repeat' && this.lastAsk) { this.say(this.lastAsk, 'status'); return true; }
+    if (this.state === 'value') {
+      if (a.type === 'no') { this.say('Okay, cancelled.', 'status'); this._set('idle'); return true; }
+      const v = this.pending.parse(text);
+      if (v == null) return this._miss();
+      const { onValue } = this.pending; this._set('idle'); onValue(v); return true;
+    }
     if (this.state === 'yesno') {
       const { onYes, onNo } = this.pending;
       if (a.type === 'yes') { this._set('idle'); onYes(); return true; }
@@ -187,6 +202,7 @@ export class Dialogue {
     this.misses += 1;
     if (this.misses >= 2 && this.state === 'yesno') { const no = this.pending.onNo; this.say('I did not catch that, so I have taken it as no.', 'status'); this._set('idle'); no(); return true; }
     if (this.misses >= 2) { this.say('I did not catch that, so I have cancelled. Say navigate to, and a place, to try again.', 'status'); this._set('idle'); return true; }
+    if (this.state === 'value') { this.say(this.pending.retry, 'status'); return true; }
     this.say(this.state === 'confirm' || this.state === 'savecheck' || this.state === 'yesno' ? 'Please say yes or no.' : this.state === 'where' ? 'Say the name of the place.' : 'Please say one, two or three. Or say repeat.', 'status');
     return true;
   }

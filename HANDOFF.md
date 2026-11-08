@@ -216,3 +216,16 @@ Record for each step: done alone / needed help / could not do it, and the tester
   No distance: none of these classes has a measured distance error. `ped_signal` is never spoken from this lane.
 - `HAZARD.speak` (unused flag) replaced by `HAZARD.speakClasses`. The model is cached by Detector.load (modelcache.js) after first
   use; it is also warmed before Start once speakClasses is not empty (40 MB is not worth fetching early for a log-only lane).
+
+### Package F: floor-based distance (`feat/floor-distance`)
+- `docs/js/floordist.js`: `floorDistance()` = cameraHeight / tan(pitch + angleBelowCentre(yBottom)), vertical field of view from
+  `CONFIG.floor.vfovDeg` (60, calibrate per phone); null when the box bottom touches the frame edge, pitch or height is missing, or the
+  point is within 2 degrees of the horizon. Pitch = 90 - DeviceOrientationEvent beta (portrait, screen facing the walker).
+- "calibrate": averages the tilt over 2 s (stored as `va.floor.pitch`; used when there is no live motion sensor), then asks
+  "How tall are you, in feet and inches or centimetres?" once (`va.floor.heightCm`; camera height = 0.72 x height; 170 cm until asked).
+  `Dialogue.askValue()` is the new free-answer question.
+- Every alert logs `alert-dist` {box, floor, used, pitch}. `?dist=floor` feeds the floor estimate to the alert engine for everything
+  except vehicles (their warnings depend on the box distance and its speed; not changed without walk evidence).
+- `tools/score_walk.mjs`: sheets carry `box_m` and `floor_m` per warning; add `true_m` by hand; `compare` prints median and 90th
+  percentile error per method and which is better. **Not measured yet: needs walks with true distances.**
+- Tested with synthetic geometry (known height, pitch and field of view give the known distance to 1 cm).

@@ -50,6 +50,8 @@ export function parseCommand(raw) {
   if (/\b(?:traffic lights?|traffic signals?|crossing lights?|pedestrian lights?|green man|red man|the signal|is it green|is it red)\b/.test(t)) return { type: 'cross' };
   // How the walk went (Package C): time, warnings, speed, battery
   if (/\b(?:walk summary|summary of (?:my|the|this) walk|how was (?:my|the|this) walk|how did (?:my|the) walk go)\b/.test(t)) return { type: 'walkSummary' };
+  // Floor-based distance (Package F)
+  if (/^(?:calibrate|calibration|calibrate (?:the )?(?:distance|distances|camera|phone)|start calibration)$/.test(t)) return { type: 'calibrate' };
   // What the app cannot see, and what it sends where (Package A)
   if (/\b(?:what (?:can't|cannot|can not|don't|do not) you (?:see|detect|spot)|what are your limits|your limits|limitations|what do you miss|what (?:might|could|can) you miss)\b/.test(t)) return { type: 'limits' };
   if (/\b(?:privacy|private|my data|what do you (?:send|share|record|keep)|where does (?:my|the) (?:data|voice|information) go|who (?:can )?(?:hears|sees) (?:this|me))\b/.test(t)) return { type: 'privacy' };

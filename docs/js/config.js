@@ -150,6 +150,10 @@ export const CONFIG = {
   speechRate: 0.95, // calm but not slow (HANDOFF rule); 1.0 is the voice default. Walkers can change it by voice or the button
   speechLang: 'en-GB',
 
+  // Floor-based distance (Package F): camera's vertical field of view (degrees, portrait) for the ground geometry in
+  // floordist.js. Calibrate per phone. Used for speech only with ?dist=floor; always logged next to the box estimate.
+  floor: { vfovDeg: 60, edgeMargin: 0.02, minAngleDeg: 2, heightShare: 0.72 },
+
   speakWatchClasses: false, // Step C: WATCH_CLASSES are logged only. Turn on only after a Poco test shows no false alarms.
   // bollard/upstairs/downstairs/traffic_light/stop_sign have no alert wording yet, so this alone would not make them
   // speak; red_light/green_light already have wording (shared with the wotr model), which is exactly why rod2's two

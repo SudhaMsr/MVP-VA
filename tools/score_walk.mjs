@@ -11,6 +11,10 @@
 // 2. Score one or more walks (exit code 1 if the gate fails, so it can run before every release):
 //      node tools/score_walk.mjs score walk1.labels.json walk2.labels.json ...
 //    The report also gives speed (frames per second) and battery use per hour, from the app's 'perf' events (every 30 s).
+// 4. Distance error (Package F): the app logs a box-based and a floor-based distance for every warning. In a sheet, give
+//    some warnings "true_m" (the real distance in metres, paced or measured from the video), then:
+//      node tools/score_walk.mjs compare sheets/*.json
+//    prints the median and 90th-percentile error of each method.
 // 3. Publish the numbers (Package C): writes docs/numbers.html, the "Our numbers" page, from the same sheets.
 //      node tools/score_walk.mjs numbers sheets/*.json
 import fs from 'node:fs';
@@ -21,10 +25,32 @@ export function alertsFromLog(log) {
   const ev = log.events || [];
   const start = ev.find((e) => e.type === 'record-start') || ev[0];
   const t0 = start ? start.t : Date.parse(log.startedAt);
+  const dists = ev.filter((e) => e.type === 'alert-dist').map((e) => { try { return { t: e.t, ...JSON.parse(e.detail) }; } catch { return null; } }).filter(Boolean);
   return ev.filter((e) => e.type === 'alert').map((e) => {
     const [pr, ...rest] = String(e.detail).split('|');
-    return { t: Math.round((e.t - t0) / 100) / 10, priority: Number(pr), text: rest.join('|') };
+    const text = rest.join('|');
+    const a = { t: Math.round((e.t - t0) / 100) / 10, priority: Number(pr), text };
+    // Both distance estimates (Package F), logged just after the warning.
+    const d = dists.find((x) => x.text === text && x.t >= e.t && x.t - e.t < 1000);
+    if (d) { a.box_m = d.box; a.floor_m = d.floor; }
+    return a;
   }).filter((a) => a.t >= 0);
+}
+
+// Median and 90th-percentile absolute error (metres) of the box-based and floor-based distances, over the warnings that
+// have a "true_m" in the sheets. n = how many warnings each method had an estimate for.
+export function compareDistances(sheets) {
+  const err = { box: [], floor: [] };
+  for (const s of sheets) for (const a of s.alerts || []) {
+    if (typeof a.true_m !== 'number') continue;
+    if (typeof a.box_m === 'number') err.box.push(Math.abs(a.box_m - a.true_m));
+    if (typeof a.floor_m === 'number') err.floor.push(Math.abs(a.floor_m - a.true_m));
+  }
+  const pct = (v, q) => { if (!v.length) return null; const x = v.slice().sort((a, b) => a - b); return Math.round(x[Math.min(x.length - 1, Math.ceil(q * x.length) - 1)] * 100) / 100; };
+  const out = {};
+  for (const k of ['box', 'floor']) out[k] = { n: err[k].length, median: pct(err[k], 0.5), p90: pct(err[k], 0.9) };
+  out.better = out.box.n && out.floor.n ? (out.floor.median < out.box.median && out.floor.p90 <= out.box.p90 ? 'floor' : 'box') : null;
+  return out;
 }
 
 // Speed and battery for one walk, from the 'perf' events (Package C) and the 'walk-summary' event the app logs on stop.
@@ -182,6 +208,10 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     const r = score(files.map((f) => JSON.parse(fs.readFileSync(f, 'utf8'))));
     console.log(report(r));
     process.exit(r.pass ? 0 : 1);
+  } else if (cmd === 'compare' && files.length) {
+    const c = compareDistances(files.map((f) => JSON.parse(fs.readFileSync(f, 'utf8'))));
+    for (const k of ['box', 'floor']) console.log(`${k.padEnd(5)}: ${c[k].n} warnings with a true distance; median error ${c[k].median ?? '-'} m, 90th percentile ${c[k].p90 ?? '-'} m`);
+    console.log(c.better ? `Better: ${c.better}${c.better === 'floor' ? ' (lower median and no worse 90th percentile)' : ''}` : 'Not enough data: add "true_m" to some warnings in the sheets.');
   } else if (cmd === 'numbers') {
     const r = files.length ? score(files.map((f) => JSON.parse(fs.readFileSync(f, 'utf8')))) : null;
     const out = new URL('../docs/numbers.html', import.meta.url);
@@ -189,7 +219,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     console.log(r ? report(r) : 'No sheets: page says "Not measured yet".');
     console.log(`Wrote ${out.pathname}`);
   } else {
-    console.log('Usage:\n  node tools/score_walk.mjs template session-log.json > walk.labels.json\n  node tools/score_walk.mjs score walk1.labels.json [walk2.labels.json ...]\n  node tools/score_walk.mjs numbers walk1.labels.json [...]   (writes docs/numbers.html)');
+    console.log('Usage:\n  node tools/score_walk.mjs template session-log.json > walk.labels.json\n  node tools/score_walk.mjs score walk1.labels.json [walk2.labels.json ...]\n  node tools/score_walk.mjs numbers walk1.labels.json [...]   (writes docs/numbers.html)\n  node tools/score_walk.mjs compare walk1.labels.json [...]   (distance error, box vs floor)');
     process.exit(2);
   }
 }
