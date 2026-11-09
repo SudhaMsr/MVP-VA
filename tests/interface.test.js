@@ -167,7 +167,7 @@ test('walk answers come from the live route', async () => {
   await nav.start('x');
   assert.match(nav.status('far'), /do not have your location/);
   cb({ lat: 51, lon: 0.002, accuracy: 8 }); // halfway along the first street
-  assert.match(nav.status('next'), /^In .+, turn left onto High Street\.$/);
+  assert.match(nav.status('next'), /^In .+, turn left\.$/);
   assert.match(nav.status('far'), /^Your destination is about .+ away, .+\.$/);
   assert.equal(nav.status('onroute'), 'Yes. You are on the route.');
   cb({ lat: 51.0012, lon: 0.002, accuracy: 8 }); // about 130 m north of the street

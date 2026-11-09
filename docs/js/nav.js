@@ -69,16 +69,15 @@ const MOD = {
   'sharp left': 'turn sharp left', 'sharp right': 'turn sharp right', straight: 'continue straight', uturn: 'turn around',
 };
 
-// Instruction for one OSRM step, e.g. "turn left onto High Street".
+// Instruction for one route step, e.g. "turn left". Street names are never spoken in directions: a blind walker cannot
+// read a street sign, so "walk along Church Rd towards Southey Ave" tells them nothing they can act on (field test, 8 Nov).
 export function instructionText(step) {
-  if (step.text) return step.text;
+  if (step.text) return cleanStreetNames(step.text);
   const m = step.maneuver || {};
-  const name = step.name ? ` onto ${step.name}` : '';
   if (m.type === 'arrive') return 'your destination'; // never "you have arrived": GPS can be 10 to 50 m out (Package G)
-  if (m.type === 'depart') return step.name ? `walk along ${step.name}` : 'walk ahead';
-  if (m.type === 'roundabout' || m.type === 'rotary') return `at the roundabout, take exit ${m.exit ?? 'ahead'}${name}`;
-  const verb = MOD[m.modifier] || 'continue';
-  return verb === 'continue straight' ? `continue straight${step.name ? ` on ${step.name}` : ''}` : `${verb}${name}`;
+  if (m.type === 'depart') return 'walk straight';
+  if (m.type === 'roundabout' || m.type === 'rotary') return `at the roundabout, take exit ${m.exit ?? 'ahead'}`;
+  return MOD[m.modifier] || 'continue straight';
 }
 
 // Does this route step cross a road? Google puts it in the instruction ("Cross the road", "take the crosswalk"); OSRM
@@ -142,15 +141,20 @@ export function plainWords(text) {
   return t;
 }
 
-// Google sometimes names stops, ferries and stations ("Temple Meads - Castle Park/Temple Meads Ferry"). Spoken, that is
-// confusing, so any street name containing " - " or "/" is dropped and the instruction becomes plain left/right/straight.
-const ODD_NAME = /\s(?:onto|on|along|into)\s+([^,.]*?(?:\s[-\u2013\u2014]\s|\/)[^,.]*?)(?=,|\.|$|\sthen\b|\stoward|\stowards)/i;
+// Street and place names are dropped from every spoken direction (see instructionText): "Turn left onto High Street"
+// becomes "turn left", "Head north on Mill Lane toward Park Row" becomes "walk straight". "On the left/right" and
+// "at the roundabout / end / top / bottom" are kept because they say where, not what a sign reads. A clause that is
+// only a landmark ("pass by Tesco") is dropped.
+const NAME_TAIL = /\s+(?:to stay on|onto|on|along|into|toward|towards|past|via|through|at)\s+(?!(?:the|your)\s+(?:left|right|roundabout|end|top|bottom)\b).*$/i;
 export function cleanStreetNames(text) {
-  let t = text;
-  for (let i = 0; i < 3 && ODD_NAME.test(t); i++) t = t.replace(ODD_NAME, '');
-  t = t.replace(/^walk along\s*$/i, 'walk straight').replace(/^walk\s*$/i, 'walk straight')
-    .replace(/^walk along(?=,|$)/i, 'walk straight').replace(/^continue(?=,|$)/i, 'continue straight');
-  return t.replace(/\s{2,}/g, ' ').trim();
+  const parts = String(text).split(/,\s*then\s+/i).map((c) => {
+    let t = c.replace(/\s*\([^)]*\)/g, '').trim();
+    if (/^pass(?:\s+by)?\b/i.test(t)) return '';
+    t = t.replace(NAME_TAIL, '').trim();
+    t = t.replace(/^walk(?:\s+along)?$/i, 'walk straight').replace(/^walk ahead$/i, 'walk straight').replace(/^continue$/i, 'continue straight');
+    return t;
+  }).filter(Boolean);
+  return parts.join(', then ').replace(/\s{2,}/g, ' ').trim() || 'walk straight';
 }
 
 // ---- Google (Places API New + Routes API). Key is restricted to this site's address in Google Cloud. ----
@@ -226,14 +230,17 @@ export const ARRIVE_TEXT = 'You should be near your destination. It may be a few
 // Weak GPS: accuracy worse than weakMetres for weakMs.
 export const WEAK_GPS_TEXT = 'GPS is weak here, so directions may be late.';
 
-// "About 6 minutes. This route crosses 2 roads." Short walks are said in steps (or the walker's units) instead of minutes.
-// OSRM does not report every crossing (see crossesRoad), so with none found it says it does not know of any, not "none".
+// "About 6 minutes." Short walks are said in steps (or the walker's units) instead of minutes. Only the time: the walker
+// asked for directions. Crossings are not counted here (OSRM misses some, so a count could mislead); each crossing gets
+// its own warning when the walker reaches that step (see _crossing).
 export function routePreview(route) {
-  const n = (route.steps || []).filter(crossesRoad).length;
   const how = route.distance < 250 ? cap(roundMetres(route.distance)) : cap(minutesText(route.duration || route.distance / 1.2));
-  const cross = n === 0 ? 'I do not know of any road crossings on it.' : `This route crosses ${n} ${n === 1 ? 'road' : 'roads'}.`;
-  return `${how}. ${cross}`;
+  return `${how}.`;
 }
+
+// Further than this and the place found is almost certainly not the one meant (8 Nov: "Lakeside" matched a shopping
+// centre in Thurrock, "about 49 hours" away). About 2 hours' walk.
+export const MAX_WALK_M = 10000;
 
 // Google first (better place search, street names), OpenStreetMap as the fallback so navigation never goes silent.
 export function makeProviders({ googleKey, fetchFn = (...a) => fetch(...a), onFallback = () => {}, notify = null, now = () => Date.now() }) {

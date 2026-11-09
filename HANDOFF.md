@@ -31,7 +31,7 @@ Paste this at the start of a new chat, together with the repo link.
   - 209 Node tests pass (`npm test`).
   - `tools/` has frame extraction, Open Images and Colab training recipes (phase2/phase3), and a session-log analyser.
   - README documents everything.
-- **Google setup:** key restricted to the `https://sudhamsr.github.io/*` referrer and to the Places (New), Routes and Speech-to-Text APIs only; it lives in `docs/js/config.js` and is intentionally committed (a browser app cannot hide it). Check Cloud Console quota/billing occasionally for unexpected use.
+- **Google setup:** key restricted to the `https://sudhamsr.github.io/*` referrer and to the Places (New), Routes, Speech-to-Text and Text-to-Speech APIs only (Text-to-Speech must be added in Cloud Console, 8 Nov); it lives in `docs/js/config.js` and is intentionally committed (a browser app cannot hide it). Check Cloud Console quota/billing occasionally for unexpected use.
 
 ## Last retest (live, fake Bristol GPS, real Google APIs)
 - Working: screen-reader double speaking fixed, no "test" labels, a short start message, "You are going the right way", and the 30 m turn warning.
@@ -123,6 +123,25 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
 - **In the app:** loads in the background if the file is there (`?hazard=off` turns it off); runs every 4 s; LOG ONLY: `hazard-detect` events (name|score|side|box height), and "is there an e-scooter / a bollard / a kerb?" answers with a hedge ("I think there is... check with your cane"). `HAZARD.speak` is false: no class is spoken as a warning yet.
 - **Evaluate before speaking anything:** download VIP-Mobility360 (LJMU open data, CC BY 4.0; UK footage of the RNIB obstacles) on your computer and run `python3 tools/phase4/eval_hazard_model.py DATASET --map "..."`. A class becomes a candidate only at precision >= 0.9 and recall >= 0.6, then it must pass the walk gate (`tools/score_walk.mjs`) on Bristol walks.
 - **Next model step:** use the best open-vocabulary classes to auto-label VIP-Mobility360 and our walk frames, check the labels by hand, and fine-tune a small fixed-class YOLO (fast enough for every frame, unlike YOLOE every 4 s).
+
+## Field test fixes (8 Nov, branch fix/field-test-nov8)
+- **Live detection felt slow:** the hazard lane (40 MB YOLOE, Package E) ran in the same loop as the main detector every 4 s and
+  speaks nothing yet. It is now off unless `?hazard=on` (or a class is in `HAZARD.speakClasses`). Not yet measured on the Poco:
+  compare the `perf` events of a walk with and without `?hazard=on`.
+- **No street names in directions:** `cleanStreetNames` (nav.js) now drops every name ("walk along Church Rd towards Southey Ave"
+  became "walk straight"); "on the right", "at the roundabout / end / top / bottom", stairs and crossings stay.
+- **Route preview:** "I do not know of any road crossings on it." and the crossing count are gone; the per-crossing warning at the
+  step is unchanged.
+- **Wrong place:** "Lakeside" matched Lakeside Shopping Centre, Thurrock ("about 49 hours"). Routes over `MAX_WALK_M` (10 km) are
+  never refused: the app says the distance and asks yes or no before starting.
+- **"Are there cars in front of me":** where-words are stripped before the object lookup (it said "I cannot recognise cars in front
+  of me").
+- Tests: `tests/field_test_nov8.test.js`.
+- **Google voice and listening (8 Nov, same branch):** `cloudtts.js` (Cloud Text-to-Speech, voice `en-GB-Neural2-C`, kept in memory,
+  common lines fetched at Start) drives `Speaker` through `opts.cloud`/`opts.player`; the phone voice is the fallback per line and
+  is always used for an urgent line not already fetched. `cloudstt.js` no longer turns Google listening off after 2 failures: 6 s
+  timeout, one retry on network/5xx/429, off only on 401/403. Tests: `tests/google_speech.test.js`.
+  Cost: Neural2 voices are free for the first 1 million characters a month, then about $16 per million.
 
 ## Build plan packages (from "Vision Assist — Build Plan & Claude Code Playbook", 7 Nov)
 Each package is one branch and one PR, stacked in order (each branch starts from the previous one), so merge them in order.

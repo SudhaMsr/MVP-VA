@@ -5,6 +5,9 @@
 //   status - queued in order; never dropped (command feedback, errors, route summaries)
 //   normal - routine alerts; dropped if they have become stale or the queue is long
 // The old prototype silently dropped everything while it was already speaking. This does not.
+// Voice: Google Cloud Text-to-Speech when opts.cloud is given and Google can be reached (cloudtts.js), else the phone's own
+// voice. A line Google cannot deliver is spoken by the phone instead, never dropped. An urgent line that is not already
+// kept from Google uses the phone's voice straight away: a vehicle warning must never wait for the network.
 // Speech speeds the walker can step through (1.0 is the voice's normal pace).
 export const RATES = [0.6, 0.7, 0.8, 0.9, 0.95, 1.0, 1.1];
 // The next speed up (dir 1) or down (-1) from the current one, or null when already at the end.
@@ -38,6 +41,10 @@ export class Speaker {
     this.held = false;
     this.dupMs = opts.dupMs ?? 30000; // the same routine alert is never spoken twice within this time
     this.said = new Map();
+    this.cloud = opts.cloud || null; // { usable, cached(text, rate), fetch(text, rate) }
+    this.player = opts.player || null; // (url, onEnd, onError) -> { stop() }
+    this.playing = null;
+    this.lastVoice = null; // 'google' or 'phone', for the session log
   }
 
   pickVoice() {
@@ -53,7 +60,7 @@ export class Speaker {
   busy() { return !!this.current || this.queue.length > 0; }
 
   speak(text, kind = 'normal') {
-    if (!this.supported) { this._log('unsupported', text); return false; }
+    if (!this.supported && !(this.cloud && this.player)) { this._log('unsupported', text); return false; }
     const item = { text, kind, t: this.now() };
     if (kind === 'normal') {
       const was = this.said.get(text);
@@ -125,6 +132,7 @@ export class Speaker {
     this.current = null;
     if (this.watchdog) { this.clearTimer(this.watchdog); this.watchdog = null; }
     if (cur) this._log('cancelled', cur.text);
+    if (this.playing) { try { this.playing.stop(); } catch (_) { /* ignore */ } this.playing = null; }
     try { this.synth.cancel(); } catch (_) { /* ignore */ }
   }
 
@@ -146,30 +154,68 @@ export class Speaker {
   }
 
   _start(item) {
+    this.current = item;
+    if (item.kind === 'normal') this.said.set(item.text, this.now());
+    this._log('speak', item.text, item.kind);
+    if (this.onSpoken) this.onSpoken(item);
+    const c = this.cloud && this.player ? this.cloud : null;
+    if (c) {
+      const url = c.cached(item.text, this.rate);
+      if (url) { this._playCloud(item, url); return; }
+      if (c.usable && item.kind !== 'urgent') {
+        c.fetch(item.text, this.rate).then(
+          (u) => { if (this.current === item) this._playCloud(item, u); },
+          () => { if (this.current === item) this._phone(item); },
+        );
+        return;
+      }
+      if (c.usable) c.fetch(item.text, this.rate).catch(() => {}); // urgent: phone voice now, Google's ready for next time
+    }
+    this._phone(item);
+  }
+
+  _finish(item, why) {
+    if (this.current !== item) return; // already cancelled or replaced
+    this.current = null;
+    this.playing = null;
+    if (this.watchdog) { this.clearTimer(this.watchdog); this.watchdog = null; }
+    this.lastEnd = this.now();
+    if (why === 'error') this.errors += 1;
+    this._pump();
+    if (!this.current && this.onIdle) this.onIdle();
+  }
+
+  // Android Chrome sometimes never fires onend; do not let the queue freeze.
+  _guard(item, perChar = 110) {
+    if (this.watchdog) this.clearTimer(this.watchdog);
+    const budget = 2000 + item.text.length * perChar / Math.min(1, this.rate || 1);
+    this.watchdog = this.setTimer(() => { this._log('watchdog', item.text); this._finish(item, 'end'); }, budget);
+  }
+
+  _playCloud(item, url) {
+    this.lastVoice = 'google';
+    this._guard(item, 130);
+    let failed = false;
+    try {
+      this.playing = this.player(url, () => this._finish(item, 'end'), () => {
+        if (failed || this.current !== item) return;
+        failed = true; this.playing = null; this._log('cloud-play-error', item.text); this._phone(item); // the phone says it instead
+      });
+    } catch (_) { this.playing = null; this._phone(item); }
+  }
+
+  _phone(item) {
+    this.lastVoice = 'phone';
     this.pickVoice();
+    if (!this.supported) { this._finish(item, 'error'); return; }
     const u = new this.Utterance(item.text);
     u.rate = this.rate;
     u.lang = this.lang;
     if (this.voice) u.voice = this.voice;
-    this.current = item;
-    if (item.kind === 'normal') this.said.set(item.text, this.now());
-    const finish = (why) => {
-      if (this.current !== item) return; // already cancelled or replaced
-      this.current = null;
-      if (this.watchdog) { this.clearTimer(this.watchdog); this.watchdog = null; }
-      this.lastEnd = this.now();
-      if (why === 'error') this.errors += 1;
-      this._pump();
-      if (!this.current && this.onIdle) this.onIdle();
-    };
-    u.onend = () => finish('end');
-    u.onerror = () => finish('error');
-    // Android Chrome sometimes never fires onend; do not let the queue freeze.
-    const budget = 2000 + item.text.length * 110;
-    this.watchdog = this.setTimer(() => { this._log('watchdog', item.text); finish('end'); }, budget);
-    this._log('speak', item.text, item.kind);
-    if (this.onSpoken) this.onSpoken(item);
-    try { this.synth.speak(u); } catch (e) { this._log('speak-error', String(e)); finish('error'); }
+    u.onend = () => this._finish(item, 'end');
+    u.onerror = () => this._finish(item, 'error');
+    this._guard(item);
+    try { this.synth.speak(u); } catch (e) { this._log('speak-error', String(e)); this._finish(item, 'error'); }
   }
 
   _log(event, text, kind) {

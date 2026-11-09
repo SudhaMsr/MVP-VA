@@ -91,7 +91,7 @@ test('after the walker says yes, the start message is short', async () => {
   ];
   const nav = new Navigator({ say: (t) => said.push(t), providers: { route: async () => ({ distance: 400, duration: 300, steps: st, source: 'x' }) }, getPosition: async () => ({ lat: 51, lon: 0 }), watch: () => 1, unwatch: () => {} });
   nav.begin({ lat: 51, lon: 0 }, { name: 'Cafe', lat: 51, lon: 0.004 }, { distance: 400, duration: 300, steps: st, source: 'x' }, true, true);
-  assert.equal(said.at(-1), 'About 5 minutes. I do not know of any road crossings on it. Starting. Walk along Mill Lane for 400 metres. I will tell you if you need to turn.');
+  assert.equal(said.at(-1), 'About 5 minutes. Starting. Walk straight for 400 metres. I will tell you if you need to turn.');
 });
 
 test('asking to go somewhere you already are says so, instead of "NaN miles"', async () => {

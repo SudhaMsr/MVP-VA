@@ -1,6 +1,6 @@
 // Spoken conversation for navigation: asks which place when several match, tells the distance, and waits for "yes".
 // Pure logic with injected dependencies, so it is tested without a browser.
-import { roundMetres, minutesText, locationMessage, haversine } from './nav.js';
+import { roundMetres, minutesText, locationMessage, haversine, MAX_WALK_M } from './nav.js';
 
 const YES = /^(yes|yeah|yep|yup|ok|okay|sure|go|go ahead|start|start now|correct|that is right|that's right|do it|please do)$/;
 const NO = /^(no|nope|nah|cancel|stop|do not|don't|never mind|nevermind|wrong|not that one)$/;
@@ -145,6 +145,14 @@ export class Dialogue {
     const route = await this.nav.plan(pos, dest);
     if (!route) { if (!this.nav.active) this.say('I could not find a walking route there.', 'status'); return this._set('idle'); }
     if (!(route.distance >= 25)) { this.say(`You are already at ${dest.name}, or very close to it.`, 'status'); return this._set('idle'); }
+    // A long way off may be the wrong place (a same-named shop in another town), or where the walker really wants to go.
+    // Say how far and let them choose; never refuse and never call it too far.
+    if (route.distance > MAX_WALK_M) {
+      this._ask(`${dest.name} is ${roundMetres(route.distance)} away. Shall I start? Say yes or no.`);
+      this._set('confirm', [{ label: 'Yes, start', value: 'yes' }, { label: 'No', value: 'no' }]);
+      this.pending = { pos, dest, route };
+      return;
+    }
     this.nav.begin(pos, dest, route, true, false);
   }
 
