@@ -29,7 +29,8 @@ import { firstStartPrivacy, PRIVACY_TEXT, RecordingConsent } from './privacy.js'
 import { OnlineWatch, updateNotice } from './pwa.js';
 import { PerfMeter, SlowMode, WalkStats, summaryText } from './perf.js';
 import { CloudVoice, WARM_LINES } from './cloudtts.js';
-import { routeOutput, OUTPUT_MODES, OUTPUT_NAMES, outputText } from './output.js';
+import { routeOutput, OUTPUT_MODES, OUTPUT_NAMES, outputText, NO_VIBRATE_TEXT } from './output.js';
+import { requestMotionAccess, MOTION_DENIED_TEXT, unlockAudio, WakeNotice } from './platform.js';
 import { hazardCandidates } from './hazardalerts.js';
 import { floorDistance, pitchFromBeta, parseHeight, cameraHeightM, PitchCalibrator } from './floordist.js';
 
@@ -101,6 +102,8 @@ const PERF_EVERY_MS = 30000;
 const DIST_FLOOR = params.get('dist') === 'floor';
 const DEFAULT_HEIGHT_CM = 170;
 let lastBeta = null;
+let motionAccess = 'unknown'; // iPhone asks once, from the Start tap (platform.js)
+let audioUnlocked = false; // iPhone: the voice and the player are unlocked once per page, from the first Start tap
 const calibrator = new PitchCalibrator();
 const floorCal = (() => { try { return JSON.parse(localStorage.getItem('va.floor')) || {}; } catch (_) { return {}; } })();
 function saveFloorCal() { try { localStorage.setItem('va.floor', JSON.stringify(floorCal)); } catch (_) { /* storage can be unavailable */ } }
@@ -157,7 +160,7 @@ speaker.onSpoken = (item) => {
 };
 
 // Output settings (Package D): output mode (speech and vibration / vibration only / speech only) and screen reader mode.
-const out = { mode: 'both', screenReader: false };
+const out = { mode: 'both', screenReader: false, canVibrate: !!(navigator.vibrate) }; // canVibrate: false on every iPhone browser
 // In screen reader mode, status lines go to the live region for TalkBack to read; warnings and turns are still spoken.
 function toLive(text) {
   const r = el.srLive; if (!r) return;
@@ -672,6 +675,11 @@ async function start() {
   if (state.running || state.starting) return;
   state.starting = true;
   cues.unlock();
+  // iPhone (Package I): voice, player and motion sensors must be switched on inside this tap, before anything waits.
+  if (!audioUnlocked) { audioUnlocked = true; unlockAudio({ synth: window.speechSynthesis, Utterance: window.SpeechSynthesisUtterance, audio: ttsAudio }); }
+  if (motionAccess !== 'granted' && motionAccess !== 'not-needed') {
+    requestMotionAccess(window).then((a) => { motionAccess = a; logEvent('motion-access', a); }, () => {});
+  }
   startBatteryWatch();
   updateMain();
   setStatus('Starting');
@@ -863,6 +871,7 @@ let calibrating = false;
 function calibrate() {
   if (calibrating) return;
   if (!('DeviceOrientationEvent' in window)) { say('This phone cannot tell me how it is tilted, so I cannot calibrate.', 'status'); return; }
+  if (motionAccess === 'denied') { say(MOTION_DENIED_TEXT, 'status'); return; }
   calibrating = true;
   say('Hold the phone at chest height, pointing straight ahead, and keep still.', 'status');
   setTimeout(() => calibrator.start(performance.now()), 3000);
@@ -924,6 +933,13 @@ async function followRoute(rawName, reverse) {
 function changeVibration(on, speak = true) { setOutput(on ? 'both' : 'speech', speak); }
 function setOutput(mode, speak = true) {
   if (!OUTPUT_MODES.includes(mode)) return;
+  if (mode === 'vibration' && !haptics.available) { // iPhone: vibration only would leave warnings silent, so refuse it
+    logEvent('output-refused', 'vibration');
+    if (out.mode === 'vibration') out.mode = 'both';
+    el.output.textContent = `Output: ${OUTPUT_NAMES[out.mode]}`;
+    if (speak) say(NO_VIBRATE_TEXT, 'status');
+    return;
+  }
   out.mode = mode;
   haptics.set(mode !== 'speech');
   cues.vibrate = mode === 'speech' ? null : cues.vibrateFn;
@@ -1068,10 +1084,14 @@ function repeat() {
   say(state.lastSpoken || 'Nothing to repeat yet.', 'status');
 }
 
+const wakeNotice = new WakeNotice((t, k) => say(t, k));
 async function lockScreen() {
+  let ok = false;
   try {
-    if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen');
+    if ('wakeLock' in navigator) { wakeLock = await navigator.wakeLock.request('screen'); ok = true; }
   } catch (e) { logEvent('wakelock-error', e && e.name); }
+  if (!ok) logEvent('wakelock', 'unavailable');
+  wakeNotice.report(ok); // once: the phone may lock the screen, and then the app stops
 }
 function releaseScreen() {
   try { if (wakeLock) wakeLock.release(); } catch (_) { /* ignore */ }

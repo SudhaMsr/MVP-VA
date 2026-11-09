@@ -275,3 +275,17 @@ Record for each step: done alone / needed help / could not do it, and the tester
   (safetext.js); route step texts say "your destination".
 - **Fallback:** "Google directions are not available, using backup maps." once a minute at most (one request can fall back twice),
   through `makeProviders({ notify })`. Tested for 429, 403 and a network error.
+
+## Package I: iPhone Safari (`fix/ios-safari`, 9 Nov, stacked on `fix/field-test-nov8`)
+**Not tried on a real iPhone.** Written from Safari's documented behaviour; a friend's iPhone test is planned (test script in the chat of 9 Nov).
+- `docs/js/output.js`: `effectiveMode(mode, canVibrate)` and `routeOutput(..., { canVibrate })`. On a phone without `navigator.vibrate`
+  vibration only becomes speech and vibration, so a hazard alert is never left silent. `setOutput` refuses vibration only there and
+  says `NO_VIBRATE_TEXT`. Test: no mode on any phone gives an alert with neither speech nor vibration.
+- `docs/js/platform.js` (new): `requestMotionAccess()` (iPhone's DeviceOrientation/DeviceMotion `requestPermission`, called from the
+  Start tap before any await), `unlockAudio()` (silent utterance + silent WAV in the Google voice player, once per page),
+  `WakeNotice` (says once when the screen cannot be kept on). "calibrate" says `MOTION_DENIED_TEXT` if motion access was refused.
+- `docs/js/cloudstt.js`: `pickRecording()` picks WebM Opus, then Ogg Opus, else raw samples (ScriptProcessor) sent as 16 kHz
+  `LINEAR16` (`downsample`, `toLinear16`). Google STT v1 does not accept AAC/MP4, which is all older iPhones record. The audio
+  context is now created before the first await so Safari does not keep it suspended.
+- Tests: `tests/ios_safari.test.js` (10).
+- Not checked: headless browser run of app.js after these changes; real iPhone; whether Safari's speech recogniser fallback works.
