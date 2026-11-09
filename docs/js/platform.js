@@ -14,6 +14,26 @@ export async function requestMotionAccess(win = (typeof window !== 'undefined' ?
   return answers.every((a) => a === 'granted') ? 'granted' : 'denied';
 }
 
+// Asks for motion access only from a real tap (F-I1). An automatic restart (the page becoming visible again) or a spoken
+// "start" has no tap, so Safari would refuse the question without showing it; that refusal is not the walker's answer and
+// must not be recorded as "denied". start() says where it was called from: start({ fromTap: true }) only in tap handlers.
+// access: 'unknown' until a real answer; then 'granted', 'denied', 'not-needed' or 'unavailable'.
+export class MotionGate {
+  constructor({ request = requestMotionAccess, log = () => {} } = {}) {
+    this.request = request; this.log = log; this.access = 'unknown'; this.pending = null;
+  }
+  // Returns the question's promise, or null when nothing was asked. Must be called before anything awaits in the tap.
+  onStart(win, { fromTap = false } = {}) {
+    if (this.access === 'granted' || this.access === 'not-needed') return null; // nothing to ask (as before F-I1)
+    if (!fromTap) { this.log('motion-access-skipped', `no tap, access ${this.access}`); return null; }
+    if (this.pending) return null; // already asking: never twice at once
+    this.pending = this.request(win)
+      .then((a) => { this.access = a; this.log('motion-access', a); return a; }, () => this.access)
+      .finally(() => { this.pending = null; });
+    return this.pending;
+  }
+}
+
 export const MOTION_DENIED_TEXT = 'Motion access is off, so I cannot tell how the phone is tilted or which way you face. '
   + 'To allow it, close the app, open it again, tap Start and choose Allow.';
 

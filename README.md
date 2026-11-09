@@ -50,7 +50,7 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
 - **Text reading:** on. Say "read" or tap Read; runs on the phone.
 - **iPhone (Safari) support (Package I, not yet tried on a real iPhone):** every iPhone browser is Safari underneath.
   - iPhones cannot vibrate from a web page, so **vibration only is refused** there ("This phone cannot vibrate, so I will keep speaking warnings."); a saved vibration-only setting falls back to speech and vibration. No output mode on any phone leaves a warning with neither speech nor vibration (tested).
-  - The Start tap asks for **motion access** (iPhone only; Android needs no question). If it is refused, "calibrate" says how to allow it.
+  - The Start tap asks for **motion access** (iPhone only; Android needs no question). Only a tap asks: an automatic restart (when the page is visible again) or a spoken "start" never does. If the walker refuses, "calibrate" says how to allow it.
   - The Start tap also unlocks the phone's voice and the Google voice player (iPhone only lets sound start from a tap).
   - **Talk:** where the browser cannot record WebM (older iPhones record only AAC, which Google Speech-to-Text does not accept), the raw microphone sound is sent as 16 kHz LINEAR16. Android still sends WebM Opus.
   - If the screen cannot be kept on, the app says once that the phone may lock it, and that it stops when the screen locks.

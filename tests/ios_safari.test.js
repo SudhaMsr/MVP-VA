@@ -3,7 +3,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { routeOutput, effectiveMode, NO_VIBRATE_TEXT, OUTPUT_MODES } from '../docs/js/output.js';
-import { requestMotionAccess, unlockAudio, silentWav, WakeNotice, NO_WAKE_LOCK_TEXT, MOTION_DENIED_TEXT } from '../docs/js/platform.js';
+import { requestMotionAccess, unlockAudio, silentWav, WakeNotice, NO_WAKE_LOCK_TEXT, MOTION_DENIED_TEXT, MotionGate } from '../docs/js/platform.js';
+import { readFileSync } from 'node:fs';
 import { pickRecording, downsample, toLinear16, buildRequest, PCM_RATE } from '../docs/js/cloudstt.js';
 import { isSafeText } from '../docs/js/safetext.js';
 
@@ -99,4 +100,75 @@ test('screen-lock notice is said once, only when the screen cannot be kept on', 
 
 test('the new lines are short, plain and never imply safety', () => {
   for (const t of [NO_VIBRATE_TEXT, NO_WAKE_LOCK_TEXT, MOTION_DENIED_TEXT]) assert.ok(isSafeText(t), t);
+});
+
+// F-I1: motion access is asked only from a real tap. A fake iPhone that behaves like Safari: requestPermission() rejects
+// (without showing anything) when there is no tap, and gives the walker's answer when there is one.
+function fakeIphone(answer = 'granted') {
+  const w = { tap: false, asked: 0 };
+  const ask = async () => { w.asked += 1; if (!w.tap) throw new Error('NotAllowedError: needs a user gesture'); return answer; };
+  w.DeviceOrientationEvent = { requestPermission: ask };
+  w.DeviceMotionEvent = { requestPermission: ask };
+  return w;
+}
+
+test('F-I1: an automatic restart (no tap) never asks for motion access and never records "denied"', async () => {
+  const w = fakeIphone('granted'); const logs = [];
+  const g = new MotionGate({ log: (k, v) => logs.push([k, v]) });
+  // The page becomes visible again and start({ fromTap: false }) runs: nothing is asked.
+  assert.equal(g.onStart(w, { fromTap: false }), null);
+  assert.equal(w.asked, 0, 'no question without a tap');
+  assert.equal(g.access, 'unknown', 'no tap is not an answer: still unknown, not denied');
+  assert.equal(logs[0][0], 'motion-access-skipped');
+  // The walker taps Start: now it is asked, and the real answer is kept.
+  w.tap = true;
+  assert.equal(await g.onStart(w, { fromTap: true }), 'granted');
+  assert.equal(w.asked, 2, 'both sensors asked, once each');
+  assert.equal(g.access, 'granted');
+  w.tap = false;
+  assert.equal(g.onStart(w, { fromTap: false }), null);
+  assert.equal(g.onStart(w, { fromTap: true }), null, 'granted: never asked again');
+  assert.equal(w.asked, 2);
+});
+
+test('F-I1: before the fix, a restart without a tap was recorded as denied (the bug this guards against)', async () => {
+  const w = fakeIphone('granted');
+  assert.equal(await requestMotionAccess(w), 'denied', 'Safari refuses a question with no tap; that must not reach the gate');
+  const g = new MotionGate();
+  g.onStart(w, { fromTap: false });
+  assert.notEqual(g.access, 'denied');
+});
+
+test('F-I1: a real "no" is kept; a later tap may ask again; never two questions at once; Android never asks', async () => {
+  const w = fakeIphone('denied'); w.tap = true;
+  const g = new MotionGate();
+  const p = g.onStart(w, { fromTap: true });
+  assert.equal(g.onStart(w, { fromTap: true }), null, 'already asking');
+  assert.equal(await p, 'denied');
+  assert.equal(g.access, 'denied', 'the walker said no: calibrate can explain how to allow it');
+  w.tap = false;
+  assert.equal(g.onStart(w, { fromTap: false }), null, 'an automatic restart does not ask again');
+  assert.equal(g.access, 'denied');
+  w.tap = true;
+  assert.notEqual(g.onStart(w, { fromTap: true }), null, 'a new tap on Start may ask again (as before F-I1)');
+  const android = new MotionGate();
+  assert.equal(await android.onStart({ DeviceOrientationEvent: function () {}, DeviceMotionEvent: function () {} }, { fromTap: true }), 'not-needed');
+  assert.equal(android.onStart({}, { fromTap: true }), null, 'not-needed: never asked again');
+});
+
+test('F-I1: every caller of start() and talk() in app.js says whether it is a tap', () => {
+  const src = readFileSync(new URL('../docs/js/app.js', import.meta.url), 'utf8');
+  // Calls of the app's own start()/talk(), not object methods such as battery.start() or recognition.start().
+  const calls = [...src.matchAll(/(?<![.\w])(start|talk)\(([^)]*)\)/g)].filter((m) => !/function\s+$/.test(src.slice(Math.max(0, m.index - 16), m.index)));
+  assert.ok(calls.length >= 6, `found ${calls.length} calls`);
+  for (const m of calls) {
+    assert.match(m[2], /^\{ fromTap(: (true|false))? \}$/, `${m[0]} must say { fromTap: true|false }`);
+  }
+  assert.match(src, /el\.start\.addEventListener\('click',[^\n]*start\(\{ fromTap: true \}\)/, 'Start button is a tap');
+  assert.match(src, /el\.talk\.addEventListener\('click',[^\n]*talk\(\{ fromTap: true \}\)/, 'Talk button is a tap');
+  const vis = src.slice(src.indexOf("document.addEventListener('visibilitychange'"), src.indexOf("// ---------- voice commands"));
+  assert.match(vis, /start\(\{ fromTap: false \}\)/, 'the automatic restart is not a tap');
+  assert.doesNotMatch(vis, /fromTap: true/);
+  assert.match(src, /case 'start': start\(\{ fromTap: false \}\)/, 'a spoken "start" is not a tap');
+  assert.doesNotMatch(src, /requestMotionAccess\(/, 'app.js asks only through MotionGate');
 });

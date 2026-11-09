@@ -30,7 +30,7 @@ import { OnlineWatch, updateNotice } from './pwa.js';
 import { PerfMeter, SlowMode, WalkStats, summaryText } from './perf.js';
 import { CloudVoice, WARM_LINES } from './cloudtts.js';
 import { routeOutput, OUTPUT_MODES, OUTPUT_NAMES, outputText, NO_VIBRATE_TEXT } from './output.js';
-import { requestMotionAccess, MOTION_DENIED_TEXT, unlockAudio, WakeNotice } from './platform.js';
+import { MotionGate, MOTION_DENIED_TEXT, unlockAudio, WakeNotice } from './platform.js';
 import { hazardCandidates } from './hazardalerts.js';
 import { floorDistance, pitchFromBeta, parseHeight, cameraHeightM, PitchCalibrator } from './floordist.js';
 
@@ -102,7 +102,7 @@ const PERF_EVERY_MS = 30000;
 const DIST_FLOOR = params.get('dist') === 'floor';
 const DEFAULT_HEIGHT_CM = 170;
 let lastBeta = null;
-let motionAccess = 'unknown'; // iPhone asks once, from the Start tap (platform.js)
+const motionGate = new MotionGate({ log: (k, v) => logEvent(k, v) }); // iPhone asks only from a Start tap (platform.js, F-I1)
 let audioUnlocked = false; // iPhone: the voice and the player are unlocked once per page, from the first Start tap
 const calibrator = new PitchCalibrator();
 const floorCal = (() => { try { return JSON.parse(localStorage.getItem('va.floor')) || {}; } catch (_) { return {}; } })();
@@ -671,15 +671,15 @@ window.addEventListener('offline', () => { if (state.running) online.update(fals
 window.addEventListener('online', () => { if (state.running) online.update(true); else { online.online = true; online.saidOffline = false; } });
 
 // ---------- start / stop ----------
-async function start() {
+// fromTap: true only when called straight from a tap handler (Start button, Talk button). Automatic restarts (the page
+// visible again) and the spoken "start" pass false: they have no tap, so they must not ask for motion access (F-I1).
+async function start({ fromTap = false } = {}) {
   if (state.running || state.starting) return;
   state.starting = true;
   cues.unlock();
   // iPhone (Package I): voice, player and motion sensors must be switched on inside this tap, before anything waits.
   if (!audioUnlocked) { audioUnlocked = true; unlockAudio({ synth: window.speechSynthesis, Utterance: window.SpeechSynthesisUtterance, audio: ttsAudio }); }
-  if (motionAccess !== 'granted' && motionAccess !== 'not-needed') {
-    requestMotionAccess(window).then((a) => { motionAccess = a; logEvent('motion-access', a); }, () => {});
-  }
+  motionGate.onStart(window, { fromTap });
   startBatteryWatch();
   updateMain();
   setStatus('Starting');
@@ -818,8 +818,8 @@ async function cloudTalk() {
 
 // The walker taps, the app goes quiet, plays a rising sound, and listens for about 9 seconds.
 const TALK_WINDOW_MS = 9000;
-function talk() {
-  if (!state.running) { start(); return; }
+function talk({ fromTap = false } = {}) {
+  if (!state.running) { start({ fromTap }); return; }
   cues.unlock();
   speaker.hush();
   speaker.hold(true);
@@ -871,7 +871,7 @@ let calibrating = false;
 function calibrate() {
   if (calibrating) return;
   if (!('DeviceOrientationEvent' in window)) { say('This phone cannot tell me how it is tilted, so I cannot calibrate.', 'status'); return; }
-  if (motionAccess === 'denied') { say(MOTION_DENIED_TEXT, 'status'); return; }
+  if (motionGate.access === 'denied') { say(MOTION_DENIED_TEXT, 'status'); return; }
   calibrating = true;
   say('Hold the phone at chest height, pointing straight ahead, and keep still.', 'status');
   setTimeout(() => calibrator.start(performance.now()), 3000);
@@ -1106,7 +1106,7 @@ document.addEventListener('visibilitychange', () => {
   } else if (!document.hidden && state.wasRunning) {
     state.wasRunning = false;
     say('Vision Assist is resuming.', 'status');
-    start();
+    start({ fromTap: false }); // automatic restart: no tap, so no permission question (F-I1)
   }
 });
 
@@ -1182,7 +1182,7 @@ function handleTranscript(text) {
     case 'level':
       if (cmd.arg === 'less') stepLevel(-1); else if (cmd.arg === 'more') stepLevel(1); else setLevel(cmd.arg, true, false);
       break;
-    case 'start': start(); break;
+    case 'start': start({ fromTap: false }); break; // a spoken command is not a tap
     case 'stop': stop(); break;
     case 'repeat': repeat(); break;
     case 'why': say(explainAlert(state.lastAlert), 'status'); logEvent('why', state.lastAlertText || ''); break;
@@ -1247,7 +1247,7 @@ function updateMic() {
 }
 
 // ---------- buttons ----------
-el.start.addEventListener('click', () => { cues.unlock(); if (state.running || state.starting) stop(); else start(); });
+el.start.addEventListener('click', () => { cues.unlock(); if (state.running || state.starting) stop(); else start({ fromTap: true }); });
 prefetchAssets();
 
 // Ask for location as soon as the app opens, not later. A precise (high accuracy) request is what makes Chrome on Android
@@ -1295,9 +1295,9 @@ document.addEventListener('click', (e) => {
   const now = performance.now();
   if (now - state.lastTapAt < 1500) return; // ignore bounces and pocket drumming
   state.lastTapAt = now;
-  talk();
+  talk({ fromTap: true });
 });
-el.talk.addEventListener('click', () => { cues.unlock(); talk(); });
+el.talk.addEventListener('click', () => { cues.unlock(); talk({ fromTap: true }); });
 el.repeat.addEventListener('click', repeat);
 el.mic.addEventListener('click', () => {
   if (state.listening) { stopListening(); say('Voice commands off.', 'status'); }
