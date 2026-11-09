@@ -3,7 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setUnits } from '../docs/js/units.js';
 import { parseCommand, HELP_TEXT } from '../docs/js/commands.js';
-import { CROSSING_TEXT, LIMITS_TEXT } from '../docs/js/safetext.js';
+import { CROSSING_TEXT, LIMITS_TEXT, WELCOME_TEXT } from '../docs/js/safetext.js';
+import { readFileSync } from 'node:fs';
 import { selfCheckText } from '../docs/js/trustcheck.js';
 import { firstStartPrivacy, PRIVACY_TEXT, RECORD_ASK, RecordingConsent } from '../docs/js/privacy.js';
 import { Dialogue } from '../docs/js/dialogue.js';
@@ -120,4 +121,12 @@ test('green lights are never announced or described by colour', () => {
   assert.equal(e.next([tr], 640, 480, 0), null);
   assert.doesNotMatch(describeScene([tr], 640), /green/i);
   assert.doesNotMatch(findObject([tr], 'traffic light', 640), /green/i);
+});
+
+test('the first Ready says only how to hold the phone (9 Nov)', () => {
+  assert.equal(WELCOME_TEXT, 'Ready. Hold the phone at chest height, camera facing forward.');
+  const app = readFileSync(new URL('../docs/js/app.js', import.meta.url), 'utf8');
+  assert.ok(app.includes("wasFirst ? WELCOME_TEXT : 'Ready.'"), 'app.js speaks WELCOME_TEXT on the first start');
+  for (const gone of ['This app helps, but does not replace them', 'Tap the screen, then speak']) assert.ok(!app.includes(gone), gone);
+  assert.ok(LIMITS_TEXT.includes('cane or guide dog'), 'the cane reminder stays in "what can\'t you see"');
 });
