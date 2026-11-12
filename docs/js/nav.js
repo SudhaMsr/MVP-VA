@@ -366,7 +366,7 @@ export class Navigator {
       ? `${routePreview(route)} Starting. ${cap(instructionText(first0))} for ${roundMetres(first0.distance)}. I will tell you if you need to turn.`
       : first
       ? `Going to ${dest.name}. ${routePreview(route)}${this.large && first ? ' This is a large site, so I am heading for its middle. For a particular building, say its name.' : ''} ${route.steps.some((x) => /stairs|steps/i.test(x.text || '')) ? 'The route includes stairs. ' : ''}First, ${instructionText(first0)} for ${roundMetres(first0.distance)}.`
-      : `New route. ${instructionText(first0)} for ${roundMetres(first0.distance)}.`, 'status');
+      : `New route. ${instructionText(first0)} for ${roundMetres(first0.distance)}.`, 'nav'); // 'nav', not 'status': the first turn prompt must not jump ahead of the route summary (live check 12 Nov)
     const c0 = this._crossing(first0); if (c0) this.say(c0.trim(), 'nav');
     this.watchId = this.watch((p) => this.onPosition(p), () => this.locationLost());
     return true;
