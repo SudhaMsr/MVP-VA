@@ -17,7 +17,7 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
 - **Spoken walking directions:** type or say "navigate to ...", turns announced about 40 m ahead and at the turn, in plain left / right / straight with **no street names** (a blind walker cannot read a street sign), "keep going, you are on the route" on long quiet stretches. Turn prompts go ahead of hazard chatter. Say "cancel" to stop. Needs internet and location permission.
 - **Ask the app:**
   - "What is in front of me?" describes what the camera sees now, by side and distance, and says plainly when it sees nothing it recognises.
-  - "Where am I?" says the street and area (free OpenStreetMap lookup).
+  - "Where am I?" says the street and area (Google: Geocoding for the street, Places for the nearest named place).
   - "Save this place as home" (uses where you are now), or "save my home address as 25 Lakeside BS16 3EE" (the app reads back what it found and asks yes or no; it warns if the postcode differs). Then "take me home" (or any name). Places are kept on the phone only, never in the code.
   - "Slower" / "faster" changes how fast it speaks (7 notches from 60% to 110%, default 95%, saved on the phone; also a button).
   - "Share my location" gets a link ready (street plus a map link); then tap the empty screen and choose who to send it to. The browser only opens the share sheet from a real tap.
@@ -98,7 +98,7 @@ Offline review: `python3 tools/analyze_session.py VIDEO LOG.json` replays the vi
 Hold or mount the phone at chest height with the camera facing forward and **your arm out of the picture**. In our demo video the tester's own arm in view was detected as a person. A chest lanyard is the recommended mount for tests.
 
 ## Status
-Built: three-lane hazard detection, calm spoken alerts, spoken walking navigation (Google when available, OpenStreetMap as the fallback), tap-to-talk voice (Google Cloud Speech-to-Text, Chrome as fallback), the one-screen interface, and the ask-the-app features above. Not yet tested outdoors with blind testers. The known-limits list is `docs/limits.html`; a tester guide is still to be written.
+Built: three-lane hazard detection, calm spoken alerts, spoken walking navigation (Google only since 12 Nov, one retry on failure; `?maps=osm` still tests OpenStreetMap), tap-to-talk voice (Google Cloud Speech-to-Text, Chrome as fallback), the one-screen interface, and the ask-the-app features above. Not yet tested outdoors with blind testers. The known-limits list is `docs/limits.html`; a tester guide is still to be written.
 
 ## Security
 Never commit service-account files or an unrestricted API key. The Google key in `docs/js/config.js` is the exception: a browser-only app on GitHub Pages cannot hide a key from whoever loads the page, so it is restricted in Google Cloud Console instead of hidden — locked to the `https://sudhamsr.github.io/*` referrer and to the Places (New), Routes and Speech-to-Text APIs only. It is useless if copied elsewhere. Check the Google Cloud Console quota and billing page occasionally for unexpected use, and keep the API restriction list as narrow as the app actually needs (new paid API usage should extend that list deliberately, not by leaving it open).

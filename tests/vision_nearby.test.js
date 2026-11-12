@@ -169,3 +169,50 @@ test('app.js: describe this falls back to the phone, reading tries Google first'
   assert.match(src, /vision\.annotate\(.*'read'\)/);
   assert.match(src, /so this is what I can see on the phone/);
 });
+
+// ---- Google only (12 Nov: the owner has Google credits) ----
+test('Google only: navigation never calls OpenStreetMap; a failed Google call is tried once more', async () => {
+  const { makeProviders } = await import('../docs/js/nav.js');
+  const urls = []; let fails = 1;
+  const fetchFn = async (url) => {
+    urls.push(url);
+    if (fails > 0) { fails -= 1; return { ok: false, status: 503, json: async () => ({}) }; }
+    return { ok: true, json: async () => ({ places: [{ displayName: { text: 'Cabot Circus' }, formattedAddress: 'Bristol', location: { latitude: 51.459, longitude: -2.585 } }] }) };
+  };
+  const heard = [];
+  const p = makeProviders({ googleKey: 'k', fetchFn, googleOnly: true, retryMs: 1, notify: (t) => heard.push(t) });
+  const g = await p.geocode('cabot circus', HERE);
+  assert.equal(g.source, 'google');
+  assert.equal(urls.length, 2, 'one retry');
+  assert.ok(urls.every((u) => /googleapis\.com/.test(u)), urls.join(' '));
+  assert.deepEqual(heard, [], 'no "using backup maps"');
+  const down = makeProviders({ googleKey: 'k', googleOnly: true, retryMs: 1, fetchFn: async (u) => { urls.push(u); return { ok: false, status: 403, json: async () => ({}) }; } });
+  await assert.rejects(down.route(HERE, north(100)));
+  assert.ok(!urls.some((u) => /openstreetmap/.test(u)));
+});
+
+test('where am I from Google: street and number from Geocoding, the nearest named place from Places', async () => {
+  const { reverseLookup, describePlace } = await import('../docs/js/places.js');
+  const urls = [];
+  const fetchFn = async (url) => {
+    urls.push(url);
+    if (/geocode\/json/.test(url)) return { ok: true, json: async () => ({ status: 'OK', results: [{ address_components: [
+      { long_name: '12', types: ['street_number'] }, { long_name: 'Park Street', types: ['route'] },
+      { long_name: 'Clifton', types: ['neighborhood', 'political'] }, { long_name: 'Bristol', types: ['postal_town'] }] }] }) };
+    return { ok: true, json: async () => ({ places: [{ displayName: { text: 'Costa Coffee' } }] }) };
+  };
+  const j = await reverseLookup(HERE, fetchFn, 'k');
+  assert.equal(describePlace(j), 'You are near number 12, on Park Street, in Clifton, Bristol. Close by is Costa Coffee.');
+  assert.ok(urls.every((u) => /googleapis\.com/.test(u)));
+  // Geocoding refused: the nearest place's address still answers
+  const placesOnly = async (url) => (/geocode/.test(url) ? { ok: false, status: 403, json: async () => ({}) }
+    : { ok: true, json: async () => ({ places: [{ displayName: { text: 'Boots' }, addressComponents: [{ longText: 'Broadmead', types: ['route'] }, { longText: 'Bristol', types: ['postal_town'] }] }] }) });
+  assert.equal(describePlace(await reverseLookup(HERE, placesOnly, 'k')), 'You are on Broadmead, in Bristol. Close by is Boots.');
+  await assert.rejects(reverseLookup(HERE, async () => ({ ok: false, status: 500 }), 'k'));
+});
+
+test('app.js: navigation and where am I are Google only', () => {
+  const src = readFileSync(new URL('../docs/js/app.js', import.meta.url), 'utf8');
+  assert.match(src, /googleOnly: true/);
+  assert.equal((src.match(/reverseLookup\(pos, undefined, GOOGLE_KEY\)/g) || []).length, 2);
+});

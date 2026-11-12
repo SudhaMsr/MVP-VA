@@ -180,6 +180,7 @@ const navigator_ = new Navigator({
   trace: (f) => { const n = Date.now(); if (n - lastTraceAt < 3000) return; lastTraceAt = n; logEvent('fix', JSON.stringify(f)); },
   providers: makeProviders({
     googleKey: new URLSearchParams(location.search).get('maps') === 'osm' ? '' : GOOGLE_KEY,
+    googleOnly: true, // Google only (owner's choice, 12 Nov); ?maps=osm still tests OpenStreetMap
     onFallback: (what, e) => session.events.push({ t: Date.now(), kind: 'nav-fallback', text: `${what}: ${e && e.message}` }),
     notify: (t) => say(t, 'status'), // "Google directions are not available, using backup maps." (Package G)
   }),
@@ -1010,7 +1011,7 @@ async function nearbyNow(query = null) {
 async function prepareShare() {
   let pos;
   try { pos = await navigator_.getPosition(); } catch (e) { say(locationMessage(e, 'I cannot find your location to share.'), 'status'); return; }
-  const where = await reverseLookup(pos).then((j) => describePlace(j).replace(/^You are /, 'I am ')).catch(() => '');
+  const where = await reverseLookup(pos, undefined, GOOGLE_KEY).then((j) => describePlace(j).replace(/^You are /, 'I am ')).catch(() => '');
   pendingShare = `${where ? where + ' ' : ''}My location: https://www.google.com/maps?q=${pos.lat.toFixed(6)},${pos.lon.toFixed(6)} (accurate to about ${Math.round(pos.accuracy)} metres)`;
   logEvent('share-ready', '');
   say('Your location is ready to send. Tap the screen, then choose who to send it to.', 'status');
@@ -1028,7 +1029,7 @@ async function whereAmI() {
   let pos;
   try { pos = await navigator_.getPosition(); } catch (e) { say(locationMessage(e), 'status'); return; }
   try {
-    const text = describePlace(await reverseLookup(pos), pos.accuracy);
+    const text = describePlace(await reverseLookup(pos, undefined, GOOGLE_KEY), pos.accuracy);
     logEvent('whereami', text);
     say(text, 'status'); state.lastSpoken = text;
   } catch (e) {

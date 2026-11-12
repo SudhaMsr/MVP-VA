@@ -153,7 +153,11 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
   0.6 m/s), `sideOf`, `nearbySpeech` (up to 4, nearest first, "Map positions can be a few steps out.").
 - Commands: `look` and `nearby` (commands.js); "what is around me" moved from describe to nearby; "where is the nearest X" is
   no longer a note lookup. Privacy line and privacy.html say when a photo and the location leave the phone.
-- **Needs Cloud Vision API allowed on the Google key** (Cloud Console, Credentials, the Maps Platform key). Until then the key
+- **Google only (12 Nov, owner's choice: Google credits):** navigation `makeProviders({ googleOnly: true })` uses Google
+  Places and Routes with one retry and no OpenStreetMap backup (`?maps=osm` still tests it). "Where am I" uses Google
+  Geocoding for the street and Places for the nearest named place (`places.js` `googleReverse`), either one is enough.
+  The page libraries (onnxruntime, Tesseract) still load from jsDelivr: they are code, not a map or speech service.
+- **Needs Cloud Vision API and Geocoding API allowed on the Google key** (Cloud Console, Credentials, the Maps Platform key). Until then the key
   is refused (403) and reading and describing quietly use the phone. Places (New) is already allowed.
 - Tested: tests/vision_nearby.test.js (16 tests); a headless walk with Google replies faked, with Vision working and refused.
   Not yet tried with real Google Vision or on the Poco.

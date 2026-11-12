@@ -1,11 +1,39 @@
 // "Where am I?" and saved places ("save this place as home", "take me home").
-// Free only: OpenStreetMap's Nominatim for the street lookup (no paid API), and the phone's own storage for places.
+// Street lookup: Google (Geocoding for the street, Places for the nearest named place) when there is a key (12 Nov: the
+// owner wants Google only); OpenStreetMap's Nominatim only without a key. Saved places stay in the phone's own storage.
 // ---- where am I ----
-export async function reverseLookup(pos, fetchFn = (...a) => fetch(...a)) {
+export async function reverseLookup(pos, fetchFn = (...a) => fetch(...a), key = '') {
+  if (key) return googleReverse(pos, fetchFn, key);
   const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&lat=${pos.lat}&lon=${pos.lon}`;
   const res = await fetchFn(url, { headers: { Accept: 'application/json' } });
   if (!res.ok) throw new Error('reverse ' + res.status);
   return res.json();
+}
+
+// Google address parts in the shape describePlace reads (Nominatim's), so the wording stays the same.
+export function fromGoogleComponents(comps = [], name = '') {
+  const get = (...types) => { for (const t of types) { const c = comps.find((x) => (x.types || []).includes(t)); if (c) return c.long_name || c.longText || ''; } return ''; };
+  return { name, address: { house_number: get('street_number'), road: get('route'), suburb: get('neighborhood', 'sublocality_level_1', 'sublocality'), city: get('postal_town', 'locality') } };
+}
+
+// The street from Geocoding, the nearest named place within 30 m from Places. Either one failing still gives an answer.
+export async function googleReverse(pos, fetchFn, key) {
+  const geo = fetchFn(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${pos.lat},${pos.lon}&language=en-GB&key=${encodeURIComponent(key)}`)
+    .then((r) => (r.ok ? r.json() : Promise.reject(new Error('geocode ' + r.status))))
+    .then((j) => { if (j.status && j.status !== 'OK' && j.status !== 'ZERO_RESULTS') throw new Error('geocode ' + j.status); return j.results || []; });
+  const near = fetchFn('https://places.googleapis.com/v1/places:searchNearby', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'places.displayName,places.addressComponents' },
+    body: JSON.stringify({ maxResultCount: 1, rankPreference: 'DISTANCE', locationRestriction: { circle: { center: { latitude: pos.lat, longitude: pos.lon }, radius: 30 } } }),
+  }).then((r) => (r.ok ? r.json() : Promise.reject(new Error('places ' + r.status)))).then((j) => (j.places || [])[0] || null);
+  const [g, p] = await Promise.allSettled([geo, near]);
+  const place = p.status === 'fulfilled' ? p.value : null;
+  const name = (place && place.displayName && place.displayName.text) || '';
+  const results = g.status === 'fulfilled' ? g.value : [];
+  const best = results.find((r) => (r.address_components || []).some((c) => (c.types || []).includes('route'))) || results[0];
+  if (best) return fromGoogleComponents(best.address_components, name);
+  if (place) return fromGoogleComponents(place.addressComponents || [], name);
+  throw new Error('google reverse: ' + (g.reason && g.reason.message));
 }
 
 const first = (...v) => v.find((x) => x && String(x).trim());
