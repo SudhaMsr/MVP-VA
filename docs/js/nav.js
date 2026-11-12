@@ -243,7 +243,23 @@ export function routePreview(route) {
 export const MAX_WALK_M = 10000;
 
 // Google first (better place search, street names), OpenStreetMap as the fallback so navigation never goes silent.
-export function makeProviders({ googleKey, fetchFn = (...a) => fetch(...a), onFallback = () => {}, notify = null, now = () => Date.now() }) {
+// googleOnly (12 Nov, the owner has Google credits and wants Google only): no OpenStreetMap. A Google failure is tried once
+// more after a short wait, then the walker hears the usual "could not search / could not get directions" message.
+export function makeProviders({ googleKey, fetchFn = (...a) => fetch(...a), onFallback = () => {}, notify = null, now = () => Date.now(), googleOnly = false, retryMs = 500 }) {
+  if (googleKey && googleOnly) {
+    const twice = async (what, fn) => {
+      try { return await fn(); } catch (e) {
+        onFallback(`${what} (retry)`, e);
+        await new Promise((r) => setTimeout(r, retryMs));
+        return fn();
+      }
+    };
+    return {
+      async geocode(query, pos) { const g = await twice('place search', () => googleGeocode(query, pos, fetchFn, googleKey)); return g && { ...g, source: 'google' }; },
+      async search(query, pos) { return (await twice('place search', () => googleGeocodeMany(query, pos, fetchFn, googleKey, 5))).map((d) => ({ ...d, source: 'google' })); },
+      async route(from, to) { const r = await twice('route', () => googleRoute(from, to, fetchFn, googleKey)); return r && { ...r, source: 'google' }; },
+    };
+  }
   let notifiedAt = -Infinity;
   const fellBack = onFallback;
   onFallback = (what, e) => {

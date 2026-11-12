@@ -1,6 +1,6 @@
 // Privacy and recording consent (Package A, 7 Nov). The walker hears once, on their very first start, what leaves the
 // phone; "privacy" repeats it. Recording a session needs a spoken yes, remembered only until the page is closed.
-export const PRIVACY_TEXT = 'Your voice and route searches go to Google so I can understand you and find routes. Camera pictures stay on this phone unless you record a session.';
+export const PRIVACY_TEXT = 'Your voice and route searches go to Google so I can understand you and find routes. Camera pictures stay on this phone, except one photo sent to Google when you say read or describe this. Recording a session stays on this phone.';
 export const RECORD_ASK = 'Recording saves video and a log on this phone. Say yes to start, or no.';
 const KEY = 'va.privacySaid';
 
