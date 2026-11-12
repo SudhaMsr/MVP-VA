@@ -26,7 +26,7 @@ import { Dialogue, parseAnswer } from './dialogue.js';
 import { recogniseText, readingSpeech } from './reader.js';
 import { CloudVision, parseRead, sceneSpeech, frameToBase64 } from './cloudvision.js';
 import { searchNearby, nearbySpeech, WalkHeading } from './nearby.js';
-import { CROSSING_TEXT, LIMITS_TEXT } from './safetext.js';
+import { CROSSING_TEXT, LIMITS_TEXT, WELCOME_TEXT } from './safetext.js';
 import { firstStartPrivacy, PRIVACY_TEXT, RecordingConsent } from './privacy.js';
 import { OnlineWatch, updateNotice } from './pwa.js';
 import { PerfMeter, SlowMode, WalkStats, summaryText } from './perf.js';
@@ -726,7 +726,7 @@ async function start() {
   setStatus(RECORD ? 'Running, recording' : 'Running');
   updateMain();
   cues.play('ok');
-  say(RECORD ? 'Ready, recording.' : wasFirst ? 'Ready. Hold the phone at chest height, camera facing forward. Keep using your cane or guide dog. This app helps, but does not replace them. Tap the screen, then speak.' : 'Ready.', 'status');
+  say(RECORD ? 'Ready, recording.' : wasFirst ? WELCOME_TEXT : 'Ready.', 'status');
   const priv = firstStartPrivacy(); if (priv) { say(priv, 'status'); logEvent('privacy-said', ''); } // once ever, on the first start
   const upd = updateNotice(document.getElementById('ver')?.textContent); if (upd) say(upd, 'status'); // a new version since the last start
   online.start(navigator.onLine);
