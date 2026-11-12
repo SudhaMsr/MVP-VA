@@ -163,6 +163,17 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
 - Tested: tests/vision_nearby.test.js (16 tests); a headless walk with Google replies faked, with Vision working and refused.
   Not yet tried with real Google Vision or on the Poco.
 
+## Live check on the real site (12 Nov, branch fix/live-check-nov12)
+- Run in the owner's Chrome on https://sudhamsr.github.io/MVP-VA/ with a street frame from the 30 Oct walk as the camera,
+  Google's own voice (Text-to-Speech) played into the microphone, and a GPS fix walking north from the Centre.
+- Worked with the real Google services: detection tracked 3 parked cars (7.8, 10.3 and 18.6 m); Google listening heard
+  "navigate to University of Bristol" (2.7 s round trip); Places and Routes gave "Going to University of Bristol, Beacon House.
+  About 10 minutes."; the Google voice played the replies.
+- Fixed: the first turn prompt ("In 40 steps, turn right") was spoken before the route summary, because the summary was a
+  status message and turn prompts go first. The summary is now a direction ('nav'), so the order is kept.
+- Fixed: the end of speech is now measured on the audio thread with the audio clock. A page timer can be slowed to once a
+  second (battery saver, a busy phone, a background tab); in the live check one command recorded the full 7.6 s.
+
 ## Build plan packages (from "Vision Assist — Build Plan & Claude Code Playbook", 7 Nov)
 Each package is one branch and one PR, stacked in order (each branch starts from the previous one), so merge them in order.
 `CLAUDE.md` holds the project rules every Claude Code session reads first.

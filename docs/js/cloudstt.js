@@ -125,34 +125,54 @@ export class CloudListener {
       const how = pickRecording(typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported ? (m) => MediaRecorder.isTypeSupported(m) : null);
       const src = ctx.createMediaStreamSource(stream); const an = ctx.createAnalyser();
       an.fftSize = 1024; src.connect(an);
-      const parts = []; const pcm = []; let rec = null; let tap = null;
+      const parts = []; const pcm = []; let rec = null;
       if (how.mime) {
         rec = new MediaRecorder(stream, { mimeType: how.mime });
         rec.ondataavailable = (e) => { if (e.data && e.data.size) parts.push(e.data); };
-      } else {
-        // iPhone: keep the raw samples. The processor's output stays silent, so nothing is played back.
-        tap = ctx.createScriptProcessor(4096, 1, 1);
-        tap.onaudioprocess = (e) => { pcm.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
-        src.connect(tap); tap.connect(ctx.destination);
       }
+      // The microphone level is measured on the audio thread, block by block, with the audio's own clock (live check
+      // 12 Nov: a page timer can be slowed to once a second, by a battery saver or a busy phone, and then the end of
+      // speech was missed and every command recorded the full 7 s). iPhone also keeps the raw samples here. The
+      // processor's output stays silent, so nothing is played back.
+      const tap = ctx.createScriptProcessor(2048, 1, 1);
+      src.connect(tap); tap.connect(ctx.destination);
       const buf = new Float32Array(an.fftSize);
-      const eos = new EndOfSpeech();
+      const eos = new EndOfSpeech(); const eosTimer = new EndOfSpeech();
       const t0 = performance.now();
       if (rec) rec.start(250);
       const outcome = await new Promise((resolve) => {
-        let started = false;
-        const tick = () => {
-          an.getFloatTimeDomainData(buf);
-          let s = 0; for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
-          const r = eos.step(Math.sqrt(s / buf.length), performance.now());
-          if (!started && eos.spoke) { started = true; onSpeechStart(); }
-          if (r === 'listening') setTimeout(tick, 50); else resolve(r);
+        let started = false; let done = false; let blocks = 0; let audioMs = 0; let guard = null;
+        const finish = (r) => { if (done) return; done = true; clearTimeout(guard); resolve(r); };
+        const heard = (e) => { if (!started && e.spoke) { started = true; onSpeechStart(); } };
+        tap.onaudioprocess = (e) => {
+          const d = e.inputBuffer.getChannelData(0);
+          if (!rec) pcm.push(new Float32Array(d));
+          if (done) return;
+          let q = 0; for (let i = 0; i < d.length; i++) q += d[i] * d[i];
+          blocks += 1; audioMs += (d.length / (ctx.sampleRate || 48000)) * 1000;
+          const r = eos.step(Math.sqrt(q / d.length), audioMs);
+          heard(eos);
+          if (r !== 'listening') finish(r);
         };
-        tick();
+        // Back-up on a timer, only if the audio thread delivers nothing, and a hard stop so a command never hangs.
+        const tick = () => {
+          if (done) return;
+          const el = performance.now() - t0;
+          if (blocks === 0 && el > 500) {
+            an.getFloatTimeDomainData(buf);
+            let q = 0; for (let i = 0; i < buf.length; i++) q += buf[i] * buf[i];
+            const r = eosTimer.step(Math.sqrt(q / buf.length), performance.now());
+            heard(eosTimer);
+            if (r !== 'listening') { finish(r); return; }
+          }
+          if (el > eos.maxMs + 2000) { finish(eos.spoke || eosTimer.spoke ? 'done' : 'nothing'); return; }
+          guard = setTimeout(tick, 50);
+        };
+        guard = setTimeout(tick, 50);
       });
       if (rec) { const stopped = new Promise((res) => { rec.onstop = res; }); rec.stop(); await stopped; }
       const rate = ctx.sampleRate || 48000;
-      try { src.disconnect(); if (tap) { tap.onaudioprocess = null; tap.disconnect(); } } catch (_) { /* ignore */ }
+      try { src.disconnect(); tap.onaudioprocess = null; tap.disconnect(); } catch (_) { /* ignore */ }
       const track = stream.getAudioTracks()[0];
       const st = (track && track.getSettings && track.getSettings()) || {};
       this._release(); // iPhone: let go of the microphone before the reply is spoken
