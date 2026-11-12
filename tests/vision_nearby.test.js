@@ -191,23 +191,19 @@ test('Google only: navigation never calls OpenStreetMap; a failed Google call is
   assert.ok(!urls.some((u) => /openstreetmap/.test(u)));
 });
 
-test('where am I from Google: street and number from Geocoding, the nearest named place from Places', async () => {
+test('where am I from Google Places: the street most nearby places are on, the nearest named place, no house number', async () => {
   const { reverseLookup, describePlace } = await import('../docs/js/places.js');
   const urls = [];
-  const fetchFn = async (url) => {
-    urls.push(url);
-    if (/geocode\/json/.test(url)) return { ok: true, json: async () => ({ status: 'OK', results: [{ address_components: [
-      { long_name: '12', types: ['street_number'] }, { long_name: 'Park Street', types: ['route'] },
-      { long_name: 'Clifton', types: ['neighborhood', 'political'] }, { long_name: 'Bristol', types: ['postal_town'] }] }] }) };
-    return { ok: true, json: async () => ({ places: [{ displayName: { text: 'Costa Coffee' } }] }) };
-  };
+  const comp = (road, num) => [...(num ? [{ longText: num, types: ['street_number'] }] : []), { longText: road, types: ['route'] }, { longText: 'Bristol', types: ['postal_town'] }];
+  const fetchFn = async (url) => { urls.push(url); return { ok: true, json: async () => ({ places: [
+    { displayName: { text: 'Charming 1 Bed Flat' }, primaryType: 'lodging', addressComponents: comp('Colston Avenue') },
+    { displayName: { text: 'Colston Statue Plinth' }, primaryType: 'historical_landmark', addressComponents: comp('Colston Avenue') },
+    { displayName: { text: 'Accountancy Recruit' }, primaryType: 'consultant', addressComponents: comp('Baldwin Street', '29') },
+  ] }) }; };
   const j = await reverseLookup(HERE, fetchFn, 'k');
-  assert.equal(describePlace(j), 'You are near number 12, on Park Street, in Clifton, Bristol. Close by is Costa Coffee.');
-  assert.ok(urls.every((u) => /googleapis\.com/.test(u)));
-  // Geocoding refused: the nearest place's address still answers
-  const placesOnly = async (url) => (/geocode/.test(url) ? { ok: false, status: 403, json: async () => ({}) }
-    : { ok: true, json: async () => ({ places: [{ displayName: { text: 'Boots' }, addressComponents: [{ longText: 'Broadmead', types: ['route'] }, { longText: 'Bristol', types: ['postal_town'] }] }] }) });
-  assert.equal(describePlace(await reverseLookup(HERE, placesOnly, 'k')), 'You are on Broadmead, in Bristol. Close by is Boots.');
+  assert.equal(describePlace(j), 'You are on Colston Avenue, in Bristol. Close by is Colston Statue Plinth.');
+  assert.equal(urls.length, 1); assert.match(urls[0], /places\.googleapis\.com/);
+  assert.equal(describePlace(await reverseLookup(HERE, async () => ({ ok: true, json: async () => ({}) }), 'k')), 'I could not tell which street you are on.');
   await assert.rejects(reverseLookup(HERE, async () => ({ ok: false, status: 500 }), 'k'));
 });
 

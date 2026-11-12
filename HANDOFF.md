@@ -155,9 +155,10 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
   no longer a note lookup. Privacy line and privacy.html say when a photo and the location leave the phone.
 - **Google only (12 Nov, owner's choice: Google credits):** navigation `makeProviders({ googleOnly: true })` uses Google
   Places and Routes with one retry and no OpenStreetMap backup (`?maps=osm` still tests it). "Where am I" uses Google
-  Geocoding for the street and Places for the nearest named place (`places.js` `googleReverse`), either one is enough.
+  Places (`places.js` `googleReverse`): the street most of the 5 nearest places are on, and the nearest named place that is
+  not a holiday flat or an office. Geocoding is not used: Google refuses website-locked keys for it (checked live 12 Nov).
   The page libraries (onnxruntime, Tesseract) still load from jsDelivr: they are code, not a map or speech service.
-- **Needs Cloud Vision API and Geocoding API allowed on the Google key** (Cloud Console, Credentials, the Maps Platform key). Until then the key
+- **Needs Cloud Vision API allowed on the Google key (done 12 Nov; checked live: read "BUS STOP" in 0.4 s)** (Cloud Console, Credentials, the Maps Platform key). Until then the key
   is refused (403) and reading and describing quietly use the phone. Places (New) is already allowed.
 - Tested: tests/vision_nearby.test.js (16 tests); a headless walk with Google replies faked, with Vision working and refused.
   Not yet tried with real Google Vision or on the Poco.

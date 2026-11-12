@@ -16,24 +16,28 @@ export function fromGoogleComponents(comps = [], name = '') {
   return { name, address: { house_number: get('street_number'), road: get('route'), suburb: get('neighborhood', 'sublocality_level_1', 'sublocality'), city: get('postal_town', 'locality') } };
 }
 
-// The street from Geocoding, the nearest named place within 30 m from Places. Either one failing still gives an answer.
+// Google's Geocoding web service refuses keys locked to a website (checked 12 Nov: "API keys with referer restrictions
+// cannot be used with this API"), and the key must stay locked. So the street comes from Places: the street most of the
+// nearest places (within 40 m) are on, and the nearest named place that is not a holiday flat. No house number: it would
+// be a business's number, not the walker's.
+const SKIP_TYPES = /lodging|apartment|hotel|guest_house|bed_and_breakfast|hostel|real_estate|corporate_office|consultant/;
 export async function googleReverse(pos, fetchFn, key) {
-  const geo = fetchFn(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${pos.lat},${pos.lon}&language=en-GB&key=${encodeURIComponent(key)}`)
-    .then((r) => (r.ok ? r.json() : Promise.reject(new Error('geocode ' + r.status))))
-    .then((j) => { if (j.status && j.status !== 'OK' && j.status !== 'ZERO_RESULTS') throw new Error('geocode ' + j.status); return j.results || []; });
-  const near = fetchFn('https://places.googleapis.com/v1/places:searchNearby', {
+  const r = await fetchFn('https://places.googleapis.com/v1/places:searchNearby', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'places.displayName,places.addressComponents' },
-    body: JSON.stringify({ maxResultCount: 1, rankPreference: 'DISTANCE', locationRestriction: { circle: { center: { latitude: pos.lat, longitude: pos.lon }, radius: 30 } } }),
-  }).then((r) => (r.ok ? r.json() : Promise.reject(new Error('places ' + r.status)))).then((j) => (j.places || [])[0] || null);
-  const [g, p] = await Promise.allSettled([geo, near]);
-  const place = p.status === 'fulfilled' ? p.value : null;
-  const name = (place && place.displayName && place.displayName.text) || '';
-  const results = g.status === 'fulfilled' ? g.value : [];
-  const best = results.find((r) => (r.address_components || []).some((c) => (c.types || []).includes('route'))) || results[0];
-  if (best) return fromGoogleComponents(best.address_components, name);
-  if (place) return fromGoogleComponents(place.addressComponents || [], name);
-  throw new Error('google reverse: ' + (g.reason && g.reason.message));
+    headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'places.displayName,places.addressComponents,places.primaryType' },
+    body: JSON.stringify({ maxResultCount: 5, rankPreference: 'DISTANCE', locationRestriction: { circle: { center: { latitude: pos.lat, longitude: pos.lon }, radius: 40 } } }),
+  });
+  if (!r.ok) throw new Error('places ' + r.status);
+  const places = (await r.json()).places || [];
+  if (!places.length) return { address: {} };
+  const parts = places.map((p) => fromGoogleComponents(p.addressComponents || []).address);
+  const most = (k) => {
+    const n = new Map();
+    for (const a of parts) if (a[k]) n.set(a[k], (n.get(a[k]) || 0) + 1);
+    return [...n.entries()].sort((x, y) => y[1] - x[1])[0]?.[0] || '';
+  };
+  const named = places.find((p) => p.displayName && p.displayName.text && !SKIP_TYPES.test(p.primaryType || ''));
+  return { name: named ? named.displayName.text : '', address: { road: most('road'), suburb: most('suburb'), city: most('city') } };
 }
 
 const first = (...v) => v.find((x) => x && String(x).trim());

@@ -17,7 +17,7 @@ A voice-first walking companion for blind and low-vision people. It uses the pho
 - **Spoken walking directions:** type or say "navigate to ...", turns announced about 40 m ahead and at the turn, in plain left / right / straight with **no street names** (a blind walker cannot read a street sign), "keep going, you are on the route" on long quiet stretches. Turn prompts go ahead of hazard chatter. Say "cancel" to stop. Needs internet and location permission.
 - **Ask the app:**
   - "What is in front of me?" describes what the camera sees now, by side and distance, and says plainly when it sees nothing it recognises.
-  - "Where am I?" says the street and area (Google: Geocoding for the street, Places for the nearest named place).
+  - "Where am I?" says the street and area (Google Places: the street around you and the nearest named place).
   - "Save this place as home" (uses where you are now), or "save my home address as 25 Lakeside BS16 3EE" (the app reads back what it found and asks yes or no; it warns if the postcode differs). Then "take me home" (or any name). Places are kept on the phone only, never in the code.
   - "Slower" / "faster" changes how fast it speaks (7 notches from 60% to 110%, default 95%, saved on the phone; also a button).
   - "Share my location" gets a link ready (street plus a map link); then tap the empty screen and choose who to send it to. The browser only opens the share sheet from a real tap.
