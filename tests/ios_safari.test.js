@@ -3,9 +3,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { routeOutput, effectiveMode, NO_VIBRATE_TEXT, OUTPUT_MODES } from '../docs/js/output.js';
-import { requestMotionAccess, unlockAudio, silentWav, WakeNotice, NO_WAKE_LOCK_TEXT, MOTION_DENIED_TEXT, MotionGate } from '../docs/js/platform.js';
+import { requestMotionAccess, unlockAudio, silentWav, WakeNotice, NO_WAKE_LOCK_TEXT, MOTION_DENIED_TEXT, MotionGate, isIOS } from '../docs/js/platform.js';
 import { readFileSync } from 'node:fs';
-import { pickRecording, downsample, toLinear16, buildRequest, PCM_RATE } from '../docs/js/cloudstt.js';
+import { pickRecording, downsample, toLinear16, buildRequest, PCM_RATE, CloudListener } from '../docs/js/cloudstt.js';
 import { isSafeText } from '../docs/js/safetext.js';
 
 test('a phone that cannot vibrate never leaves a hazard alert silent', () => {
@@ -171,4 +171,69 @@ test('F-I1: every caller of start() and talk() in app.js says whether it is a ta
   assert.doesNotMatch(vis, /fromTap: true/);
   assert.match(src, /case 'start': start\(\{ fromTap: false \}\)/, 'a spoken "start" is not a tap');
   assert.doesNotMatch(src, /requestMotionAccess\(/, 'app.js asks only through MotionGate');
+});
+
+test('isIOS: iPhone and iPad (which says Macintosh) yes; Android and a Mac without touch no', () => {
+  assert.equal(isIOS({ userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15', maxTouchPoints: 5 }), true);
+  assert.equal(isIOS({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15', maxTouchPoints: 5 }), true);
+  assert.equal(isIOS({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15', maxTouchPoints: 0 }), false);
+  assert.equal(isIOS({ userAgent: 'Mozilla/5.0 (Linux; Android 11; M2003J15SC) Chrome/130.0 Mobile', maxTouchPoints: 5 }), false);
+});
+
+// A fake microphone: counts how many are open, so a test can see whether the app lets go of it.
+function fakeMic() {
+  const mic = { open: 0, asked: 0 };
+  const stream = () => { mic.open += 1; let live = true; const tr = { get readyState() { return live ? 'live' : 'ended' }, stop() { if (live) { live = false; mic.open -= 1; } }, getSettings: () => ({ channelCount: 1 }) };
+    return { getAudioTracks: () => [tr], getTracks: () => [tr] }; };
+  mic.getUserMedia = async () => { mic.asked += 1; return stream(); };
+  return mic;
+}
+async function withNavigator(mic, fn) {
+  const had = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
+  Object.defineProperty(globalThis, 'navigator', { value: { mediaDevices: { getUserMedia: mic.getUserMedia } }, configurable: true, writable: true });
+  try { return await fn(); } finally { if (had) Object.defineProperty(globalThis, 'navigator', had); else delete globalThis.navigator; }
+}
+
+test('iPhone: the microphone is opened at Start for the permission question, then let go; Safari goes back to playback', async () => {
+  const mic = fakeMic(); const session = { type: 'auto' };
+  await withNavigator(mic, async () => {
+    const ios = new CloudListener({ key: 'k', keepMic: false, audioSession: session });
+    await ios.prime();
+    assert.equal(mic.asked, 1, 'asked once, inside the Start tap');
+    assert.equal(mic.open, 0, 'not held open while walking: speech would play quietly, as a phone call');
+    assert.equal(session.type, 'playback');
+    ios._session('play-and-record'); assert.equal(session.type, 'play-and-record');
+    ios._release(); assert.equal(session.type, 'playback');
+  });
+});
+
+test('Android is unchanged: the microphone stays open between taps and no audio session is touched', async () => {
+  const mic = fakeMic(); const session = { type: 'auto' };
+  await withNavigator(mic, async () => {
+    const android = new CloudListener({ key: 'k', audioSession: session });
+    await android.prime(); await android._mic();
+    assert.equal(mic.asked, 1, 'reused, not asked again');
+    assert.equal(mic.open, 1);
+    android._release();
+    assert.equal(mic.open, 1); assert.equal(session.type, 'auto');
+    android.close(); assert.equal(mic.open, 0, 'Stop still lets go');
+  });
+});
+
+test('app.js lets go of the microphone only on iPhone', () => {
+  const src = readFileSync(new URL('../docs/js/app.js', import.meta.url), 'utf8');
+  assert.match(src, /new CloudListener\(\{[^}]*keepMic: !isIOS\(\)/);
+  assert.match(src, /cloud\.prime\(\)/);
+});
+
+test('12 Nov: Android Chrome with requestPermission answering "prompt" is never asked and never told motion is off', async () => {
+  let asked = 0;
+  const ask = async () => { asked += 1; return 'prompt'; };
+  const android = { navigator: { userAgent: 'Mozilla/5.0 (Linux; Android 11; M2003J15SC) Chrome/153.0 Mobile', maxTouchPoints: 5 },
+    DeviceOrientationEvent: { requestPermission: ask }, DeviceMotionEvent: { requestPermission: ask } };
+  assert.equal(await requestMotionAccess(android), 'not-needed');
+  assert.equal(asked, 0);
+  const iphone = { ...android, navigator: { userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X)', maxTouchPoints: 5 } };
+  assert.equal(await requestMotionAccess(iphone), 'unknown', '"prompt" is not a no');
+  assert.equal(asked, 2);
 });

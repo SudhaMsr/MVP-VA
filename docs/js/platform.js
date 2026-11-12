@@ -1,17 +1,27 @@
 // Phone and browser differences (Package I: iPhone Safari). Everything here works on Android Chrome as before; on an
 // iPhone it does the extra steps Safari needs. Each function takes the browser objects as arguments so tests can fake them.
 
+// iPhone or iPad (every browser there is Safari underneath). iPads say "Macintosh" but have a touch screen.
+export function isIOS(nav = (typeof navigator !== 'undefined' ? navigator : {})) {
+  const ua = nav.userAgent || '';
+  return /iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && (nav.maxTouchPoints || 0) > 1);
+}
+
 // iPhone: the tilt and motion sensors (calibration, floor distance, compass, step counting) send nothing until the page
 // asks, and it may only ask from inside a tap. Android: no question is needed.
 // Returns 'granted', 'denied', 'not-needed' or 'unavailable'.
 export async function requestMotionAccess(win = (typeof window !== 'undefined' ? window : {})) {
   const O = win.DeviceOrientationEvent; const M = win.DeviceMotionEvent;
   if (!O && !M) return 'unavailable';
+  // Only iPhone needs the question. Newer Chrome on Android also has requestPermission but can answer "prompt" without
+  // asking anyone (seen in Chrome 153, 12 Nov), which was being taken as "denied", so Android never asks (as before Package I).
+  if (win.navigator && !isIOS(win.navigator)) return 'not-needed';
   const asks = [O, M].filter((E) => E && typeof E.requestPermission === 'function');
   if (!asks.length) return 'not-needed';
   // Both questions are started at once, still inside the tap (Safari forgets the tap after the first await).
   const answers = await Promise.all(asks.map((E) => E.requestPermission().catch(() => 'denied')));
-  return answers.every((a) => a === 'granted') ? 'granted' : 'denied';
+  if (answers.every((a) => a === 'granted')) return 'granted';
+  return answers.some((a) => a === 'denied') ? 'denied' : 'unknown'; // "prompt": not an answer, so ask again on the next tap
 }
 
 // Asks for motion access only from a real tap (F-I1). An automatic restart (the page becoming visible again) or a spoken

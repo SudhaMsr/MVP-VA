@@ -30,7 +30,7 @@ import { OnlineWatch, updateNotice } from './pwa.js';
 import { PerfMeter, SlowMode, WalkStats, summaryText } from './perf.js';
 import { CloudVoice, WARM_LINES } from './cloudtts.js';
 import { routeOutput, OUTPUT_MODES, OUTPUT_NAMES, outputText, NO_VIBRATE_TEXT } from './output.js';
-import { MotionGate, MOTION_DENIED_TEXT, unlockAudio, WakeNotice } from './platform.js';
+import { MotionGate, MOTION_DENIED_TEXT, unlockAudio, WakeNotice, isIOS } from './platform.js';
 import { hazardCandidates } from './hazardalerts.js';
 import { floorDistance, pitchFromBeta, parseHeight, cameraHeightM, PitchCalibrator } from './floordist.js';
 
@@ -685,7 +685,7 @@ async function start({ fromTap = false } = {}) {
   setStatus('Starting');
   cues.play('ok'); // a short sound to show it has started
   if (cloudVoice) cloudVoice.warm(WARM_LINES, speaker.rate); // common lines ready in Google's voice before they are needed
-  if (useCloud()) cloud._mic().catch((e) => { logEvent('mic-error', e && e.name); cloudOff = true; startListening(); }); // inside the tap, so the browser allows the microphone prompt
+  if (useCloud()) cloud.prime().catch((e) => { logEvent('mic-error', e && e.name); cloudOff = true; startListening(); }); // inside the tap, so the browser allows the microphone prompt
   else startListening();
   try { navigator.geolocation.getCurrentPosition(() => {}, () => {}, { enableHighAccuracy: true, maximumAge: 0, timeout: 10000 }); } catch (_) { /* ask for location now, so the prompt is not a surprise mid-walk */ }
   try {
@@ -791,7 +791,7 @@ function updateMain() {
   b.textContent = state.starting ? 'Starting' : state.running ? 'Stop walking' : 'Start walking'; // the visible text is the name
 }
 
-const cloud = new CloudListener({ key: GOOGLE_KEY, lang: CONFIG.speechLang, log: (k, v) => logEvent(k, v) });
+const cloud = new CloudListener({ key: GOOGLE_KEY, lang: CONFIG.speechLang, log: (k, v) => logEvent(k, v), keepMic: !isIOS() });
 let cloudOff = false;
 const useCloud = () => WANT_CLOUD_STT && !cloudOff && cloud.usable;
 function endTalk() { speaker.hold(false); state.talkUntil = 0; clearTimeout(talkTimer); if (state.running) setStatus('Running'); if (!speaker.current) idleMode(); }

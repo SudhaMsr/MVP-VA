@@ -297,5 +297,16 @@ uncommitted, on a local `fix/ios-safari` folder; its files were copied unchanged
 - Checked: `npm test`, `npm run check:offline` and `npm run check:a11y` pass in **headless Chrome**. Chrome can vibrate and has no
   iPhone permission prompts, so those runs do not exercise the iPhone-specific paths and do not show iPhone compatibility. A
   one-off headless run also confirmed the real automatic restart makes no motion-permission request (the code before F-I1 made two).
+- **12 Nov fixes (iPhone simulation in headless Chromium: Safari's missing features removed and its tap rules faked; WebKit itself
+  could not be installed here):**
+  - Microphone let go after every command on iPhone (`CloudListener` `keepMic: !isIOS()`, `prime()` at Start, Safari 17
+    `navigator.audioSession` set to play-and-record while listening and playback after). Holding it all walk makes Safari play
+    every sound as a phone call (quieter, sometimes from the earpiece) with the microphone indicator on. Android unchanged.
+  - Android regression found and fixed: Chrome 153 has `DeviceOrientationEvent.requestPermission` and answers "prompt" without
+    asking, which was stored as "denied", so "calibrate" on Android said "Motion access is off". Now only iPhone asks, and only
+    a real "denied" counts as no.
+  - Simulated walk, five spoken commands each way: iPhone sends 16 kHz LINEAR16 (real sound, 2 to 7 s), route starts, "vibration
+    only" refused, battery not available said, motion asked only from the Start tap, no microphone open between commands, no page
+    errors. Android sends WebM Opus as before. Script: `iphone.py` in the 12 Nov session scratchpad. 333 tests pass.
 - Not validated: the iPhone-specific app.js wiring in Safari; any real iPhone; the LINEAR16 recording path in `CloudListener.listen()`
   (no automated test: it needs a real microphone); whether Safari's own speech recogniser fallback works.

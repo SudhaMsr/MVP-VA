@@ -90,8 +90,12 @@ export class EndOfSpeech {
 }
 
 export class CloudListener {
-  constructor({ key, lang = 'en-GB', log = () => {}, fetchFn = (...a) => fetch(...a), timeoutMs = 6000, retryMs = 400 } = {}) {
-    Object.assign(this, { key, lang, log, fetchFn, timeoutMs, retryMs });
+  // keepMic: Android keeps the microphone open between taps (quicker). iPhone passes false: while Safari holds the
+  // microphone, it plays every sound as a phone call (quieter, sometimes from the earpiece) and shows the microphone
+  // indicator all walk, so there the microphone is let go as soon as each command is recorded.
+  constructor({ key, lang = 'en-GB', log = () => {}, fetchFn = (...a) => fetch(...a), timeoutMs = 6000, retryMs = 400, keepMic = true,
+    audioSession = (typeof navigator !== 'undefined' ? navigator.audioSession : null) } = {}) {
+    Object.assign(this, { key, lang, log, fetchFn, timeoutMs, retryMs, keepMic, audioSession });
     this.stream = null; this.busy = false; this.refused = false; this.model = 'latest_short';
   }
 
@@ -113,8 +117,10 @@ export class CloudListener {
     // The audio context is made before the first wait, while the tap still counts (Safari keeps it suspended otherwise).
     const Ctx = window.AudioContext || window.webkitAudioContext;
     const ctx = new Ctx();
+    let stream = null;
     try {
-      const stream = await this._mic();
+      if (!this.keepMic) this._session('play-and-record');
+      stream = await this._mic();
       if (ctx.state === 'suspended' && ctx.resume) await ctx.resume().catch(() => {});
       const how = pickRecording(typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported ? (m) => MediaRecorder.isTypeSupported(m) : null);
       const src = ctx.createMediaStreamSource(stream); const an = ctx.createAnalyser();
@@ -147,6 +153,9 @@ export class CloudListener {
       if (rec) { const stopped = new Promise((res) => { rec.onstop = res; }); rec.stop(); await stopped; }
       const rate = ctx.sampleRate || 48000;
       try { src.disconnect(); if (tap) { tap.onaudioprocess = null; tap.disconnect(); } } catch (_) { /* ignore */ }
+      const track = stream.getAudioTracks()[0];
+      const st = (track && track.getSettings && track.getSettings()) || {};
+      this._release(); // iPhone: let go of the microphone before the reply is spoken
       this.log('cloud-stt-clip', `${outcome} ${Math.round(performance.now() - t0)} ms ${how.encoding}`);
       if (outcome === 'nothing') return '';
       onRecorded();
@@ -157,10 +166,10 @@ export class CloudListener {
         return await this._recognise(b64, PCM_RATE, 1, 'LINEAR16');
       }
       const b64 = await blobToBase64(new Blob(parts, { type: how.mime }));
-      const st = (stream.getAudioTracks()[0] && stream.getAudioTracks()[0].getSettings && stream.getAudioTracks()[0].getSettings()) || {};
       return await this._recognise(b64, rate, st.channelCount || 1, how.encoding);
     } finally {
       try { ctx.close(); } catch (_) { /* ignore */ }
+      this._release();
       this.busy = false;
     }
   }
@@ -204,6 +213,15 @@ export class CloudListener {
     this.log('cloud-stt-heard', `${Math.round(performance.now() - t0)} ms "${text}"`);
     return text;
   }
+
+  // iPhone only (keepMic false): stop the microphone and put Safari back to normal playback, so speech is loud again.
+  _release() { if (this.keepMic) return; this.close(); this._session('playback'); }
+
+  // Safari 17+ (navigator.audioSession): 'play-and-record' while listening, 'playback' otherwise. Absent elsewhere.
+  _session(type) { try { if (this.audioSession && 'type' in this.audioSession) this.audioSession.type = type; } catch (_) { /* not supported */ } }
+
+  // Open the microphone once, inside the Start tap, so the permission question comes then; iPhone lets go of it again.
+  async prime() { await this._mic(); this._release(); }
 
   close() { try { if (this.stream) this.stream.getTracks().forEach((t) => t.stop()); } catch (_) { /* ignore */ } this.stream = null; }
 }
