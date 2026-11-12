@@ -24,6 +24,8 @@ import { Navigator, makeProviders, locationMessage, haversine, roundMetres } fro
 import { looksLikeEcho, isBargeIn } from './barge.js';
 import { Dialogue, parseAnswer } from './dialogue.js';
 import { recogniseText, readingSpeech } from './reader.js';
+import { CloudVision, parseRead, sceneSpeech, frameToBase64 } from './cloudvision.js';
+import { searchNearby, nearbySpeech, WalkHeading } from './nearby.js';
 import { CROSSING_TEXT, LIMITS_TEXT, WELCOME_TEXT } from './safetext.js';
 import { firstStartPrivacy, PRIVACY_TEXT, RecordingConsent } from './privacy.js';
 import { OnlineWatch, updateNotice } from './pwa.js';
@@ -178,6 +180,7 @@ const navigator_ = new Navigator({
   trace: (f) => { const n = Date.now(); if (n - lastTraceAt < 3000) return; lastTraceAt = n; logEvent('fix', JSON.stringify(f)); },
   providers: makeProviders({
     googleKey: new URLSearchParams(location.search).get('maps') === 'osm' ? '' : GOOGLE_KEY,
+    googleOnly: true, // Google only (owner's choice, 12 Nov); ?maps=osm still tests OpenStreetMap
     onFallback: (what, e) => session.events.push({ t: Date.now(), kind: 'nav-fallback', text: `${what}: ${e && e.message}` }),
     notify: (t) => say(t, 'status'), // "Google directions are not available, using backup maps." (Package G)
   }),
@@ -198,7 +201,7 @@ const navigator_ = new Navigator({
     const limit = setTimeout(finish, 10000);
     const onFix = (p) => {
       const f = { lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy };
-      window.__lastFix = { ...f, t: Date.now() };
+      window.__lastFix = { ...f, t: Date.now() }; feedHeading(p);
       if (!best || f.accuracy < best.accuracy) best = f;
       if (best.accuracy <= 25) finish();
     };
@@ -209,7 +212,7 @@ const navigator_ = new Navigator({
     ids.push(navigator.geolocation.watchPosition(onFix, onErr, { enableHighAccuracy: false, maximumAge: 0, timeout: 15000 }));
   }),
   watch: (ok, err) => navigator.geolocation.watchPosition(
-    (p) => ok({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy }), err,
+    (p) => { feedHeading(p); ok({ lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy }); }, err,
     { enableHighAccuracy: true, maximumAge: 1000, timeout: 20000 }),
   unwatch: (id) => navigator.geolocation.clearWatch(id),
 });
@@ -257,7 +260,12 @@ async function readText() {
     c.width = Math.round(v.videoWidth * scale); c.height = Math.round(v.videoHeight * scale);
     c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
     const t0 = performance.now();
-    const parsed = await recogniseText(c, { onLoading: () => say('Getting the reading tool ready. This takes a few seconds the first time.', 'status') });
+    let parsed = null;
+    if (vision && vision.usable) {
+      // Google reads signs, shop names and print far better than the phone; one photo is sent, only because the walker asked
+      try { parsed = parseRead(await vision.annotate(c.toDataURL('image/jpeg', 0.85).split(',')[1], 'read')); } catch (_) { parsed = null; }
+    }
+    if (!parsed) parsed = await recogniseText(c, { onLoading: () => say('Getting the reading tool ready. This takes a few seconds the first time.', 'status') });
     const text = readingSpeech(parsed);
     session.events.push({ t: Date.now(), kind: 'read', text, pieces: parsed.pieces, confidence: parsed.confidence, engine: parsed.engine, ms: Math.round(performance.now() - t0) });
     say(text, 'status');
@@ -783,6 +791,11 @@ function updateMain() {
   b.textContent = state.starting ? 'Starting' : state.running ? 'Stop walking' : 'Start walking'; // the visible text is the name
 }
 
+const vision = GOOGLE_KEY && params.get('vision') !== 'phone' ? new CloudVision({ key: GOOGLE_KEY, log: (k, v) => logEvent(k, v) }) : null;
+const walkHeading = new WalkHeading();
+function feedHeading(p) {
+  try { const c = p.coords; walkHeading.add({ lat: c.latitude, lon: c.longitude, accuracy: c.accuracy, heading: c.heading, speed: c.speed, t: Date.now() }); } catch (_) { /* ignore */ }
+}
 const cloud = new CloudListener({ key: GOOGLE_KEY, lang: CONFIG.speechLang, log: (k, v) => logEvent(k, v) });
 let cloudOff = false;
 const useCloud = () => WANT_CLOUD_STT && !cloudOff && cloud.usable;
@@ -886,6 +899,7 @@ function startRouteRecording(rawName) {
   const name = normaliseName(rawName) || 'my walk';
   routeRecorder.start(name); recAnnounced = 0;
   recWatch = navigator.geolocation.watchPosition((pos) => {
+    feedHeading(pos);
     routeRecorder.add({ lat: pos.coords.latitude, lon: pos.coords.longitude, accuracy: pos.coords.accuracy });
     if (routeRecorder.metres - recAnnounced >= 200) { recAnnounced = routeRecorder.metres; say(`Still recording. ${roundMetres(routeRecorder.metres)} so far.`, 'status'); }
   }, () => say('I lost your location signal while recording.', 'status'), { enableHighAccuracy: true, maximumAge: 2000, timeout: 20000 });
@@ -957,10 +971,47 @@ function changeRate(dir) {
 // Sharing needs a real tap (the browser will not open the share sheet from a voice command), so the command
 // gets the location ready and the next tap on the empty screen opens the share sheet.
 let pendingShare = null;
+// "Describe this": one photo to Google for a fuller description (things and their side, the kind of place, a logo, writing).
+// Without Google (no internet, key not allowed), the phone's own description is given instead.
+let looking = false;
+async function lookNow() {
+  if (looking) return;
+  if (!state.running || !stream || !el.video.videoWidth) { say(NO_CAMERA, 'status'); return; }
+  if (!vision || !vision.usable) { describeNow(); return; }
+  looking = true;
+  try {
+    say('Looking.', 'status');
+    const { base64 } = frameToBase64(el.video);
+    const text = sceneSpeech(await vision.annotate(base64, 'look'));
+    logEvent('look', text);
+    say(text, 'status'); state.lastSpoken = text;
+  } catch (e) {
+    logEvent('look-error', e && e.message);
+    say('I could not reach Google, so this is what I can see on the phone.', 'status');
+    describeNow();
+  } finally { looking = false; }
+}
+
+// "What is near me", "is there a cafe nearby": shops and places from the map, nearest first, with the side when known.
+async function nearbyNow(query = null) {
+  if (!GOOGLE_KEY) { say('I cannot look up places on this version.', 'status'); return; }
+  let pos;
+  try { pos = await navigator_.getPosition(); } catch (e) { say(locationMessage(e), 'status'); return; }
+  try {
+    const list = await searchNearby(pos, { key: GOOGLE_KEY, query });
+    const text = nearbySpeech(list, pos, { heading: walkHeading.get(), query });
+    logEvent('nearby', text);
+    say(text, 'status'); state.lastSpoken = text;
+  } catch (e) {
+    logEvent('nearby-error', e && e.message);
+    say('I could not look up places near you. Check your internet connection.', 'status');
+  }
+}
+
 async function prepareShare() {
   let pos;
   try { pos = await navigator_.getPosition(); } catch (e) { say(locationMessage(e, 'I cannot find your location to share.'), 'status'); return; }
-  const where = await reverseLookup(pos).then((j) => describePlace(j).replace(/^You are /, 'I am ')).catch(() => '');
+  const where = await reverseLookup(pos, undefined, GOOGLE_KEY).then((j) => describePlace(j).replace(/^You are /, 'I am ')).catch(() => '');
   pendingShare = `${where ? where + ' ' : ''}My location: https://www.google.com/maps?q=${pos.lat.toFixed(6)},${pos.lon.toFixed(6)} (accurate to about ${Math.round(pos.accuracy)} metres)`;
   logEvent('share-ready', '');
   say('Your location is ready to send. Tap the screen, then choose who to send it to.', 'status');
@@ -978,7 +1029,7 @@ async function whereAmI() {
   let pos;
   try { pos = await navigator_.getPosition(); } catch (e) { say(locationMessage(e), 'status'); return; }
   try {
-    const text = describePlace(await reverseLookup(pos), pos.accuracy);
+    const text = describePlace(await reverseLookup(pos, undefined, GOOGLE_KEY), pos.accuracy);
     logEvent('whereami', text);
     say(text, 'status'); state.lastSpoken = text;
   } catch (e) {
@@ -1127,10 +1178,12 @@ function handleTranscript(text) {
   if (inTalk) { setTimeout(() => speaker.hold(false), 150); /* after the command's own reply is queued, so the answer comes first */ state.talkHeard = true; state.talkUntil = 0; clearTimeout(talkTimer); if (state.running) setStatus('Running'); }
   if (dialogue.answer(text)) { cues.play('ok'); return; } // an answer to a question we asked
   const cmd = parseCommand(text);
-  if (['navigate', 'saveAddress', 'whereami', 'lost', 'read'].includes(cmd.type)) setMode('Thinking'); // these wait on the network or a model
+  if (['navigate', 'saveAddress', 'whereami', 'lost', 'read', 'look', 'nearby'].includes(cmd.type)) setMode('Thinking'); // these wait on the network or a model
   if (cmd.type) cues.play('ok'); else if (inTalk) cues.play('huh');
   switch (cmd.type) {
     case 'describe': describeNow(); break;
+    case 'look': lookNow(); break;
+    case 'nearby': nearbyNow(cmd.arg || null); break;
     case 'whereami': whereAmI(); break;
     case 'save': savePlace(cmd.arg); break;
     case 'cross': say(state.running && state.scene ? crossingAdvice(state.scene.tracks) : CROSSING_TEXT, 'status'); break; // never a colour, never "safe"
@@ -1239,7 +1292,7 @@ function askLocation() {
   locAsked = performance.now();
   try {
     navigator.geolocation.getCurrentPosition(
-      (p) => { window.__lastFix = { lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy, t: Date.now() }; if (state.locProblem) { state.locProblem = false; setStatus(state.running ? 'Running' : 'Ready. Tap start.'); } },
+      (p) => { window.__lastFix = { lat: p.coords.latitude, lon: p.coords.longitude, accuracy: p.coords.accuracy, t: Date.now() }; feedHeading(p); if (state.locProblem) { state.locProblem = false; setStatus(state.running ? 'Running' : 'Ready. Tap start.'); } },
       (e) => {
         state.locProblem = true;
         logEvent('location-ask-error', String(e && e.code));

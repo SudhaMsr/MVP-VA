@@ -145,7 +145,7 @@ test('scene description keeps the risky things when there is a lot to say, and u
 });
 
 test('describe voice commands, without stealing "what is this place" from reading', () => {
-  for (const p of ['what is in front of me', "what's ahead", 'what can you see', 'describe the scene', 'look around', 'is there anything ahead', 'what is around me'])
+  for (const p of ['what is in front of me', "what's ahead", 'what can you see', 'describe the scene', 'look around', 'is there anything ahead']) // 'what is around me' names nearby places since 12 Nov
     assert.equal(parseCommand(p).type, 'describe', p);
   assert.equal(parseCommand('what is this place').type, 'read');
   assert.equal(parseCommand('read this').type, 'read');

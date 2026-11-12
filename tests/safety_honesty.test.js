@@ -41,7 +41,7 @@ test('privacy line: once on the first ever start, then never again; "privacy" as
   assert.equal(firstStartPrivacy(st), PRIVACY_TEXT);
   assert.equal(firstStartPrivacy(st), '');
   assert.equal(firstStartPrivacy(st), '');
-  assert.equal(PRIVACY_TEXT, 'Your voice and route searches go to Google so I can understand you and find routes. Camera pictures stay on this phone unless you record a session.');
+  assert.equal(PRIVACY_TEXT, 'Your voice and route searches go to Google so I can understand you and find routes. Camera pictures stay on this phone, except one photo sent to Google when you say read or describe this. Recording a session stays on this phone.');
   for (const q of ['privacy', 'what do you send', 'where does my data go', 'is this private']) assert.equal(parseCommand(q).type, 'privacy', q);
 });
 
