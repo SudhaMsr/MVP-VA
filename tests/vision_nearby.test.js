@@ -212,3 +212,14 @@ test('app.js: navigation and where am I are Google only', () => {
   assert.match(src, /googleOnly: true/);
   assert.equal((src.match(/reverseLookup\(pos, undefined, GOOGLE_KEY\)/g) || []).length, 2);
 });
+
+test('live check 12 Nov: "what is near me" leaves out holiday flats and offices; asking for a kind keeps them', async () => {
+  const places = { places: [
+    { displayName: { text: 'Sportsmans' }, primaryType: 'bar', primaryTypeDisplayName: { text: 'Bar' }, location: { latitude: 51.4546, longitude: -2.5879 } },
+    { displayName: { text: 'Two bedroom apartment, Bristol City Centre' }, primaryType: 'lodging', location: { latitude: 51.4546, longitude: -2.5879 } },
+    { displayName: { text: 'Accountancy Recruit' }, primaryType: 'consultant', location: { latitude: 51.4546, longitude: -2.5879 } },
+  ] };
+  const fetchFn = async () => ({ ok: true, json: async () => places });
+  assert.deepEqual((await searchNearby(HERE, { key: 'k', fetchFn })).map((p) => p.name), ['Sportsmans']);
+  assert.equal((await searchNearby(HERE, { key: 'k', fetchFn, query: 'hotel' })).length, 3);
+});

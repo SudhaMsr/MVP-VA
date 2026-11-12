@@ -171,6 +171,11 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
   About 10 minutes."; the Google voice played the replies.
 - Fixed: the first turn prompt ("In 40 steps, turn right") was spoken before the route summary, because the summary was a
   status message and turn prompts go first. The summary is now a direction ('nav'), so the order is kept.
+- Also checked live: "where am I" ("You are on Colston Street, in Bristol. Close by is ..."), "what is near me", "is there a
+  cafe nearby" (4 cafes with distance and side), "read" ("It says: TESCO. Express Open 7am - 11pm.", Vision 0.3 s) and
+  "describe this" ("The logo looks like Tesco PLC. Writing says: ...", Vision 1.5 s).
+- Fixed: "what is near me" listed holiday flats and offices; those types are now left out (`SKIP_NEARBY`), unless the walker
+  asks for that kind of place.
 - Fixed: the end of speech is now measured on the audio thread with the audio clock. A page timer can be slowed to once a
   second (battery saver, a busy phone, a background tab); in the live check one command recorded the full 7.6 s.
 
