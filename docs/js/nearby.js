@@ -4,7 +4,10 @@
 import { haversine, bearing } from './nav.js';
 import { roundDistance } from './units.js';
 
-const FIELDS = 'places.displayName,places.location,places.primaryTypeDisplayName,places.businessStatus';
+const FIELDS = 'places.displayName,places.location,places.primaryTypeDisplayName,places.primaryType,places.businessStatus';
+// Not useful to someone asking what is around them (live check 12 Nov: holiday flats and offices filled the answer).
+// Only for "what is near me"; asking for a kind of place ("is there a hotel nearby") keeps everything.
+export const SKIP_NEARBY = /lodging|apartment|hotel|guest_house|bed_and_breakfast|hostel|student_housing|real_estate|corporate_office|consultant|accounting|insurance_agency|lawyer/;
 
 // query: null for everything nearby, or what the walker asked for ("cafe", "post office").
 export async function searchNearby(pos, { key, fetchFn = (...a) => fetch(...a), query = null, radius = 120, max = 10 } = {}) {
@@ -16,7 +19,7 @@ export async function searchNearby(pos, { key, fetchFn = (...a) => fetch(...a), 
   if (!res.ok) throw new Error('google nearby ' + res.status);
   const j = await res.json();
   return (j.places || [])
-    .filter((p) => p.location && p.businessStatus !== 'CLOSED_PERMANENTLY')
+    .filter((p) => p.location && p.businessStatus !== 'CLOSED_PERMANENTLY' && (query || !SKIP_NEARBY.test(p.primaryType || '')))
     .map((p) => ({ name: (p.displayName && p.displayName.text) || '', type: (p.primaryTypeDisplayName && p.primaryTypeDisplayName.text) || '', lat: p.location.latitude, lon: p.location.longitude }))
     .filter((p) => p.name);
 }
