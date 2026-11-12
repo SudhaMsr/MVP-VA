@@ -11,6 +11,9 @@ export function batteryText(level, charging) {
   return `Battery is at ${pct} percent.`;
 }
 
+// iPhones never let a web page read the battery (Apple's privacy rule), so say who can tell them instead.
+export const BATTERY_UNKNOWN_TEXT = 'I cannot read the battery on this phone. You can ask Siri, or your phone\'s voice assistant.';
+
 export class BatteryWatch {
   // getBattery: navigator.getBattery (or a fake in tests). say(text, kind). log(level) is called on every change.
   constructor({ getBattery, say, log = () => {}, steps = BATTERY_STEPS } = {}) {
@@ -47,7 +50,7 @@ export class BatteryWatch {
 
   // For "what is my battery".
   ask() {
-    if (!this.supported || !this.battery) return 'I cannot read the battery on this phone. Please check it on the screen.';
+    if (!this.supported || !this.battery) return BATTERY_UNKNOWN_TEXT; // not "check the screen": the walker may not see it (12 Nov)
     return batteryText(this.battery.level, this.battery.charging);
   }
 }

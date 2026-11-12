@@ -237,3 +237,9 @@ test('12 Nov: Android Chrome with requestPermission answering "prompt" is never 
   assert.equal(await requestMotionAccess(iphone), 'unknown', '"prompt" is not a no');
   assert.equal(asked, 2);
 });
+
+test('12 Nov: no battery level (every iPhone) says who can tell the walker, never "check the screen"', async () => {
+  const { BATTERY_UNKNOWN_TEXT } = await import('../docs/js/battery.js');
+  assert.equal(BATTERY_UNKNOWN_TEXT, "I cannot read the battery on this phone. You can ask Siri, or your phone's voice assistant.");
+  assert.ok(!/screen/i.test(BATTERY_UNKNOWN_TEXT));
+});

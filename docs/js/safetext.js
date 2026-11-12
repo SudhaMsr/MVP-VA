@@ -12,6 +12,8 @@ export const BANNED = [
 export const CROSSING_TEXT = "Crossing ahead. I can't read the traffic signal. Listen for traffic before you cross.";
 // "What can't you see?"
 export const LIMITS_TEXT = "I can't reliably see kerbs, drops, potholes, low branches, ice, or traffic signals. Keep using your cane or guide dog.";
+// The first "Ready" after the app opens: how to hold the phone, nothing more (9 Nov: the cane and tap lines were removed).
+export const WELCOME_TEXT = 'Ready. Hold the phone at chest height, camera facing forward.';
 
 const norm = (t) => String(t ?? '').toLowerCase().replace(/[’‘]/g, "'").replace(/\s+/g, ' ');
 
