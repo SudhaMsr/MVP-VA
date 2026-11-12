@@ -14,15 +14,54 @@ export const PHRASES = [
   'train station', 'pharmacy', 'supermarket', 'postcode',
 ];
 
-export function buildRequest(base64Audio, { lang = 'en-GB', sampleRate = 48000, model = 'latest_short', phrases = PHRASES, channels = 1 } = {}) {
+export function buildRequest(base64Audio, { lang = 'en-GB', sampleRate = 48000, model = 'latest_short', phrases = PHRASES, channels = 1, encoding = 'WEBM_OPUS' } = {}) {
   const config = {
     // channels must match the recording: Google refuses a stereo clip described as mono (seen 6 Nov)
-    encoding: 'WEBM_OPUS', sampleRateHertz: sampleRate, audioChannelCount: channels, languageCode: lang, maxAlternatives: 1,
+    encoding, sampleRateHertz: sampleRate, audioChannelCount: channels, languageCode: lang, maxAlternatives: 1,
     profanityFilter: false, enableAutomaticPunctuation: false,
     speechContexts: [{ phrases, boost: 12 }],
   };
   if (model) config.model = model;
   return { config, audio: { content: base64Audio } };
+}
+
+// How to record (Package I). Chrome records Opus in WebM, which Google takes as it is. Safari on older iPhones can only
+// record AAC in MP4, which Google Speech-to-Text does not accept at all, so there the raw microphone samples are kept
+// instead and sent as 16 kHz LINEAR16 (plain 16-bit sound, accepted everywhere).
+export function pickRecording(isTypeSupported = null) {
+  const ok = (m) => { try { return !!(isTypeSupported && isTypeSupported(m)); } catch (_) { return false; } };
+  if (ok('audio/webm;codecs=opus')) return { encoding: 'WEBM_OPUS', mime: 'audio/webm;codecs=opus' };
+  if (ok('audio/ogg;codecs=opus')) return { encoding: 'OGG_OPUS', mime: 'audio/ogg;codecs=opus' };
+  return { encoding: 'LINEAR16', mime: null };
+}
+export const PCM_RATE = 16000;
+
+// Average down to the target rate (48 kHz to 16 kHz is every 3 samples).
+export function downsample(samples, inRate, outRate = PCM_RATE) {
+  if (!samples.length || outRate >= inRate) return Float32Array.from(samples);
+  const ratio = inRate / outRate; const n = Math.floor(samples.length / ratio); const out = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const a = Math.floor(i * ratio); const b = Math.min(samples.length, Math.floor((i + 1) * ratio));
+    let s = 0; for (let j = a; j < b; j++) s += samples[j];
+    out[i] = s / Math.max(1, b - a);
+  }
+  return out;
+}
+
+// Float samples (-1..1) to 16-bit little-endian bytes.
+export function toLinear16(samples) {
+  const b = new Uint8Array(samples.length * 2); const v = new DataView(b.buffer);
+  for (let i = 0; i < samples.length; i++) {
+    const x = Math.max(-1, Math.min(1, samples[i]));
+    v.setInt16(i * 2, x < 0 ? Math.round(x * 0x8000) : Math.round(x * 0x7fff), true);
+  }
+  return b;
+}
+
+function bytesToBase64(bytes) {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
 }
 
 // The words Google heard, or '' when it heard nothing.
@@ -51,12 +90,19 @@ export class EndOfSpeech {
 }
 
 export class CloudListener {
-  constructor({ key, lang = 'en-GB', log = () => {}, fetchFn = (...a) => fetch(...a), timeoutMs = 6000, retryMs = 400 } = {}) {
-    Object.assign(this, { key, lang, log, fetchFn, timeoutMs, retryMs });
+  // keepMic: Android keeps the microphone open between taps (quicker). iPhone passes false: while Safari holds the
+  // microphone, it plays every sound as a phone call (quieter, sometimes from the earpiece) and shows the microphone
+  // indicator all walk, so there the microphone is let go as soon as each command is recorded.
+  constructor({ key, lang = 'en-GB', log = () => {}, fetchFn = (...a) => fetch(...a), timeoutMs = 6000, retryMs = 400, keepMic = true,
+    audioSession = (typeof navigator !== 'undefined' ? navigator.audioSession : null) } = {}) {
+    Object.assign(this, { key, lang, log, fetchFn, timeoutMs, retryMs, keepMic, audioSession });
     this.stream = null; this.busy = false; this.refused = false; this.model = 'latest_short';
   }
 
-  get usable() { return !!(this.key && !this.refused && typeof MediaRecorder !== 'undefined' && typeof navigator !== 'undefined' && navigator.mediaDevices); }
+  get usable() {
+    const canRecord = typeof MediaRecorder !== 'undefined' || (typeof window !== 'undefined' && !!(window.AudioContext || window.webkitAudioContext));
+    return !!(this.key && !this.refused && canRecord && typeof navigator !== 'undefined' && navigator.mediaDevices);
+  }
 
   async _mic() {
     if (this.stream && this.stream.getAudioTracks().some((t) => t.readyState === 'live')) return this.stream;
@@ -68,19 +114,31 @@ export class CloudListener {
   async listen({ onSpeechStart = () => {}, onRecorded = () => {} } = {}) {
     if (this.busy) return '';
     this.busy = true;
+    // The audio context is made before the first wait, while the tap still counts (Safari keeps it suspended otherwise).
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    const ctx = new Ctx();
+    let stream = null;
     try {
-      const stream = await this._mic();
-      const mime = MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-      const rec = new MediaRecorder(stream, { mimeType: mime });
-      const parts = [];
-      rec.ondataavailable = (e) => { if (e.data && e.data.size) parts.push(e.data); };
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      const ctx = new Ctx(); const src = ctx.createMediaStreamSource(stream); const an = ctx.createAnalyser();
+      if (!this.keepMic) this._session('play-and-record');
+      stream = await this._mic();
+      if (ctx.state === 'suspended' && ctx.resume) await ctx.resume().catch(() => {});
+      const how = pickRecording(typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported ? (m) => MediaRecorder.isTypeSupported(m) : null);
+      const src = ctx.createMediaStreamSource(stream); const an = ctx.createAnalyser();
       an.fftSize = 1024; src.connect(an);
+      const parts = []; const pcm = []; let rec = null; let tap = null;
+      if (how.mime) {
+        rec = new MediaRecorder(stream, { mimeType: how.mime });
+        rec.ondataavailable = (e) => { if (e.data && e.data.size) parts.push(e.data); };
+      } else {
+        // iPhone: keep the raw samples. The processor's output stays silent, so nothing is played back.
+        tap = ctx.createScriptProcessor(4096, 1, 1);
+        tap.onaudioprocess = (e) => { pcm.push(new Float32Array(e.inputBuffer.getChannelData(0))); };
+        src.connect(tap); tap.connect(ctx.destination);
+      }
       const buf = new Float32Array(an.fftSize);
       const eos = new EndOfSpeech();
       const t0 = performance.now();
-      rec.start(250);
+      if (rec) rec.start(250);
       const outcome = await new Promise((resolve) => {
         let started = false;
         const tick = () => {
@@ -92,29 +150,38 @@ export class CloudListener {
         };
         tick();
       });
-      const stopped = new Promise((res) => { rec.onstop = res; });
-      rec.stop(); await stopped;
-      try { src.disconnect(); ctx.close(); } catch (_) { /* ignore */ }
-      this.log('cloud-stt-clip', `${outcome} ${Math.round(performance.now() - t0)} ms`);
+      if (rec) { const stopped = new Promise((res) => { rec.onstop = res; }); rec.stop(); await stopped; }
+      const rate = ctx.sampleRate || 48000;
+      try { src.disconnect(); if (tap) { tap.onaudioprocess = null; tap.disconnect(); } } catch (_) { /* ignore */ }
+      const track = stream.getAudioTracks()[0];
+      const st = (track && track.getSettings && track.getSettings()) || {};
+      this._release(); // iPhone: let go of the microphone before the reply is spoken
+      this.log('cloud-stt-clip', `${outcome} ${Math.round(performance.now() - t0)} ms ${how.encoding}`);
       if (outcome === 'nothing') return '';
       onRecorded();
-      const blob = new Blob(parts, { type: mime });
-      const b64 = await blobToBase64(blob);
-      const st = (stream.getAudioTracks()[0] && stream.getAudioTracks()[0].getSettings && stream.getAudioTracks()[0].getSettings()) || {};
-      return await this._recognise(b64, ctx.sampleRate || 48000, st.channelCount || 1);
+      if (!rec) {
+        const all = new Float32Array(pcm.reduce((n, p) => n + p.length, 0));
+        let o = 0; for (const p of pcm) { all.set(p, o); o += p.length; }
+        const b64 = bytesToBase64(toLinear16(downsample(all, rate, PCM_RATE)));
+        return await this._recognise(b64, PCM_RATE, 1, 'LINEAR16');
+      }
+      const b64 = await blobToBase64(new Blob(parts, { type: how.mime }));
+      return await this._recognise(b64, rate, st.channelCount || 1, how.encoding);
     } finally {
+      try { ctx.close(); } catch (_) { /* ignore */ }
+      this._release();
       this.busy = false;
     }
   }
 
-  async _recognise(b64, sampleRate, channels = 1) {
+  async _recognise(b64, sampleRate, channels = 1, encoding = 'WEBM_OPUS') {
     const url = `https://speech.googleapis.com/v1/speech:recognize?key=${encodeURIComponent(this.key)}`;
     const t0 = performance.now();
     const post = async (opts) => {
       const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
       const timer = setTimeout(() => ctl && ctl.abort(), this.timeoutMs);
       try {
-        return await this.fetchFn(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildRequest(b64, { lang: this.lang, sampleRate, channels, ...opts })), signal: ctl ? ctl.signal : undefined });
+        return await this.fetchFn(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(buildRequest(b64, { lang: this.lang, sampleRate, channels, encoding, ...opts })), signal: ctl ? ctl.signal : undefined });
       } finally { clearTimeout(timer); }
     };
     // No reply, a timeout, a Google hiccup (5xx) or too many requests (429): wait a moment and send it once more.
@@ -133,7 +200,7 @@ export class CloudListener {
       this.log('cloud-stt-400', msg.slice(0, 200));
       const hc = (msg.match(/header[^0-9]*(\d+)/i) || [])[1];
       if (/channel/i.test(msg)) res = await send({ model: this.model, channels: hc ? Number(hc) : (channels === 1 ? 2 : 1) });
-      else if (/sample_rate|sample rate/i.test(msg)) res = await send({ model: this.model, sampleRate: 48000 });
+      else if (/sample_rate|sample rate/i.test(msg)) res = await send({ model: this.model, sampleRate: encoding === 'LINEAR16' ? PCM_RATE : 48000 });
       else if (this.model) { this.model = null; res = await send({ model: null }); }
     }
     if (!res.ok) {
@@ -146,6 +213,15 @@ export class CloudListener {
     this.log('cloud-stt-heard', `${Math.round(performance.now() - t0)} ms "${text}"`);
     return text;
   }
+
+  // iPhone only (keepMic false): stop the microphone and put Safari back to normal playback, so speech is loud again.
+  _release() { if (this.keepMic) return; this.close(); this._session('playback'); }
+
+  // Safari 17+ (navigator.audioSession): 'play-and-record' while listening, 'playback' otherwise. Absent elsewhere.
+  _session(type) { try { if (this.audioSession && 'type' in this.audioSession) this.audioSession.type = type; } catch (_) { /* not supported */ } }
+
+  // Open the microphone once, inside the Start tap, so the permission question comes then; iPhone lets go of it again.
+  async prime() { await this._mic(); this._release(); }
 
   close() { try { if (this.stream) this.stream.getTracks().forEach((t) => t.stop()); } catch (_) { /* ignore */ } this.stream = null; }
 }

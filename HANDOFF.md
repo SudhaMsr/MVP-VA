@@ -295,3 +295,38 @@ Record for each step: done alone / needed help / could not do it, and the tester
   (safetext.js); route step texts say "your destination".
 - **Fallback:** "Google directions are not available, using backup maps." once a minute at most (one request can fall back twice),
   through `makeProviders({ notify })`. Tested for 429, 403 and a network error.
+
+## Package I: iPhone Safari (branch `feat/ios-safari-package-i`, 9 Nov)
+Based on B0 `a80cfbe` (main after PR #11 was merged), not stacked on `fix/field-test-nov8`. The work was first written,
+uncommitted, on a local `fix/ios-safari` folder; its files were copied unchanged onto B0 (the two bases have identical trees).
+**Not tried on a real iPhone.** Written from Safari's documented behaviour; a friend's iPhone test is planned (test script in the chat of 9 Nov).
+- `docs/js/output.js`: `effectiveMode(mode, canVibrate)` and `routeOutput(..., { canVibrate })`. On a phone without `navigator.vibrate`
+  vibration only becomes speech and vibration, so a hazard alert is never left silent. `setOutput` refuses vibration only there and
+  says `NO_VIBRATE_TEXT`. Test: no mode on any phone gives an alert with neither speech nor vibration.
+- `docs/js/platform.js` (new): `requestMotionAccess()` (iPhone's DeviceOrientation/DeviceMotion `requestPermission`, called from the
+  Start tap before any await), `unlockAudio()` (silent utterance + silent WAV in the Google voice player, once per page),
+  `WakeNotice` (says once when the screen cannot be kept on). "calibrate" says `MOTION_DENIED_TEXT` if motion access was refused.
+- `docs/js/cloudstt.js`: `pickRecording()` picks WebM Opus, then Ogg Opus, else raw samples (ScriptProcessor) sent as 16 kHz
+  `LINEAR16` (`downsample`, `toLinear16`). Google STT v1 does not accept AAC/MP4, which is all older iPhones record. The audio
+  context is now created before the first await so Safari does not keep it suspended.
+- Motion access only from a tap (F-I1): `MotionGate` (platform.js) asks only when `start({ fromTap: true })` runs from the Start
+  or Talk button. The automatic restart when the page is visible again and the spoken "start" pass `fromTap: false`: they never
+  ask, and a refusal caused by having no tap is never recorded as "denied" (it was before: Safari refuses a question with no tap).
+  A real "no" is kept, and calibrate still explains how to allow it.
+- Tests: `tests/ios_safari.test.js` (14), including a check that every `start(`/`talk(` call in app.js says whether it is a tap.
+- Checked: `npm test`, `npm run check:offline` and `npm run check:a11y` pass in **headless Chrome**. Chrome can vibrate and has no
+  iPhone permission prompts, so those runs do not exercise the iPhone-specific paths and do not show iPhone compatibility. A
+  one-off headless run also confirmed the real automatic restart makes no motion-permission request (the code before F-I1 made two).
+- **12 Nov fixes (iPhone simulation in headless Chromium: Safari's missing features removed and its tap rules faked; WebKit itself
+  could not be installed here):**
+  - Microphone let go after every command on iPhone (`CloudListener` `keepMic: !isIOS()`, `prime()` at Start, Safari 17
+    `navigator.audioSession` set to play-and-record while listening and playback after). Holding it all walk makes Safari play
+    every sound as a phone call (quieter, sometimes from the earpiece) with the microphone indicator on. Android unchanged.
+  - Android regression found and fixed: Chrome 153 has `DeviceOrientationEvent.requestPermission` and answers "prompt" without
+    asking, which was stored as "denied", so "calibrate" on Android said "Motion access is off". Now only iPhone asks, and only
+    a real "denied" counts as no.
+  - Simulated walk, five spoken commands each way: iPhone sends 16 kHz LINEAR16 (real sound, 2 to 7 s), route starts, "vibration
+    only" refused, battery not available said, motion asked only from the Start tap, no microphone open between commands, no page
+    errors. Android sends WebM Opus as before. Script: `iphone.py` in the 12 Nov session scratchpad. 333 tests pass.
+- Not validated: the iPhone-specific app.js wiring in Safari; any real iPhone; the LINEAR16 recording path in `CloudListener.listen()`
+  (no automated test: it needs a real microphone); whether Safari's own speech recogniser fallback works.
