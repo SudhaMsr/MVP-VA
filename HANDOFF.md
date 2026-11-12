@@ -143,6 +143,21 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
   timeout, one retry on network/5xx/429, off only on 401/403. Tests: `tests/google_speech.test.js`.
   Cost: Neural2 voices are free for the first 1 million characters a month, then about $16 per million.
 
+## Reading, describe this and near me (12 Nov, branch feat/vision-and-nearby)
+- `cloudvision.js`: `CloudVision.annotate(base64, 'read' | 'look')` (images:annotate, 9 s timeout; 401/403 switches it off for
+  the page). `parseRead` feeds Google's text blocks through `reader.js` `pickText`, so wording is unchanged. `sceneSpeech`:
+  objects (score 0.6+, grouped, left/ahead/right thirds), up to 3 labels (0.72+, dull ones dropped), a logo (0.6+), up to 2
+  pieces of writing. Never says anything is clear or safe (safetext test). `?vision=phone` keeps everything on the phone.
+- `nearby.js`: `searchNearby` (Places API New, searchNearby 120 m by distance, or searchText with the asked kind, 800 m bias),
+  `WalkHeading` (walking direction from fixes 8 m+ apart with accuracy 30 m or better, or the GPS heading when moving over
+  0.6 m/s), `sideOf`, `nearbySpeech` (up to 4, nearest first, "Map positions can be a few steps out.").
+- Commands: `look` and `nearby` (commands.js); "what is around me" moved from describe to nearby; "where is the nearest X" is
+  no longer a note lookup. Privacy line and privacy.html say when a photo and the location leave the phone.
+- **Needs Cloud Vision API allowed on the Google key** (Cloud Console, Credentials, the Maps Platform key). Until then the key
+  is refused (403) and reading and describing quietly use the phone. Places (New) is already allowed.
+- Tested: tests/vision_nearby.test.js (16 tests); a headless walk with Google replies faked, with Vision working and refused.
+  Not yet tried with real Google Vision or on the Poco.
+
 ## Build plan packages (from "Vision Assist — Build Plan & Claude Code Playbook", 7 Nov)
 Each package is one branch and one PR, stacked in order (each branch starts from the previous one), so merge them in order.
 `CLAUDE.md` holds the project rules every Claude Code session reads first.
