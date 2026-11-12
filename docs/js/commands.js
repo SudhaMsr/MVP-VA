@@ -58,6 +58,8 @@ export function parseCommand(raw) {
   const note = t.match(/^(?:remember|note|make a note|take a note)\s+(?:that\s+)?(.{4,})$/);
   if (note && !/^(?:this|here|my\s+(?:home|work)|where i am)\b/.test(note[1])) return { type: 'noteAdd', arg: note[1].trim() };
   if (/\b(?:what|which)\s+(?:notes|things)\b.*\b(?:remember|stored|saved|have)\b|\bwhat do you remember\b|\bread (?:my )?notes\b/.test(t)) return { type: 'noteList' };
+  const nearest = t.match(/^where(?:'s| is) (?:the |a )?(?:nearest|closest)\s+(.+)$/); // a place nearby, not a note
+  if (nearest && nearest[1].trim()) return { type: 'nearby', arg: nearest[1].trim() };
   const ask = t.match(/^(?:where (?:did i (?:put|leave)|are|is|was)|what did i (?:say|tell you) about)\s+(.+)$/);
   if (ask && !/\b(?:i|we)\s+(?:am|are)\b/.test(ask[1])) return { type: 'noteFind', arg: ask[1].trim() };
   // Save the place the walker is standing at: "save this place as home", "remember here as the bakery", "this is home"
@@ -86,6 +88,16 @@ export function parseCommand(raw) {
   if (/\b(?:i am|i'm|im|we are|we're)\s+lost\b|\bhelp me i am lost\b/.test(t)) return { type: 'lost' };
 
   if (/\b(where am i|where are we|my location|what street (?:am i on|is this)|which street (?:am i on|is this))\b/.test(t)) return { type: 'whereami' };
+
+  // Shops and places around the walker, from the map (12 Nov): "what is near me", "is there a cafe nearby", "where is the
+  // nearest post office". "What is around me" used to describe the camera view; it now names the places around.
+  const NEAR = String.raw`(?:around me|around here|near me|near here|nearby|close by|close to me)`;
+  if (new RegExp(String.raw`^(?:what(?:'s| is| are)?|anything)\s+(?:(?:the\s+)?(?:shops?|places?|cafes?|restaurants?|businesses|stores?)\s+(?:are\s+|is\s+)?)?${NEAR}$`).test(t)
+    || new RegExp(String.raw`^what (?:shops|places|cafes|restaurants|businesses|stores) are (?:there\s+)?${NEAR}$`).test(t)) return { type: 'nearby' };
+  const nearQ = t.match(new RegExp(String.raw`^(?:is there (?:a|an|any)|are there (?:any)?|find (?:me )?(?:a|an|the)?|look(?:ing)? for (?:a|an|the|any)?)\s+(.+?)\s+${NEAR}$`));
+  if (nearQ && nearQ[1].trim()) return { type: 'nearby', arg: nearQ[1].trim() };
+  // A fuller description from Google of one photo (12 Nov): "describe this", "what am I looking at".
+  if (/^(?:describe (?:this|it|that|this place|in detail|everything|what i am looking at)|what am i looking at|what is (?:this|that)|what's (?:this|that)|describe what(?:'s| is) in front(?: of me)? in detail)$/.test(t)) return { type: 'look' };
 
   // What the camera sees, on request ("what is in front of me"). "what is this place" stays with reading (shop signs).
   // Object search: "is there a bench", "find a bin", "look for a crossing", "can you see any stairs"
@@ -139,6 +151,7 @@ export function parseCommand(raw) {
 export const HELP_TEXT =
   'You can say: start, stop, repeat, or navigate to, followed by a place. ' +
   'Say what is in front of me, where am I, or battery. Say is there a bench, or find a bin, to look for something. ' +
+  'Say what is near me, or is there a cafe nearby, to hear the shops around you. Say read, or describe this, to hear what the camera shows. ' +
   'Say save this place as home, and later, take me home. ' +
   'On a route, say how far, what is next, or am I on the right route. If a warning was wrong, say that was wrong. ' +
   'Say why did you say that, to hear the reason for the last warning, or are you working, to check the app. ' +
