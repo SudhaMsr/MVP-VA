@@ -34,8 +34,8 @@ def out_path(zname, name):
 def run_zip(zname):
     url = BASE + zname + '.zip'
     sess = threading.local()
-    infos = [i for i in RemoteZip(url, timeout=300, support_suffix_range=False).infolist() if not i.filename.endswith('/')]
-    infos.sort(key=lambda i: i.header_offset)
+    infos = [i for i in RemoteZip(url, timeout=300).infolist() if not i.filename.endswith('/')]
+    infos.sort(key=lambda i: i.header_offset)  # (default suffix ranges: a HEAD on HF only sees the 302 redirect)
     print(f'{zname}: {len(infos)} files, {sum(i.compress_size for i in infos) / 1e9:.1f} GB', flush=True)
     if globals().get('LIST_ONLY'):
         c, s = collections.Counter(), collections.Counter()
