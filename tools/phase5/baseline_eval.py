@@ -22,6 +22,7 @@ MODEL = globals().get('MODEL_PATH') or next(p for p in sorted(glob.glob('/kaggle
 IMGSZ = globals().get('IMGSZ', 416)
 APP_CONF = globals().get('APP_CONF', 0.40)
 MIN_GT = globals().get('MIN_GT', 30)
+NEAR_H = globals().get('NEAR_H', 0.15)            # 'near' = box at least 15% of the image height
 OUT = globals().get('OUT_DIR', '/kaggle/working/baseline')
 TAG = globals().get('TAG', 'rod2')
 LM = json.loads(urllib.request.urlopen(f'https://raw.githubusercontent.com/SudhaMsr/MVP-VA/{COMMIT}/tools/phase5/label_map.json').read())
@@ -59,8 +60,19 @@ def score(preds, gts):
     mrec = np.concatenate([[0], rec, [1]]); mpre = np.concatenate([[1], prec, [0]])
     mpre = np.flip(np.maximum.accumulate(np.flip(mpre))); ap = float(np.sum((mrec[1:] - mrec[:-1]) * mpre[1:]))
     k = conf >= APP_CONF; n_k = int(k.sum()); tp_k = float(tp[k].sum())
+    # recall for NEAR objects only (box at least NEAR_H of the image height): the ones a walker must hear about first
+    used2 = {kk: np.zeros(len(v), bool) for kk, v in gts.items()}
+    for img, c, box in preds:
+        if c < APP_CONF: break
+        g = gts.get(img)
+        if g is None or not len(g): continue
+        o = iou(np.array(box), g); o[used2[img]] = 0; j = int(o.argmax())
+        if o[j] >= 0.5: used2[img][j] = True
+    near = [(g[:, 3] - g[:, 1] >= NEAR_H, used2[kk]) for kk, g in gts.items() if len(g)]
+    n_near = int(sum(m.sum() for m, _ in near)); hit_near = int(sum((m & u).sum() for m, u in near))
     return {'gt': n_gt, 'ap50': round(ap, 4), 'precision_at_app_conf': round(tp_k / n_k, 4) if n_k else None,
-            'recall_at_app_conf': round(tp_k / n_gt, 4), 'predictions_at_app_conf': n_k}
+            'recall_at_app_conf': round(tp_k / n_gt, 4), 'predictions_at_app_conf': n_k,
+            'near_gt': n_near, 'near_recall_at_app_conf': round(hit_near / n_near, 4) if n_near else None}
 
 
 model = YOLO(MODEL); names = model.names
@@ -85,6 +97,8 @@ for ts, root in TESTSETS.items():
                 pred.setdefault(int(c), []).append((stem, s, b))
     res = {}
     for c, g in sorted(gt.items()):
+        if c >= len(names):
+            res[CLASSES[c]] = {'gt': sum(len(v) for v in g.values()), 'scored': False, 'note': 'not a class of this model'}; continue
         s = score(pred.get(c, []), {k: np.array(v) for k, v in g.items()})
         if s: s['scored'] = s['gt'] >= MIN_GT; res[CLASSES[c]] = s
     for grp, g in gtg.items():
@@ -95,7 +109,8 @@ for ts, root in TESTSETS.items():
     report['testsets'][ts] = {'images': len(imgs), 'per_class': res, 'mean_ap50_scored': round(float(np.mean(sc)), 4) if sc else None}
     print(f'\n{ts}: {len(imgs)} images, mean AP50 over {len(sc)} scored classes = {report["testsets"][ts]["mean_ap50_scored"]}', flush=True)
     for n, v in res.items():
-        print(f"  {n:24s} gt {v['gt']:5d}  AP50 {v['ap50']:.3f}  P@{APP_CONF} {v['precision_at_app_conf']}  R@{APP_CONF} {v['recall_at_app_conf']}" + ('' if v['scored'] else '  (too few boxes, not averaged)'))
+        if 'ap50' not in v: print(f"  {n:24s} gt {v['gt']:5d}  ({v['note']})"); continue
+        print(f"  {n:24s} gt {v['gt']:5d}  AP50 {v['ap50']:.3f}  P@{APP_CONF} {v['precision_at_app_conf']}  R@{APP_CONF} {v['recall_at_app_conf']}  near R {v['near_recall_at_app_conf']} (n {v['near_gt']})" + ('' if v['scored'] else '  (too few boxes, not averaged)'))
 report['caveat'] = ('SANPO kerb, guard rail, tree and pole boxes come from semantic masks split into connected patches, so their AP '
                     'is a rough guide. Bristol labels are YOLO-World pre-labels corrected by review on a stated sample.')
 json.dump(report, open(f'{OUT}/baseline_{TAG}.json', 'w'), indent=1)
