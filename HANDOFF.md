@@ -190,6 +190,18 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
   output becomes a private Kaggle dataset "VIP-Mobility360 640px". Train with the YOLO labels; the XML boxes are in the
   original pixel size. Full list of candidate datasets: the "Vision Assist: Datasets for Missing Objects" doc.
 
+## Mapillary Vistas v2.0 subset on Kaggle (13 Nov)
+- Source: Mapillary Vistas v2.0 (street-level photos worldwide, polygon labels), CC BY-NC-SA 4.0: non-commercial only, keep
+  the Kaggle copy private. The download link is a signed, expiring URL from mapillary.com (logged-in "Copy download links");
+  it is set as `VISTAS_URL` in the notebook cell only and must never be committed.
+- `tools/datasets/vistas_kaggle.py` reads only train/val images and v2.0 polygons from the 32.3 GB zip (40,000 of 165,009
+  files, 18.6 GB read) with HTTP range requests, keeps 9 pavement classes (kerb, dropped_kerb, pothole, manhole, bin, bench,
+  street_light, bike_rack, ped_signal), turns polygons into YOLO boxes and resizes images to 640 px. Writes `data.yaml`.
+- Running as Kaggle notebook `sudharanimsr/notebook101d1def84`, Version 1 ("Vistas v2.0 YOLO 640"); the output becomes a
+  private dataset "Vistas VA YOLO640".
+- These datasets are added to the existing training data, not used alone: fine-tune from the current weights on old plus new
+  data so no class is lost, and replace a model only if it scores at least as well on the old test set.
+
 ## Build plan packages (from "Vision Assist — Build Plan & Claude Code Playbook", 7 Nov)
 Each package is one branch and one PR, stacked in order (each branch starts from the previous one), so merge them in order.
 `CLAUDE.md` holds the project rules every Claude Code session reads first.
