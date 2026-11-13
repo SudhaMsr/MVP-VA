@@ -223,6 +223,24 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
 - Labels are 33 tags per crop and the label point, not boxes: use them to train a tag classifier (for example "missing
   tactile warning" on dropped kerbs) or to check YOLO auto-labels. Licence not stated (code is Apache-2.0): research only.
 
+## Status 13 Nov 12:20: training datasets on Kaggle (account sudharanimsr, all PRIVATE)
+| Kaggle dataset | Contents | Made by notebook |
+|---|---|---|
+| VIP-Mobility360 640px | 450,487 files in one zip (150,161 images, YOLO + XML labels), 12.35 GB, CC BY 4.0 | notebook92709d38b0 v2 |
+| Vistas VA YOLO640 | 40,000 files, 9 classes (kerb, dropped_kerb, pothole, manhole, bin, bench, street_light, bike_rack, ped_signal), CC BY-NC-SA | notebook101d1def84 v2 |
+| Kerbs YOLO640 | 3,539 images, 3,968 boxes (kerb, dropped_kerb), CC BY 4.0 | notebookc79aa1d10e v2 |
+| Potholes YOLO640 | 6,346 images, 7,703 boxes (pothole), CC BY 4.0 | notebookf4ce35ca28 |
+| Project Sidewalk Tagger 640 | 24,010 crops + tag CSVs (tags + point, no boxes), licence not stated | notebook61a7601dcc |
+- Each is one zip (Kaggle keeps only 500 loose output files); Kaggle unzips most of them in the dataset view.
+- Secrets in Kaggle: `ROBOFLOW_API_KEY` (rotate it: it was pasted in a chat). The Vistas signed link is only in its notebook cell.
+- Next: Phase 5 training = extend `rod2` (30 classes kept as 0-29) with about 8 new classes at 30+ (kerb, dropped kerb, pothole,
+  e-scooter, construction barrier, pavement crack, street light, pedestrian signal); fine-tune from `weights/rod_best.pt`
+  lineage on OLD Phase 2 data + new data, pseudo-label the old classes on new images with rod2, reject the model if any old
+  class drops more than about 2 mAP50 points, then walk-test. Needs the Phase 2 training set (`phase2_data` zip from
+  `tools/phase2/prepare.py`) uploaded to Kaggle first. Fast lane `best320` and `coco320` are not touched.
+- Still no data: A-boards, step-down drops, low branches, cafe furniture (need Bristol footage); glass (GDD), tactile paving
+  (GuideTWSI), mobility aids (MAID), pedestrian light state (ImVisible) not downloaded yet.
+
 ## Build plan packages (from "Vision Assist — Build Plan & Claude Code Playbook", 7 Nov)
 Each package is one branch and one PR, stacked in order (each branch starts from the previous one), so merge them in order.
 `CLAUDE.md` holds the project rules every Claude Code session reads first.
