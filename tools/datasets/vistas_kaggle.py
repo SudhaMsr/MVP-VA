@@ -26,7 +26,7 @@ WANT = [('kerb', ['Curb']), ('dropped_kerb', ['Curb Cut']), ('pothole', ['Pothol
         ('ped_signal', ['Traffic Light - Pedestrians', 'Traffic Light - Pedestrians (Front)', 'Traffic Light - Pedestrians (Side)'])]
 
 t0 = time.time()
-infos = [i for i in RemoteZip(URL, timeout=300).infolist() if not i.filename.endswith('/')]
+infos = [i for i in RemoteZip(URL, timeout=300, support_suffix_range=False).infolist() if not i.filename.endswith('/')]
 print(f'{len(infos)} files, {sum(i.file_size for i in infos) / 1e9:.1f} GB, listed in {time.time() - t0:.0f}s', flush=True)
 if globals().get('LIST_ONLY'):
     c = collections.Counter('/'.join(i.filename.split('/')[:-1]) for i in infos)
