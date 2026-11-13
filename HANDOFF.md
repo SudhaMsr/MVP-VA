@@ -202,6 +202,15 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
 - These datasets are added to the existing training data, not used alone: fine-tune from the current weights on old plus new
   data so no class is lost, and replace a model only if it scores at least as well on the old test set.
 
+## Roboflow kerb sets on Kaggle (13 Nov)
+- `tools/datasets/roboflow_kerbs_kaggle.py` downloads five CC BY 4.0 Roboflow Universe sets in a Kaggle notebook and merges them
+  into one YOLO set with two classes, `kerb` and `dropped_kerb` ("road" dropped; polygons and keypoint boxes become boxes).
+  The Roboflow key is a Kaggle Secret `ROBOFLOW_API_KEY` added by the owner; it is never in code or the notebook.
+- Result (notebook `sudharanimsr/notebookc79aa1d10e`, Version 1 "Kerbs YOLO 640"): 3,539 images, 3,968 boxes.
+  Ming Chuan curb-detection v47 1,000 / 1,048 (grayscale, tiled, rotated copies: drop it if it lowers scores; files start
+  `curb_detection__`), Curbs curb v2 1,432 / 1,666, sayan CurbDetect v1 357 / 693, alpharomeo911 curb-road v5 312 / 393,
+  van-tuyen sloped-curb v3 438 / 168 dropped kerbs. Credit each author (CC BY 4.0); links in the set's SOURCE.txt.
+
 ## Build plan packages (from "Vision Assist — Build Plan & Claude Code Playbook", 7 Nov)
 Each package is one branch and one PR, stacked in order (each branch starts from the previous one), so merge them in order.
 `CLAUDE.md` holds the project rules every Claude Code session reads first.
