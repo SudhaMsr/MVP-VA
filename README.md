@@ -84,6 +84,7 @@ Open it in Chrome on the phone, tap **Start**, allow camera and microphone.
 - `sw.js` is the offline service worker (it also serves the optional speed experiment, `?mt=1`). It is not a page; ignore it.
 - `?model=rod2` runs the 416-pixel stairs model as the main model (slower). The old `?size=416` and `?model=rod` files were removed on 7 Nov; those options now fall back to the normal model.
 - `?lane=off` turns the stairs/manhole lane off (for speed tests). `?model=rod` runs the ROD model alone.
+- `?slow=rod3` (supervisors, Phase 5) runs the 40-class rod3 model in the stairs/manhole lane instead of rod2, once `docs/models/rod3_416.onnx` is on the site; without the file it falls back to rod2. rod3's ten new classes (kerb, kerb going down, dropped kerb, pothole, pavement crack, e-scooter, road-works barrier, tactile paving, crossing light, A-board) are **never spoken**: they are only logged as `watch-detect` events for the walk gate.
 - The line "Speed check" on screen shows frame time on the phone. Send it to the developer.
 
 ## Recording a test session (supervisor)

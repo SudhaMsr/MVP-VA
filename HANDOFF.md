@@ -279,7 +279,8 @@ Steps (PLAN.md section 10):
 - [ ] 6 train: fine-tune `rod2_best.pt` to 40 classes on `p5/data.yaml` (Ultralytics, 640 px, GPU T4).
 - [ ] 7 gates: rerun `baseline_eval.py` with `MODEL_PATH` = the new best.pt and `TAG` = 'rod3'; G1 = no old class drops more
   than 2 AP50 points (person and vehicle: 1) on Phase 2 val and SANPO; G2 per new class on `p5/images/test`.
-- [ ] 8 export to ONNX at 416 and add to the app silently (new classes never spoken until walk-tested), with tests and stamp.
+- [~] 8 app side ready (PR feat/rod3-silent-lane): `MODELS.rod3`, `ROD3_NAMES` (= label_map classes, a test checks), `?slow=rod3`, falls back to rod2 if the file is missing, new classes only in `WATCH_CLASSES.rod3`. Still to do: copy `rod3_416.onnx` from the training run's output into `docs/models/` once gates pass.
+- [ ] 8 (original note) export to ONNX at 416 and add to the app silently (new classes never spoken until walk-tested), with tests and stamp.
 - Known limits: images from sources that don't label kerbs (Phase 2 etc.) contain unlabelled kerbs, which can teach "not a
   kerb"; check kerb recall after training, and if it's low, pseudo-label kerbs on Phase 2 with the new model and retrain once.
 

@@ -1,6 +1,6 @@
 // Vision Assist - app wiring: camera, detection loop, speech, voice commands, error handling.
 // Rule for this file: every failure is spoken. No silent states.
-import { CONFIG, MODELS, pickModel, canonical, SECONDARY, TERTIARY, WATCH_CLASSES, HAZARD, GOOGLE_KEY, FEATURES, IGNORE_FAST, hazardOnByDefault } from './config.js';
+import { CONFIG, MODELS, pickModel, slowModelKey, canonical, SECONDARY, TERTIARY, WATCH_CLASSES, HAZARD, GOOGLE_KEY, FEATURES, IGNORE_FAST, hazardOnByDefault } from './config.js';
 import { filterAllowed, mergeLanes, confirmSlow } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
@@ -118,6 +118,7 @@ function floorFor(tr, frameH) {
 let fpsTick = { t: 0, frames: 0 };
 const batteryNow = () => (battery && battery.battery ? { level: battery.battery.level, charging: !!battery.battery.charging } : { level: null, charging: false });
 const USE_SLOW = params.get('lane') !== 'off' && MODEL_KEY !== SECONDARY.model;
+let SLOW_KEY = slowModelKey(params.get('slow')); // ?slow=rod3: Phase 5 model, new classes logged only
 let stream = null;
 let recognition = null;
 let wakeLock = null;
@@ -388,11 +389,17 @@ function loadLanes() {
   lanesLoading = (async () => {
     if (!slowDetector) {
       try {
-        const sm = MODELS[SECONDARY.model];
-        const sd = new Detector(window.ort, SECONDARY.size, sm.names);
-        await sd.load(sm.url(SECONDARY.size), [EP]);
+        let sm = MODELS[SLOW_KEY], sd = new Detector(window.ort, SECONDARY.size, sm.names);
+        try { await sd.load(sm.url(SECONDARY.size), [EP]); }
+        catch (e) {
+          if (SLOW_KEY === SECONDARY.model) throw e;
+          // rod3 file missing or broken: fall back to rod2 so stairs and manholes still work
+          logEvent('slow-model-fallback', `${SLOW_KEY}: ${e && e.message}`);
+          SLOW_KEY = SECONDARY.model; sm = MODELS[SLOW_KEY]; sd = new Detector(window.ort, SECONDARY.size, sm.names);
+          await sd.load(sm.url(SECONDARY.size), [EP]);
+        }
         slowDetector = sd;
-        logEvent('slow-model-ready', String(Math.round(performance.now())));
+        logEvent('slow-model-ready', `${SLOW_KEY} ${Math.round(performance.now())}`);
       } catch (e) {
         logEvent('slow-model-error', e && e.message);
         if (state.running) say('Stairs and manhole detection could not load. Other detection is working.', 'status');
@@ -426,7 +433,7 @@ function prefetchAssets() {
   const go = () => {
     try {
       const urls = [MODEL.url(SIZE)];
-      if (USE_SLOW) urls.push(MODELS[SECONDARY.model].url(SECONDARY.size));
+      if (USE_SLOW) urls.push(MODELS[SLOW_KEY].url(SECONDARY.size));
       if (HAZARD_ON_BY_DEFAULT && params.get('hazard') !== 'off') urls.push(HAZARD.file); // only once a class may speak
       urls.forEach((u) => warmModel(u).catch(() => {}));
     } catch (_) { /* best effort only */ }
@@ -460,7 +467,7 @@ async function loop() {
       try {
         const r = await slowDetector.detect(el.video, SECONDARY.conf, CONFIG.nmsIou);
         perf.lane('rod2', performance.now() - slow.ranAt);
-        logWatchClasses(r.dets, WATCH_CLASSES.rod2);
+        logWatchClasses(r.dets, WATCH_CLASSES[SLOW_KEY]);
         const c = confirmSlow(filterAllowed(r.dets, SECONDARY.classes), slow.prevNames, SECONDARY.confirm || {});
         slow.dets = c.dets; slow.prevNames = c.names;
         slow.t = performance.now();
