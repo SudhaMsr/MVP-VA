@@ -1,5 +1,8 @@
 # Vision Assist: Final MVP Training Plan
 
+> Update 13 Nov after the audit: class 39 `a_board` was added (VIP-Mobility360 turned out to contain about 14,000 labelled
+> UK A-boards), so the model has 40 classes. See `label_map.json` and HANDOFF.md.
+
 13 November 2026 · Sudha Maddala
 
 ## 1. Summary

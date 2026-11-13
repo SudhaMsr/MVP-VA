@@ -1,9 +1,11 @@
-# Step 5 of the final MVP training plan: build the Phase 5 training set (39 classes, tools/phase5/label_map.json) from the
+# Step 5 of the final MVP training plan: build the Phase 5 training set (40 classes, tools/phase5/label_map.json) from the
 # private Kaggle datasets, without copying images: images are symlinked from /kaggle/input, labels are rewritten.
 # Run in a Kaggle notebook with every source dataset attached (GPU only if PSEUDO is on). One line in a cell:
 #   import urllib.request as u; exec(u.urlopen("https://raw.githubusercontent.com/SudhaMsr/MVP-VA/<commit>/tools/phase5/build_trainset.py").read())
 # What it does, in order:
-#  1. For each source, finds every images/ folder with a matching labels/ folder and the nearest data.yaml (class names).
+#  1. For each source, finds every images/ folder with a matching labels/ folder and the nearest data.yaml (class names);
+#     label folders with no images/ twin are matched to pictures by file name. Sources without a data.yaml use '_ids'
+#     (or '_ids_by_folder') in label_map.json. Polygon lines become their bounding box. '_skip_folders' are left out.
 #     Phase 2 is identity (rod2's 30 classes keep their ids). Other sources: each class name is looked up in the source's
 #     map in label_map.json; names not in the map are DROPPED, never guessed. Sources whose map is still "_todo" are skipped.
 #  2. Split: a source's own val/valid split becomes val and its test split becomes test; otherwise 5% val and 5% test by a
@@ -42,6 +44,7 @@ SOURCES = globals().get('SOURCES', {
     'sudharanimsr/barcelona-streets-kerbs-drops-yolo640': 'barcelona-streets-kerbs-drops-yolo640',
     'sudharanimsr/open-images-va-classes': 'open-images-va-classes',
     'sudharanimsr/vip-mobility360-640px': 'vip-mobility360-640px',
+    'guidedogrobot/guidetwsi': 'guidetwsi',
 })
 MAX_PER_SOURCE = globals().get('MAX_PER_SOURCE', {'vip-mobility360-640px': 15000, 'potholes-yolo640': 4000,
                                                    'barcelona-streets-kerbs-drops-yolo640': 8000})
@@ -87,32 +90,69 @@ def ahash(p):
 
 
 items = []  # dict(src, img, lines, split)
-report = {'skipped_sources': {}, 'dropped_names': collections.defaultdict(collections.Counter)}
+report = {'skipped_sources': {}, 'dropped_names': collections.defaultdict(collections.Counter),
+          'polygons_to_boxes': collections.Counter(), 'labels_without_picture': collections.Counter()}
 for slug, key in SOURCES.items():
     smap = LM['sources'].get(key, {})
     if '_todo' in smap: report['skipped_sources'][key] = smap['_todo']; print('skip', key, '(map not filled)', flush=True); continue
     identity = smap.get('identity', False)
     root = kagglehub.dataset_download(slug); n0 = len(items)
+    skip = smap.get('_skip_folders', [])
+    def make_lut(d, names):
+        """class id -> Phase 5 id. From the source's names when it has a data.yaml, else from '_ids' / '_ids_by_folder'."""
+        if names:
+            if identity: assert names[:30] == CLASSES[:30], (key, names[:30])
+            return {i: (i if identity else (CLASSES.index(smap[n.lower()]) if n.lower() in smap else None)) for i, n in enumerate(names)}
+        ids = next((v for k, v in smap.get('_ids_by_folder', {}).items() if k in d.split('/')), smap.get('_ids'))
+        return {int(k): CLASSES.index(v) for k, v in ids.items()} if ids else None
+    def read_labels(lp, lut, names):
+        out = []
+        for l in open(lp):
+            p = l.split()
+            if len(p) < 5: continue
+            c = lut.get(int(float(p[0])))
+            if c is None:
+                i = int(float(p[0])); report['dropped_names'][key][names[i] if names and i < len(names) else f'id{i}'] += 1; continue
+            v = [float(x) for x in p[1:]]
+            if len(v) == 4: out.append(f'{c} ' + ' '.join(p[1:]))
+            elif len(v) >= 6 and len(v) % 2 == 0:  # polygon (segmentation) -> its bounding box
+                xs, ys = v[0::2], v[1::2]; x0, x1, y0, y1 = max(0, min(xs)), min(1, max(xs)), max(0, min(ys)), min(1, max(ys))
+                if x1 - x0 > 0 and y1 - y0 > 0: out.append(f'{c} {(x0 + x1) / 2:.6f} {(y0 + y1) / 2:.6f} {x1 - x0:.6f} {y1 - y0:.6f}'); report['polygons_to_boxes'][key] += 1
+        return out
+    paired = set()
     for d, dirs, files in os.walk(root):
         parts = d.replace('\\', '/').split('/')
-        if 'images' not in parts: continue
+        if 'images' not in parts or any(k in parts for k in skip): continue
         imgs = [f for f in files if f.lower().endswith(IMG)]
         if not imgs: continue
         ldir = '/labels'.join(d.rsplit('/images', 1)); names = nearest_names(d, root)
-        if not os.path.isdir(ldir) or not names: continue
-        if identity: assert names[:30] == CLASSES[:30], (key, names[:30])
-        lut = {i: (i if identity else (CLASSES.index(smap[n.lower()]) if n.lower() in smap else None)) for i, n in enumerate(names)}
+        lut = make_lut(d, names) if os.path.isdir(ldir) else None
+        if lut is None: continue
+        paired.add(os.path.realpath(ldir))
         for f in imgs:
-            stem = os.path.splitext(f)[0]; lp = os.path.join(ldir, stem + '.txt'); out = []
-            if os.path.exists(lp):
-                for l in open(lp):
-                    p = l.split()
-                    if len(p) != 5: continue
-                    c = lut.get(int(float(p[0])))
-                    if c is None: report['dropped_names'][key][names[int(float(p[0]))] if int(float(p[0])) < len(names) else p[0]] += 1; continue
-                    out.append(f'{c} ' + ' '.join(p[1:]))
+            stem = os.path.splitext(f)[0]; lp = os.path.join(ldir, stem + '.txt')
+            out = read_labels(lp, lut, names) if os.path.exists(lp) else []
             if out or identity:  # Phase 2 keeps its background pictures; other sources only pictures with a mapped box
                 items.append({'src': key, 'img': os.path.join(d, f), 'lines': out, 'split': split_of(parts, stem, identity)})
+    # label folders with no images/ twin (e.g. GuideTWSI's YOLO_labels): find each picture by file name within the source
+    index = None
+    for d, dirs, files in ([] if identity else os.walk(root)):  # identity (Phase 2): only its images/labels pairs
+        parts = d.replace('\\', '/').split('/')
+        if os.path.realpath(d) in paired or any(k in parts for k in skip) or not any('label' in q.lower() for q in parts): continue
+        txts = [f for f in files if f.endswith('.txt') and f != 'classes.txt']
+        if not txts: continue
+        names = nearest_names(d, root); lut = make_lut(d, names)
+        if lut is None: continue
+        if index is None:
+            index = {}
+            for d2, _, f2 in os.walk(root):
+                for f in f2:
+                    if f.lower().endswith(IMG): index.setdefault(os.path.splitext(f)[0], os.path.join(d2, f))
+        for f in txts:
+            stem = f[:-4]; img = index.get(stem)
+            if not img: report['labels_without_picture'][key] += 1; continue
+            out = read_labels(os.path.join(d, f), lut, names)
+            if out: items.append({'src': key, 'img': img, 'lines': out, 'split': split_of(parts, stem, identity)})
     print(f'{key}: {len(items) - n0} pictures with mapped boxes', flush=True)
 
 # caps (train only), rarest classes first
@@ -147,7 +187,11 @@ if PSEUDO:
     from ultralytics import YOLO
     m = YOLO(ROD2 or next(p for p in glob.glob('/kaggle/input/**/rod2_best.pt', recursive=True)))
     learned = {i for i in range(30) if CLASSES[i] not in UNLEARNED}
-    own = {key: {CLASSES.index(v) for k, v in LM['sources'][key].items() if not k.startswith('_') and isinstance(v, str)} for key in SOURCES.values() if key in LM['sources']}
+    def own_classes(m):
+        v = [x for k, x in m.items() if not k.startswith('_') and isinstance(x, str)] + list(m.get('_ids', {}).values())
+        v += [x for d in m.get('_ids_by_folder', {}).values() for x in d.values()]
+        return {CLASSES.index(x) for x in v}
+    own = {key: own_classes(LM['sources'][key]) for key in SOURCES.values() if key in LM['sources']}
     todo = [it for it in final if it['src'] != 'phase2-rod2-training-data']
     def iou(a, b):
         ax0, ay0, ax1, ay1 = a[0] - a[2] / 2, a[1] - a[3] / 2, a[0] + a[2] / 2, a[1] + a[3] / 2
