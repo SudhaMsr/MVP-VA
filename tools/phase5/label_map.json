@@ -1,0 +1,41 @@
+{
+  "about": "Phase 5 (final MVP training) class list and the map from every source dataset's class name to it. Classes 0-29 are rod2's, unchanged, so the app's alert code keeps working. Classes 30-38 are new, each tied to the evidence in the plan. A source name that is not listed is dropped. Decided 13 Nov 2026 by Claude for Sudha (she asked Claude to decide); she can change any line. VIP-Mobility360 and GuideTWSI are filled in after the dataset audit.",
+  "classes": [
+    "Bike", "Building", "Car", "Person", "Stairs", "Traffic sign", "Electrical Pole", "Road", "Motorcycle", "Dustbin",
+    "Dog", "Manhole", "Tree", "Guard rail", "Pedestrian crosswalk", "Truck", "Bus", "Bench", "Traffic Cone", "Fire hydrant",
+    "Teraffic Barrel", "Plant Pot", "Electrical Box", "Chair", "Bicycle Rack", "Bollard", "Downstairs", "Upstairs", "Red light", "Green light",
+    "kerb", "kerb_drop", "dropped_kerb", "pothole", "pavement_crack", "e_scooter", "construction_barrier", "tactile_paving", "ped_signal"
+  ],
+  "new_class_reasons": {
+    "kerb": "71% report poor pavements; RNIB asks for detectable kerbs (In My Way 2025)",
+    "kerb_drop": "a kerb seen from the pavement side, a step down; falls; the app says it cannot see drops (Barcelona Streets 'Curb-Down')",
+    "dropped_kerb": "crossings: a barrier for 44%, vital for 89% (RNIB 2025)",
+    "pothole": "71% poor pavements (RNIB 2025)",
+    "pavement_crack": "71% poor pavements (RNIB 2025)",
+    "e_scooter": "81% say bikes or e-scooters left on pavements make journeys harder (RNIB 2025); 78% met one (Guide Dogs 2022)",
+    "construction_barrier": "56% temporary or moveable obstacles (RNIB 2025)",
+    "tactile_paving": "crossings: blister paving marks UK crossing points",
+    "ped_signal": "crossings; position only, its colour is never spoken"
+  },
+  "sources": {
+    "phase2-rod2-training-data": {"identity": true},
+    "vistas-va-yolo640": {"kerb": "kerb", "dropped_kerb": "dropped_kerb", "pothole": "pothole", "manhole": "Manhole", "bin": "Dustbin",
+                          "bench": "Bench", "street_light": "Electrical Pole", "bike_rack": "Bicycle Rack", "ped_signal": "ped_signal"},
+    "kerbs-yolo640": {"kerb": "kerb", "dropped_kerb": "dropped_kerb"},
+    "potholes-yolo640": {"pothole": "pothole"},
+    "e-scooters-bollards-yolo640": {"e_scooter": "e_scooter", "bollard": "Bollard"},
+    "barcelona-streets-kerbs-drops-yolo640": {"kerb": "kerb", "kerb_drop": "kerb_drop", "downstairs": "Downstairs", "upstairs": "Upstairs", "pothole": "pothole"},
+    "open-images-va-classes": {"stairs": "Stairs", "pole": "Electrical Pole", "ashcan": "Dustbin", "bench": "Bench", "fire_hydrant": "Fire hydrant",
+                               "plant_pot": "Plant Pot",
+                               "_dropped": "wheelchair, scooter (could be a kick scooter), skateboard, door, parking_meter; ped_signal dropped because the Open Images class is every 'Traffic light', including the ones for cars"},
+    "vip-mobility360-640px": {"_todo": "fill from the audit: real class names are not published"},
+    "guidetwsi": {"_todo": "fill from the audit: tactile paving masks/boxes -> tactile_paving"}
+  },
+  "test_only": {
+    "sanpo-walker-view-test-subset": {"curb": "kerb", "pedestrian": "Person", "stairs": "Stairs", "traffic sign": "Traffic sign", "pole": "Electrical Pole",
+                                      "bike rack": "Bicycle Rack", "tree": "Tree", "guard rail/road barrier": "Guard rail", "crosswalk": "Pedestrian crosswalk",
+                                      "_groups": {"vehicle": ["Car", "Truck", "Bus", "Motorcycle"], "traffic light": ["Red light", "Green light", "ped_signal"]},
+                                      "_note": "semantic classes (curb, guard rail) have no instance ids: one box per connected patch above a minimum size"},
+    "bristol-mapillary-test-set": {"_note": "no labels: pre-labelled by a separate open-vocabulary detector, then corrected by Claude on a stated sample"}
+  }
+}
