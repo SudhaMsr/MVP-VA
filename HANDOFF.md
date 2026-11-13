@@ -179,6 +179,17 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
 - Fixed: the end of speech is now measured on the audio thread with the audio clock. A page timer can be slowed to once a
   second (battery saver, a busy phone, a background tab); in the live check one command recorded the full 7.6 s.
 
+## VIP-Mobility360 dataset on Kaggle (13 Nov)
+- Source: VIP-Mobility360, Liverpool John Moores University, UK, classes from RNIB interviews (e-scooters, bollards, wheelie
+  bins, construction barriers, pavement cracks), CC BY 4.0, DOI 10.24377/LJMU.d.00000226. One 110 GB zip, 450,486 files:
+  150,161 images (train 91,689 / val 29,901 / test 28,571) with YOLO `.txt` and Pascal VOC `.xml` labels, 816 sequences.
+- `tools/datasets/vip_mobility360_kaggle.py` runs in a Kaggle notebook (Internet on): reads the zip's file list once, fetches
+  48 MB blocks with HTTP range requests (the server answers range GETs fast; HEAD on the big file hangs), resizes every image
+  to 640 px on the long side, keeps every label, resumes on re-run. About 15.5 GB out, about 17 to 19 MB/s.
+- Running as Kaggle notebook `sudharanimsr/notebook92709d38b0`, Version 1 ("VIP-Mobility360 at 640 px"). When it finishes, its
+  output becomes a private Kaggle dataset "VIP-Mobility360 640px". Train with the YOLO labels; the XML boxes are in the
+  original pixel size. Full list of candidate datasets: the "Vision Assist: Datasets for Missing Objects" doc.
+
 ## Build plan packages (from "Vision Assist — Build Plan & Claude Code Playbook", 7 Nov)
 Each package is one branch and one PR, stacked in order (each branch starts from the previous one), so merge them in order.
 `CLAUDE.md` holds the project rules every Claude Code session reads first.
