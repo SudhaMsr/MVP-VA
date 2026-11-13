@@ -241,6 +241,26 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
 - Still no data: A-boards, step-down drops, low branches, cafe furniture (need Bristol footage); glass (GDD), tactile paving
   (GuideTWSI), mobility aids (MAID), pedestrian light state (ImVisible) not downloaded yet.
 
+## Phase 5 step 3 and 4 results (13 Nov)
+- Test sets (never trained on): "SANPO test boxes Phase5" (584 chest-camera frames, `tools/datasets/sanpo_to_yolo.py`) and
+  "Bristol Mapillary test set" (937 photos). Bristol pre-labels from YOLO-World (`tools/datasets/prelabel_world.py`, dataset
+  "Bristol prelabels YOLO-World"): good for cars, people, poles; **0 kerbs found** although kerbs are visible, and some photos
+  are junk (through a window). So Bristol is used for people, vehicles and false alarms only; new classes are tested on SANPO
+  kerbs and held-out sequences of the training sources.
+- Baseline, `tools/phase5/baseline_eval.py` (rod2_best.pt alone, 416 px, score 0.40 as in the app) on SANPO:
+
+  | Class | Test boxes | AP50 | Precision | Recall | Near recall (box >= 15% of height) |
+  |---|---|---|---|---|---|
+  | Person | 1123 | 0.454 | 0.89 | 0.29 | 0.56 (553) |
+  | Vehicle (Car/Truck/Bus/Motorcycle pooled) | 1628 | 0.260 | 0.91 | 0.11 | 0.34 (360) |
+  | Pedestrian crosswalk | 154 | 0.154 | 0.60 | 0.02 | 0.04 |
+  | Stairs | 46 | 0.044 | 0.20 | 0.04 | 0.11 |
+  | Traffic sign, Electrical Pole, Tree, Guard rail, Bicycle Rack | 2000+ | ~0 | – | 0 | 0 |
+  | Traffic light (pooled) | 110 | 0.001 | – | 0 | 0 |
+
+  The ~0 classes are among the 11 rod2 classes with no boxes at all in the Phase 2 training data. This is rod2 only; the app
+  also runs the COCO and hazard lanes. SANPO is US/Japan footage. These are the G1 "before" numbers.
+
 ## Build plan packages (from "Vision Assist — Build Plan & Claude Code Playbook", 7 Nov)
 Each package is one branch and one PR, stacked in order (each branch starts from the previous one), so merge them in order.
 `CLAUDE.md` holds the project rules every Claude Code session reads first.
