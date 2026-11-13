@@ -216,6 +216,13 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
   tens of thousands). Each dataset cell now ends with `tools/datasets/zip_output.py` (set `ZIP_SRC` to the output folder):
   it writes one stored zip and deletes each file once zipped, so the 19.5 GB disk never holds two copies. Unzip before training.
 
+## Project Sidewalk tagger crops on Kaggle (13 Nov)
+- `tools/datasets/sidewalk_tagger_kaggle.py` reads the validated sidewalk-tagger-ai set from Hugging Face (4 zips, 71 GB:
+  CurbRamp 10,857, SurfaceProblem 9,092, Obstacle 2,432, Crosswalk 1,627 PNG crops of Google Street View, plus tag CSVs)
+  with range requests, re-encodes crops as JPEG at most 640 px and saves one zip (notebook `sudharanimsr/notebook61a7601dcc`).
+- Labels are 33 tags per crop and the label point, not boxes: use them to train a tag classifier (for example "missing
+  tactile warning" on dropped kerbs) or to check YOLO auto-labels. Licence not stated (code is Apache-2.0): research only.
+
 ## Build plan packages (from "Vision Assist — Build Plan & Claude Code Playbook", 7 Nov)
 Each package is one branch and one PR, stacked in order (each branch starts from the previous one), so merge them in order.
 `CLAUDE.md` holds the project rules every Claude Code session reads first.
