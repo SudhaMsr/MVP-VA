@@ -34,6 +34,7 @@ def find(name):
 
 
 TESTSETS = {k: v for k, v in {'sanpo': find('sanpo_yolo'), 'bristol': find('bristol_reviewed')}.items() if v}
+TESTSETS = globals().get('ONLY_TESTSETS') or {**TESTSETS, **globals().get('EXTRA_TESTSETS', {})}  # e.g. {'phase2_val': '/kaggle/working/g1'}
 
 
 def iou(a, b):
@@ -80,7 +81,7 @@ print('model', MODEL, '| classes', len(names), '| first names match Phase 5:', a
 os.makedirs(OUT, exist_ok=True)
 report = {'model': MODEL, 'tag': TAG, 'imgsz': IMGSZ, 'app_conf': APP_CONF, 'min_gt': MIN_GT, 'testsets': {}}
 for ts, root in TESTSETS.items():
-    imgs = sorted(glob.glob(f'{root}/images/*.jpg'))
+    imgs = sorted(p for p in glob.glob(f'{root}/images/*') if p.lower().endswith(('.jpg', '.jpeg', '.png')))
     gt, gtg, pred = {}, {}, {}
     for p in imgs:
         stem = os.path.splitext(os.path.basename(p))[0]
