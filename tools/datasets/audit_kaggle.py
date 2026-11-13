@@ -7,6 +7,8 @@
 # and a sample of image sizes. Zips inside a dataset are listed, not opened in full. Nothing is written except
 # /kaggle/working/audit.md and audit.json.
 import os, re, json, glob, collections, zipfile, random, subprocess, sys
+from concurrent.futures import ThreadPoolExecutor
+THREADS = globals().get('AUDIT_THREADS', 48)  # mounted Kaggle datasets are network storage: read many small files in parallel
 
 DATASETS = globals().get('AUDIT_DATASETS', [
     'sudharanimsr/phase2-rod2-training-data', 'sudharanimsr/vip-mobility360-640px', 'sudharanimsr/vistas-va-yolo640',
@@ -59,11 +61,19 @@ def audit_labels(label_dir, root):
     names, names_from = nearest_names(label_dir, root)
     ids, kinds, empty, bad = collections.Counter(), collections.Counter(), 0, 0
     xml_vote = collections.defaultdict(collections.Counter)
-    for f in files:
+    def read(f):
         p = os.path.join(label_dir, f)
         try:
             lines = [l.split() for l in open(p) if l.strip()]
         except Exception:
+            lines = None
+        xml = os.path.splitext(p)[0] + '.xml'
+        xn = xml_names(xml) if (lines and os.path.exists(xml)) else None
+        return lines, xn
+    with ThreadPoolExecutor(THREADS) as ex:
+        results = list(ex.map(read, files))
+    for lines, xn in results:
+        if lines is None:
             bad += 1; continue
         if not lines: empty += 1
         for parts in lines:
@@ -74,9 +84,7 @@ def audit_labels(label_dir, root):
             ids[c] += 1
             kinds['box' if len(vals) == 4 else 'polygon' if len(vals) >= 6 and len(vals) % 2 == 0 else 'keypoint_or_other'] += 1
             if len(vals) >= 4 and not all(0 <= v <= 1.0001 for v in vals[:4]): kinds['out_of_range'] += 1
-        xml = os.path.splitext(p)[0] + '.xml'
-        if not names and os.path.exists(xml):
-            xn = xml_names(xml)
+        if not names and xn:
             if len(xn) == len(lines):
                 for parts, n in zip(lines, xn): xml_vote[int(float(parts[0]))][n] += 1
     if not names and xml_vote:
