@@ -80,6 +80,16 @@ def split_of(parts, stem, identity=False):
     return 'val' if h == 0 else 'test' if h == 1 else 'train'
 
 
+def read_many(paths):
+    """Read many small label files in parallel (mounted datasets are network storage); None where a file is missing."""
+    def one(p):
+        try:
+            with open(p) as fh: return fh.readlines()
+        except OSError:
+            return None
+    with ThreadPoolExecutor(THREADS) as ex: return list(ex.map(one, paths))
+
+
 def ahash(p):
     try:
         im = Image.open(p).convert('L').resize((16, 16)); px = list(im.getdata()); m = sum(px) / 256
@@ -105,9 +115,9 @@ for slug, key in SOURCES.items():
             return {i: (i if identity else (CLASSES.index(smap[n.lower()]) if n.lower() in smap else None)) for i, n in enumerate(names)}
         ids = next((v for k, v in smap.get('_ids_by_folder', {}).items() if k in d.split('/')), smap.get('_ids'))
         return {int(k): CLASSES.index(v) for k, v in ids.items()} if ids else None
-    def read_labels(lp, lut, names):
+    def read_labels(lines, lut, names):
         out = []
-        for l in open(lp):
+        for l in lines:
             p = l.split()
             if len(p) < 5: continue
             c = lut.get(int(float(p[0])))
@@ -129,9 +139,10 @@ for slug, key in SOURCES.items():
         lut = make_lut(d, names) if os.path.isdir(ldir) else None
         if lut is None: continue
         paired.add(os.path.realpath(ldir))
-        for f in imgs:
-            stem = os.path.splitext(f)[0]; lp = os.path.join(ldir, stem + '.txt')
-            out = read_labels(lp, lut, names) if os.path.exists(lp) else []
+        raw = read_many([os.path.join(ldir, os.path.splitext(f)[0] + '.txt') for f in imgs])
+        for f, lines in zip(imgs, raw):
+            stem = os.path.splitext(f)[0]
+            out = read_labels(lines, lut, names) if lines else []
             if out or identity:  # Phase 2 keeps its background pictures; other sources only pictures with a mapped box
                 items.append({'src': key, 'img': os.path.join(d, f), 'lines': out, 'split': split_of(parts, stem, identity)})
     # label folders with no images/ twin (e.g. GuideTWSI's YOLO_labels): find each picture by file name within the source
@@ -148,10 +159,11 @@ for slug, key in SOURCES.items():
             for d2, _, f2 in os.walk(root):
                 for f in f2:
                     if f.lower().endswith(IMG): index.setdefault(os.path.splitext(f)[0], os.path.join(d2, f))
-        for f in txts:
+        raw = read_many([os.path.join(d, f) for f in txts])
+        for f, lines in zip(txts, raw):
             stem = f[:-4]; img = index.get(stem)
             if not img: report['labels_without_picture'][key] += 1; continue
-            out = read_labels(os.path.join(d, f), lut, names)
+            out = read_labels(lines or [], lut, names)
             if out: items.append({'src': key, 'img': img, 'lines': out, 'split': split_of(parts, stem, identity)})
     print(f'{key}: {len(items) - n0} pictures with mapped boxes', flush=True)
 
