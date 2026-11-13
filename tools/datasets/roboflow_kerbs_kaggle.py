@@ -16,6 +16,11 @@ SETS = [
 ]
 CLASSES = ['kerb', 'dropped_kerb']
 OUT = '/kaggle/working/kerbs640'
+# Other Roboflow sets reuse this script: set RF_SETS, RF_CLASSES and RF_OUT in the cell first. A class map key '*' maps
+# every source class to one of ours (e.g. {'*': 'pothole'}).
+SETS = globals().get('RF_SETS', SETS)
+CLASSES = globals().get('RF_CLASSES', CLASSES)
+OUT = globals().get('RF_OUT', OUT)
 TMP = '/kaggle/tmp/roboflow'
 SIDE = 640
 
@@ -39,8 +44,10 @@ def convert_line(line, names, cmap, pose):
     if not p:
         return None
     src = names[int(p[0])].lower() if int(p[0]) < len(names) else ''
-    if src not in cmap:
+    if src not in cmap and '*' not in cmap:
         return None
+    if src not in cmap:
+        src = '*'
     vals = [float(v) for v in p[1:]]
     box = tuple(vals[:4]) if pose else to_box(vals)
     if not box or box[2] <= 0 or box[3] <= 0:
@@ -87,7 +94,7 @@ def main():
     open(os.path.join(OUT, 'data.yaml'), 'w').write(
         f'path: {OUT}\ntrain: train/images\nval: val/images\ntest: test/images\nnames:\n' + ''.join(f'  {i}: {c}\n' for i, c in enumerate(CLASSES)))
     with open(os.path.join(OUT, 'SOURCE.txt'), 'w') as f:
-        f.write('Roboflow Universe kerb sets, all CC BY 4.0 (credit each author). File names start with the source project.\n'
+        f.write('Roboflow Universe sets, all CC BY 4.0 (credit each author). File names start with the source project.\n'
                 'Polygons and keypoint boxes turned into YOLO boxes; "road" dropped. To be merged with the existing training data.\n')
         for k, (a, b, n) in totals.items():
             f.write(f'https://universe.roboflow.com/{k.split(" v")[0]}/dataset/{k.split(" v")[1]}  {a} images, {b} boxes  {n}\n')
