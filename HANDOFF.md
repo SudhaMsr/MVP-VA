@@ -241,6 +241,47 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
 - Still no data: A-boards, step-down drops, low branches, cafe furniture (need Bristol footage); glass (GDD), tactile paving
   (GuideTWSI), mobility aids (MAID), pedestrian light state (ImVisible) not downloaded yet.
 
+## Phase 5 (final MVP training): RESUME HERE (13 Nov, 16:15)
+Plan: `tools/phase5/PLAN.md` (needs, scope, release gates G1-G6, steps). Class list and every source-name map:
+`tools/phase5/label_map.json` (classes 0-29 = rod2 unchanged, 30-38 new). All tools run in a Kaggle notebook as one line:
+`import urllib.request as u; exec(u.urlopen("https://raw.githubusercontent.com/SudhaMsr/MVP-VA/<commit>/<path>").read())`.
+A Kaggle "Save & Run All (Commit)" run cannot attach a dataset: attach it first in an interactive session with
+`kagglehub.dataset_download('<slug>')`. Save every output as one zip (`tools/datasets/zip_output.py`, set `ZIP_SRC`).
+
+All Kaggle datasets are PRIVATE on account `sudharanimsr` (slug = `sudharanimsr/<title in lower-case with dashes>`):
+
+| Dataset | Use | Made by |
+|---|---|---|
+| phase2-rod2-training-data | old training data (6,184 train pictures; 11 rod2 classes have 0 boxes) | uploaded by Sudha |
+| rod2-phase2-best-pt | `rod2_best.pt`, 30 classes, the model to extend | uploaded by Sudha |
+| vip-mobility360-640px | UK pavements, 150k pictures, YOLO + XML | `vip_mobility360_kaggle.py` |
+| vistas-va-yolo640 | kerb, dropped kerb, pothole, manhole, bin, bench, street light, bike rack, ped signal (CC BY-NC-SA) | `vistas_kaggle.py` |
+| kerbs-yolo640, potholes-yolo640, e-scooters-bollards-yolo640 | Roboflow sets | `roboflow_kerbs_kaggle.py` (RF_SETS etc. set in each notebook cell) |
+| barcelona-streets-kerbs-drops-yolo640 | kerb, kerb going down, stairs up/down, pothole (14,859 pictures) | its Kaggle notebook |
+| open-images-va-classes | stairs, pole, bin, bench, fire hydrant, plant pot | code only in its Kaggle notebook (not in git) |
+| project-sidewalk-tagger-640 | crops with tags, no boxes (not used for boxes) | `sidewalk_tagger_kaggle.py` |
+| sanpo-walker-view-test-subset / sanpo-test-boxes-phase5 | TEST ONLY: 584 chest-camera frames, boxes | `sanpo_subset_kaggle.py`, `sanpo_to_yolo.py` |
+| bristol-mapillary-test-set / bristol-prelabels-yolo-world | TEST ONLY: 937 Bristol photos, YOLO-World pre-labels | `mapillary_bristol_testset.py`, `prelabel_world.py` |
+| guidedogrobot/guidetwsi (public, CC0) | tactile paving | already on Kaggle |
+
+Steps (PLAN.md section 10):
+- [x] 2 class list decided (in label_map.json).
+- [x] 3 test sets built; Bristol is for people, vehicles and false alarms only (pre-labels found no kerbs, see below).
+- [x] 4 baseline of rod2 (`tools/phase5/baseline_eval.py`, table below).
+- [ ] 1 audit (`tools/datasets/audit_kaggle.py`, notebook `notebook0cb2790b56` Version 3) was still running; only open
+  item from it: fill `vip-mobility360-640px` and `guidetwsi` (both `_todo`) in label_map.json from their real class names.
+  VIP's names come from its data.yaml or, failing that, the XML files of the same name (the audit votes them).
+  Mounting VIP takes about 25 minutes (450k files).
+- [ ] 5 build the training set: `tools/phase5/build_trainset.py` with all sources attached (`PSEUDO=True` on a GPU adds
+  rod2 boxes for old classes on new pictures). Read `/kaggle/working/p5/report.json`: boxes per class, dropped names,
+  duplicates, classes with no train boxes. Sources still `_todo` are skipped, not guessed.
+- [ ] 6 train: fine-tune `rod2_best.pt` to 39 classes on `p5/data.yaml` (Ultralytics, 640 px, GPU T4).
+- [ ] 7 gates: rerun `baseline_eval.py` with `MODEL_PATH` = the new best.pt and `TAG` = 'rod3'; G1 = no old class drops more
+  than 2 AP50 points (person and vehicle: 1) on Phase 2 val and SANPO; G2 per new class on `p5/images/test`.
+- [ ] 8 export to ONNX at 416 and add to the app silently (new classes never spoken until walk-tested), with tests and stamp.
+- Known limits: images from sources that don't label kerbs (Phase 2 etc.) contain unlabelled kerbs, which can teach "not a
+  kerb"; check kerb recall after training, and if it's low, pseudo-label kerbs on Phase 2 with the new model and retrain once.
+
 ## Phase 5 step 3 and 4 results (13 Nov)
 - Test sets (never trained on): "SANPO test boxes Phase5" (584 chest-camera frames, `tools/datasets/sanpo_to_yolo.py`) and
   "Bristol Mapillary test set" (937 photos). Bristol pre-labels from YOLO-World (`tools/datasets/prelabel_world.py`, dataset
