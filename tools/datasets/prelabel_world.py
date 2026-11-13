@@ -29,7 +29,7 @@ PROMPTS = {
     'Bicycle Rack': 'bicycle rack', 'Bollard': 'bollard', 'Downstairs': 'stairs going down', 'Upstairs': 'stairs going up',
     'Red light': 'red traffic light', 'Green light': 'green traffic light', 'kerb': 'kerb', 'kerb_drop': 'kerb edge step down',
     'dropped_kerb': 'dropped kerb', 'pothole': 'pothole', 'pavement_crack': 'crack in pavement', 'e_scooter': 'electric scooter',
-    'construction_barrier': 'construction barrier', 'tactile_paving': 'tactile paving', 'ped_signal': 'pedestrian traffic light'}
+    'construction_barrier': 'construction barrier', 'tactile_paving': 'tactile paving', 'ped_signal': 'pedestrian traffic light', 'a_board': 'A-board sign on the pavement'}
 assert all(c in PROMPTS for c in CLASSES), [c for c in CLASSES if c not in PROMPTS]
 
 root = next(p for p in glob.glob('/kaggle/input/**/bristol_mapillary_test', recursive=True) if os.path.isdir(p))

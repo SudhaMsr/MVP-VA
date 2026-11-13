@@ -1,6 +1,6 @@
 # Step 4 of the final MVP training plan: score a detector (rod2 now, its successor later) on the walker's-eye test sets
 # it was never trained on, in the Phase 5 class numbering. Classes 0-29 of rod2 are Phase 5 classes 0-29, so its class
-# ids are used unchanged; a 39-class successor is scored the same way.
+# ids are used unchanged; a 40-class successor is scored the same way.
 # Run in a Kaggle notebook with the model dataset and the test-set datasets attached (GPU optional). One line in a cell:
 #   import urllib.request as u; exec(u.urlopen("https://raw.githubusercontent.com/SudhaMsr/MVP-VA/<commit>/tools/phase5/baseline_eval.py").read())
 # Per class: AP50 (all-point interpolation, greedy matching at IoU 0.5, highest score first), and precision and recall at

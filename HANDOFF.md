@@ -268,14 +268,15 @@ Steps (PLAN.md section 10):
 - [x] 2 class list decided (in label_map.json).
 - [x] 3 test sets built; Bristol is for people, vehicles and false alarms only (pre-labels found no kerbs, see below).
 - [x] 4 baseline of rod2 (`tools/phase5/baseline_eval.py`, table below).
-- [ ] 1 audit (`tools/datasets/audit_kaggle.py`, notebook `notebook0cb2790b56` Version 3) was still running; only open
-  item from it: fill `vip-mobility360-640px` and `guidetwsi` (both `_todo`) in label_map.json from their real class names.
-  VIP's names come from its data.yaml or, failing that, the XML files of the same name (the audit votes them).
-  Mounting VIP takes about 25 minutes (450k files).
+- [x] 1 audit done (notebook `notebook0cb2790b56` Version 3; its "failed" mark is only the Barcelona attach cell). Findings:
+  VIP-Mobility360 ids 0-7 = Board (A-board), Bollard, EScooter, Pothole, Puddle, RoadWork, TrashBag, WheelieBin (from its
+  XML names, checked by eye; about one box per picture). GuideTWSI = polygons: RBar-22k bar paving ('braille'), RDome-2k
+  real domes, SDome-15k synthetic (left out). Vistas has 125k street-light boxes (Electrical Pole). All mapped in
+  label_map.json; **class 39 `a_board` added** (RNIB obstacle, 14k VIP examples), so Phase 5 has 40 classes.
 - [ ] 5 build the training set: `tools/phase5/build_trainset.py` with all sources attached (`PSEUDO=True` on a GPU adds
   rod2 boxes for old classes on new pictures). Read `/kaggle/working/p5/report.json`: boxes per class, dropped names,
   duplicates, classes with no train boxes. Sources still `_todo` are skipped, not guessed.
-- [ ] 6 train: fine-tune `rod2_best.pt` to 39 classes on `p5/data.yaml` (Ultralytics, 640 px, GPU T4).
+- [ ] 6 train: fine-tune `rod2_best.pt` to 40 classes on `p5/data.yaml` (Ultralytics, 640 px, GPU T4).
 - [ ] 7 gates: rerun `baseline_eval.py` with `MODEL_PATH` = the new best.pt and `TAG` = 'rod3'; G1 = no old class drops more
   than 2 AP50 points (person and vehicle: 1) on Phase 2 val and SANPO; G2 per new class on `p5/images/test`.
 - [ ] 8 export to ONNX at 416 and add to the app silently (new classes never spoken until walk-tested), with tests and stamp.
