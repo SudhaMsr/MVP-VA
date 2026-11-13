@@ -12,6 +12,11 @@ export const ROD_NAMES = [
 ];
 // Phase 2: rod_best.pt fine-tuned on more images. The first 25 classes are unchanged; five are added at the end.
 export const ROD2_NAMES = [...ROD_NAMES, 'Bollard', 'Downstairs', 'Upstairs', 'Red light', 'Green light'];
+// Phase 5 (rod3, tools/phase5/label_map.json): rod2's 30 classes unchanged, ten new ones at the end. NONE of the ten is
+// spoken: they are only logged (WATCH_CLASSES.rod3) until each passes the walk gate. See HANDOFF.md, Phase 5.
+export const ROD3_NEW = ['kerb', 'kerb_drop', 'dropped_kerb', 'pothole', 'pavement_crack', 'e_scooter', 'construction_barrier',
+  'tactile_paving', 'ped_signal', 'a_board'];
+export const ROD3_NAMES = [...ROD2_NAMES, ...ROD3_NEW];
 
 // Third lane: the standard COCO model (80 classes). Only the classes below are ever used; the file is optional.
 export const COCO_NAMES = ['person','bicycle','car','motorcycle','airplane','bus','train','truck','boat','traffic light','fire hydrant','stop sign','parking meter','bench','bird','cat','dog','horse','sheep','cow','elephant','bear','zebra','giraffe','backpack','umbrella','handbag','tie','suitcase','frisbee','skis','snowboard','sports ball','kite','baseball bat','baseball glove','skateboard','surfboard','tennis racket','bottle','wine glass','cup','fork','knife','spoon','bowl','banana','apple','sandwich','orange','broccoli','carrot','hot dog','pizza','donut','cake','chair','couch','potted plant','bed','dining table','toilet','tv','laptop','mouse','remote','keyboard','cell phone','microwave','oven','toaster','sink','refrigerator','book','clock','vase','scissors','teddy bear','hair drier','toothbrush'];
@@ -23,6 +28,8 @@ export const MODELS = {
   wotr: { names: WOTR_NAMES, url: (size) => `models/best${size}.onnx`, sizes: [320] },
   rod: { names: ROD_NAMES, url: (size) => `models/rod${size}.onnx`, sizes: [] },
   rod2: { names: ROD2_NAMES, url: (size) => `models/rod2_${size}.onnx`, sizes: [416] },
+  // sizes stays empty (never a main model); rod3 only runs in the slow lane when a supervisor asks with ?slow=rod3.
+  rod3: { names: ROD3_NAMES, url: (size) => `models/rod3_${size}.onnx`, sizes: [] },
   coco: { names: COCO_NAMES, url: (size) => `models/coco${size}.onnx`, sizes: [320] },
 };
 // ?model= and ?size= for supervisors: only a model and size whose file exists; anything else falls back to the default.
@@ -32,6 +39,8 @@ export function pickModel(modelParam, sizeParam, fallbackSize) {
   const sizes = MODELS[key].sizes;
   return { key, size: sizes.includes(want) ? want : sizes.includes(fallbackSize) ? fallbackSize : sizes[0] };
 }
+// The slow lane's model: rod2, unless a supervisor tests rod3 with ?slow=rod3. Any other value keeps rod2.
+export function slowModelKey(slowParam) { return slowParam === 'rod3' ? 'rod3' : SECONDARY.model; }
 export const DEFAULT_MODEL = 'wotr'; // switch to 'rod' once the rod*.onnx files are in docs/models
 
 // Different datasets name the same thing differently; the alert code only sees these names.
@@ -88,6 +97,7 @@ export function hazardOnByDefault(hazard) { return (hazard.speakClasses || []).l
 // false-alarm rate can be checked on the Poco before CONFIG.speakWatchClasses is ever turned on.
 export const WATCH_CLASSES = {
   rod2: ['bollard', 'upstairs', 'downstairs', 'red_light', 'green_light'],
+  rod3: ['bollard', 'upstairs', 'downstairs', 'red_light', 'green_light', ...ROD3_NEW],
   coco: ['traffic_light', 'stop_sign'],
 };
 
