@@ -211,6 +211,11 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
   `curb_detection__`), Curbs curb v2 1,432 / 1,666, sayan CurbDetect v1 357 / 693, alpharomeo911 curb-road v5 312 / 393,
   van-tuyen sloped-curb v3 438 / 168 dropped kerbs. Credit each author (CC BY 4.0); links in the set's SOURCE.txt.
 
+## Kaggle output limit: save datasets as one zip (13 Nov)
+- Kaggle keeps only the first 500 files of a notebook version's output (the first VIP, Vistas and kerb runs saved 500 of
+  tens of thousands). Each dataset cell now ends with `tools/datasets/zip_output.py` (set `ZIP_SRC` to the output folder):
+  it writes one stored zip and deletes each file once zipped, so the 19.5 GB disk never holds two copies. Unzip before training.
+
 ## Build plan packages (from "Vision Assist — Build Plan & Claude Code Playbook", 7 Nov)
 Each package is one branch and one PR, stacked in order (each branch starts from the previous one), so merge them in order.
 `CLAUDE.md` holds the project rules every Claude Code session reads first.
