@@ -11,7 +11,7 @@
 #  2. Split: a source's own val/valid split becomes val and its test split becomes test; otherwise 5% val and 5% test by a
 #     hash of the GROUP key (the file name up to the last '_' or '-', so frames of one sequence stay together). Val and
 #     test are never trained on; test is the held-out check for the new classes.
-#  3. Caps: MAX_PER_SOURCE images per source (train split only), keeping images with the rarest classes first.
+#  3. Caps: MAX_PER_SOURCE train pictures per source and MAX_EVAL val/test pictures, class-balanced (see balanced()).
 #  4. De-duplication: 256-bit average hash of each picture; an exact repeat of a picture already kept is dropped.
 #  5. Optional pseudo-labels (PSEUDO=True, GPU): rod2 adds boxes for the old classes it actually learned, at score
 #     >= PSEUDO_CONF, on new-source pictures only, never for a class that source labels itself, and not where a box already
@@ -47,7 +47,8 @@ SOURCES = globals().get('SOURCES', {
     'guidedogrobot/guidetwsi': 'guidetwsi',
 })
 MAX_PER_SOURCE = globals().get('MAX_PER_SOURCE', {'vip-mobility360-640px': 15000, 'potholes-yolo640': 4000,
-                                                   'barcelona-streets-kerbs-drops-yolo640': 8000})
+                                                   'barcelona-streets-kerbs-drops-yolo640': 8000, 'vistas-va-yolo640': 10000})
+MAX_EVAL = globals().get('MAX_EVAL', 600)  # val and test pictures per source and split (VIP alone has 45k): keeps each epoch's val short
 IMG = ('.jpg', '.jpeg', '.png', '.webp')
 # rod2 classes with no boxes in the Phase 2 data (audit 13 Nov): rod2 never learned them, so it must not pseudo-label them
 UNLEARNED = {'Building', 'Traffic sign', 'Electrical Pole', 'Road', 'Manhole', 'Tree', 'Guard rail', 'Traffic Cone',
@@ -167,18 +168,28 @@ for slug, key in SOURCES.items():
             if out: items.append({'src': key, 'img': img, 'lines': out, 'split': split_of(parts, stem, identity)})
     print(f'{key}: {len(items) - n0} pictures with mapped boxes', flush=True)
 
-# caps (train only), rarest classes first
-freq = collections.Counter(int(l.split()[0]) for it in items for l in it['lines'])
+# caps, class-balanced: within a source and split, each picture is filed under its rarest class (counted in that source and
+# split) and pictures are taken from the class piles in turn, so a cap never wipes out a class (13 Nov: a "rarest first"
+# sort left VIP's RoadWork with no training pictures). Val and test are capped too (MAX_EVAL per source and split), except
+# Phase 2's val, which gate G1 needs whole.
+def balanced(lst, cap):
+    if not cap or len(lst) <= cap: return lst
+    cnt = collections.Counter(int(l.split()[0]) for it in lst for l in it['lines'])
+    piles = collections.defaultdict(list)
+    for it in lst: piles[min((int(l.split()[0]) for l in it['lines']), key=lambda c: cnt[c], default=-1)].append(it)
+    for v in piles.values(): random.shuffle(v)
+    out, order = [], sorted(piles, key=lambda c: cnt.get(c, 0))
+    while len(out) < cap:
+        for c in order:
+            if piles[c] and len(out) < cap: out.append(piles[c].pop())
+    return out
 random.seed(0)
 by_src = collections.defaultdict(list)
-for it in items: by_src[it['src']].append(it)
+for it in items: by_src[(it['src'], it['split'])].append(it)
 kept = []
-for src, lst in by_src.items():
-    cap = MAX_PER_SOURCE.get(src)
-    tr = [i for i in lst if i['split'] == 'train']; rest = [i for i in lst if i['split'] != 'train']
-    if cap and len(tr) > cap:
-        random.shuffle(tr); tr.sort(key=lambda i: min((freq[int(l.split()[0])] for l in i['lines']), default=10 ** 9)); tr = tr[:cap]
-    kept += tr + rest
+for (src, sp), lst in sorted(by_src.items()):
+    cap = MAX_PER_SOURCE.get(src) if sp == 'train' else (None if src == 'phase2-rod2-training-data' else MAX_EVAL)
+    kept += balanced(lst, cap)
 
 # de-duplicate by picture hash
 with ThreadPoolExecutor(THREADS) as ex: hashes = list(ex.map(lambda i: ahash(i['img']), kept))
