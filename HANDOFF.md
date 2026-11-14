@@ -283,6 +283,20 @@ Steps (PLAN.md section 10):
 - Known limits: images from sources that don't label kerbs (Phase 2 etc.) contain unlabelled kerbs, which can teach "not a
   kerb"; check kerb recall after training, and if it's low, pseudo-label kerbs on Phase 2 with the new model and retrain once.
 
+## Phase 5 rod3 training result (run notebook49e80e8218 Version 2, finished 14 Nov ~01:30, 5.5 h on T4)
+- Outputs in that run's Kaggle output: rod3/best.pt, rod3/rod3_416.onnx, gate_g1.json, baseline_rod3.json, report_build.json.
+- **G1 FAIL on one class only: Truck** (Phase 2 val AP50 10.8 -> 7.2, limit 1 point; only 37 val boxes). Motorcycle -1.0 (at the
+  limit). Every other old class held or improved (Person +2.3, Bike +5.8, Stairs +2.1, Dustbin +2.0, Bollard +2.5).
+- SANPO walking video (never trained on): Person AP50 0.454 -> 0.490, near recall 56% -> 61%, precision 89% -> 92%;
+  vehicles AP50 0.260 -> 0.304, near recall 34% -> 36%; kerb (new) AP50 0.061, near recall 9%.
+- New classes on held-out val pictures (P / R / mAP50): construction_barrier .96/.99/.98, a_board .78/.97/.96,
+  tactile_paving .70/.80/.79, e_scooter .89/.65/.76, pothole .77/.58/.63, kerb .65/.24/.30, kerb_drop .60/.24/.29,
+  **dropped_kerb ~0, ped_signal ~0 (failed)**. G2 (P>=0.9 and R>=0.6) passes only for construction_barrier.
+- Found: Electrical Pole is still ~0 on SANPO. Vistas `street_light` is the lamp head, not the pole, so the map
+  `street_light -> Electrical Pole` taught the wrong thing. Fix: map Vistas pole classes instead (check the Vistas converter).
+- Not added to the app. Next: fix the pole map, look at why dropped_kerb and ped_signal fail (label conflict between
+  sources?), more Truck data, retrain; then walk tests.
+
 ## Phase 5 step 3 and 4 results (13 Nov)
 - Test sets (never trained on): "SANPO test boxes Phase5" (584 chest-camera frames, `tools/datasets/sanpo_to_yolo.py`) and
   "Bristol Mapillary test set" (937 photos). Bristol pre-labels from YOLO-World (`tools/datasets/prelabel_world.py`, dataset
