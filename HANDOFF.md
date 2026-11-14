@@ -312,6 +312,26 @@ Steps (PLAN.md section 10):
 - Known limits: images from sources that don't label kerbs (Phase 2 etc.) contain unlabelled kerbs, which can teach "not a
   kerb"; check kerb recall after training, and if it's low, pseudo-label kerbs on Phase 2 with the new model and retrain once.
 
+## Phase 5 rod3 round 3 (started 14 Nov ~08:45)
+Kaggle notebook "VA P5 06 rod3 training 40 classes", Version 3 ("Round 3: ped lights, trucks, poles, zoom"), GPU T4,
+`MAP_COMMIT=16cab49` (PRs #42 and #44). About 6 hours. New since round 2:
+- `pedestrian-lights-yolo640` (private): 5 Roboflow CC BY 4.0 sets, 18,917 pictures, 19,549 boxes (ped_signal, crosswalk).
+- `open-images-trucks-poles` (private): `tools/fetch_openimages.py --classes truck,pole --per-class 4000`, 7,976 pictures.
+- Vistas street_light (lamp heads) no longer mapped to Electrical Pole; zoomed crops for small classes; MIN_SIDE 6 px but thin
+  boxes at least 40 px long (poles) are kept; no Red/Green light pseudo-labels on sources that label ped_signal.
+- Not in this round: Vistas Pole/Utility Pole/Truck re-extraction (needs a fresh Vistas link from Sudha), RampNet (images are
+  Google Street View; not used).
+
+**When it finishes (merge checklist):**
+1. Read `gate_g1.json` (no old class down more than 2 AP50 points; Person and vehicles 1) and `baseline_rod3.json` (SANPO).
+   Report per class: trucks, poles, dropped kerb and ped_signal must be clearly above 0 to count as fixed.
+2. Only if G1 passes: copy `rod3_416.onnx` (about 13 MB, same size and input as rod2_416, so the same on Android Chrome and
+   iPhone Safari) into `docs/models/` on PR #39, run `python3 tools/stamp.py` and `npm test`.
+3. Sudha says yes, then merge PR #39. rod3 still only runs with `?slow=rod3` and its new classes are logged, never spoken.
+4. Phone checks with `?slow=rod3`: Poco speed (rod2 slow lane was about 680 ms) and a first real iPhone test (Package I was
+   never tried on a real iPhone; watch memory with all lanes loaded). Then supervised walks before any new class is spoken.
+If G1 fails: do not merge; the run's report says which class, and the Vistas re-extraction is the next data step.
+
 ## Phase 5 rod3 training result (run notebook49e80e8218 Version 2, finished 14 Nov ~01:30, 5.5 h on T4)
 - Outputs in that run's Kaggle output: rod3/best.pt, rod3/rod3_416.onnx, gate_g1.json, baseline_rod3.json, report_build.json.
 - **G1 FAIL on one class only: Truck** (Phase 2 val AP50 10.8 -> 7.2, limit 1 point; only 37 val boxes). Motorcycle -1.0 (at the
