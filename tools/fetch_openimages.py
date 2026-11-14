@@ -39,6 +39,7 @@ WANTED = {
     'cone': ['Traffic cone', 'Cone'],
     'door': ['Door', 'Gate'],
     'ped_signal': ['Traffic light'],
+    'truck': ['Truck'],
     'plant_pot': ['Flowerpot', 'Houseplant'],
     'parking_meter': ['Parking meter'],
 }

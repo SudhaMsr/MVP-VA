@@ -46,9 +46,12 @@ SOURCES = globals().get('SOURCES', {
     'sudharanimsr/open-images-va-classes': 'open-images-va-classes',
     'sudharanimsr/vip-mobility360-640px': 'vip-mobility360-640px',
     'guidedogrobot/guidetwsi': 'guidetwsi',
+    'sudharanimsr/pedestrian-lights-yolo640': 'pedestrian-lights-yolo640',
+    'sudharanimsr/open-images-trucks-poles': 'open-images-trucks-poles',
 })
 MAX_PER_SOURCE = globals().get('MAX_PER_SOURCE', {'vip-mobility360-640px': 15000, 'potholes-yolo640': 4000,
-                                                   'barcelona-streets-kerbs-drops-yolo640': 8000, 'vistas-va-yolo640': 10000})
+                                                   'barcelona-streets-kerbs-drops-yolo640': 8000, 'vistas-va-yolo640': 10000,
+                                                   'pedestrian-lights-yolo640': 8000})
 MAX_EVAL = globals().get('MAX_EVAL', 600)  # val and test pictures per source and split (VIP alone has 45k): keeps each epoch's val short
 IMG = ('.jpg', '.jpeg', '.png', '.webp')
 # rod2 classes with no boxes in the Phase 2 data (audit 13 Nov): rod2 never learned them, so it must not pseudo-label them
@@ -209,6 +212,7 @@ ZOOM_CLASSES = globals().get('ZOOM_CLASSES', ['ped_signal', 'dropped_kerb', 'pot
 ZOOM_BELOW = globals().get('ZOOM_BELOW', 24)          # only zoom boxes whose short side at 416 px is below this
 MAX_ZOOM = globals().get('MAX_ZOOM', 3000)            # crops per class
 MIN_SIDE = globals().get('MIN_SIDE', 6)               # after zooming, boxes shorter than this at 416 px are dropped (not identity)
+MIN_LONG = globals().get('MIN_LONG', 40)              # ...unless thin but long (a pole 4 px wide and 120 px tall is learnable)
 zc = {CLASSES.index(c) for c in ZOOM_CLASSES}
 with ThreadPoolExecutor(THREADS) as ex: sizes = list(ex.map(lambda i: (lambda im: im.size)(Image.open(i['img'])) if i['src'] != 'phase2-rod2-training-data' else None, final))
 cand = collections.defaultdict(list)
@@ -251,7 +255,8 @@ for it in final:
         W, H = it['wh']; s = 416 / max(W, H); keep = []
         for l in it['lines']:
             c, x, y, w, h = l.split()[:5]
-            if min(float(w) * W, float(h) * H) * s < MIN_SIDE: small[CLASSES[int(c)]] += 1
+            bw, bh = float(w) * W * s, float(h) * H * s
+            if min(bw, bh) < MIN_SIDE and max(bw, bh) < MIN_LONG: small[CLASSES[int(c)]] += 1
             else: keep.append(l)
         it['lines'] = keep
         if not keep: continue
