@@ -241,6 +241,35 @@ Built and deployed to GitHub Pages; 225 tests pass; checked end to end in headle
 - Still no data: A-boards, step-down drops, low branches, cafe furniture (need Bristol footage); glass (GDD), tactile paving
   (GuideTWSI), mobility aids (MAID), pedestrian light state (ImVisible) not downloaded yet.
 
+## Kaggle notebook names (renamed 14 Nov)
+The Kaggle notebooks were renamed so their purpose is clear. Renaming changes the notebook's web address, so the old
+`notebookXXXXXXXXXX` links in this file no longer open. Find a notebook by name at kaggle.com/sudharanimsr/code.
+"VA data ..." = a dataset download; "VA P5 NN ..." = Phase 5 step NN (see `tools/phase5/PLAN.md`).
+
+| Old id | New name | Made |
+|---|---|---|
+| 92709d38b0 | VA data VIP-Mobility360 download (main) | vip-mobility360-640px |
+| b5b54e4f8b | VA data VIP download first try (stopped, not used) | nothing |
+| 101d1def84 | VA data Mapillary Vistas download (private, link expires) | vistas-va-yolo640 |
+| c79aa1d10e | VA data Kerbs download (Roboflow) | kerbs-yolo640 |
+| f4ce35ca28 | VA data Potholes download (Roboflow) | potholes-yolo640 |
+| ebe5e794df | VA data E-scooters bollards download | e-scooters-bollards-yolo640 |
+| 9577fb43a2 | VA data Barcelona streets kerbs drops download | barcelona-streets-kerbs-drops-yolo640 |
+| 431554d298 | VA data Open Images VA classes download | open-images-va-classes |
+| 61a7601dcc | VA data Project Sidewalk tagger crops download | project-sidewalk-tagger-640 |
+| fa69b1707a, 1a1df391f4 | VA data ImVisible download (failed, Drive limit) 1 and 2 | nothing |
+| 0b8b9d488c | VA data BLV navigation check (not usable) | nothing |
+| 0cb2790b56 | VA P5 01 Dataset audit | audit report |
+| 2e2f33e042 | VA P5 03 Bristol Mapillary test set download | Bristol test set |
+| 904222913a | VA P5 03 SANPO walker view download (trial) | SANPO subset |
+| 157ecb54b7 | VA P5 03 SANPO masks to YOLO test boxes | SANPO test boxes |
+| d23831b0e6 | VA P5 03 Bristol pre-labels with YOLO-World | Bristol pre-labels |
+| aec775cd58 | VA P5 04 rod2 baseline score on SANPO | baseline table |
+| a5c7cafeaa | VA P5 05 Build check and VIP class names | check only |
+| 49e80e8218 | VA P5 06 rod3 training 40 classes | rod3 (Version 2) |
+| 969ca6531d | VA P5 07 Weak class diagnosis and pedestrian lights download | `pedlights640.zip`: 5 Roboflow CC BY 4.0 sets, 18,917 images, 19,549 boxes (not yet a dataset) |
+| db1627d23d | VA zz empty draft (can delete) | nothing |
+
 ## Phase 5 (final MVP training): RESUME HERE (13 Nov, 16:15)
 Plan: `tools/phase5/PLAN.md` (needs, scope, release gates G1-G6, steps). Class list and every source-name map:
 `tools/phase5/label_map.json` (classes 0-29 = rod2 unchanged, 30-38 new). All tools run in a Kaggle notebook as one line:
@@ -258,7 +287,7 @@ All Kaggle datasets are PRIVATE on account `sudharanimsr` (slug = `sudharanimsr/
 | vistas-va-yolo640 | kerb, dropped kerb, pothole, manhole, bin, bench, street light, bike rack, ped signal (CC BY-NC-SA) | `vistas_kaggle.py` |
 | kerbs-yolo640, potholes-yolo640, e-scooters-bollards-yolo640 | Roboflow sets | `roboflow_kerbs_kaggle.py` (RF_SETS etc. set in each notebook cell) |
 | barcelona-streets-kerbs-drops-yolo640 | kerb, kerb going down, stairs up/down, pothole (14,859 pictures) | its Kaggle notebook |
-| open-images-va-classes | stairs, pole, bin, bench, fire hydrant, plant pot | code only in its Kaggle notebook (not in git) |
+| open-images-va-classes | stairs, pole, bin, bench, fire hydrant, plant pot | `tools/fetch_openimages.py` |
 | project-sidewalk-tagger-640 | crops with tags, no boxes (not used for boxes) | `sidewalk_tagger_kaggle.py` |
 | sanpo-walker-view-test-subset / sanpo-test-boxes-phase5 | TEST ONLY: 584 chest-camera frames, boxes | `sanpo_subset_kaggle.py`, `sanpo_to_yolo.py` |
 | bristol-mapillary-test-set / bristol-prelabels-yolo-world | TEST ONLY: 937 Bristol photos, YOLO-World pre-labels | `mapillary_bristol_testset.py`, `prelabel_world.py` |
