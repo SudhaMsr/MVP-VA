@@ -30,6 +30,8 @@
       "_note": "5 Roboflow Universe sets, CC BY 4.0 (ptl-rdoud v2, crosswalk_traffic_lights v2, pedestrian-traffic-lights v2, pedestrian-lights-adsir v1, pedestrian-path-signal-detection v2); red and green both mapped to ped_signal; 18,917 images, 19,549 boxes"},
     "open-images-trucks-poles": {"truck": "Truck", "pole": "Electrical Pole",
       "_note": "tools/fetch_openimages.py --classes truck,pole: more Truck boxes (rod3 lost Truck AP on 37 val boxes) and poles (Phase 2 has no pole boxes, so rod2 never learned Electrical Pole)"},
+    "open-images-bus-motorcycle": {"bus": "Bus", "motorcycle": "Motorcycle",
+      "_note": "tools/fetch_openimages.py --classes bus,motorcycle (round 3 G1 fail: Bus 17.2 to 12.0, Motorcycle 2.6 to 1.1 after ~4,000 Open Images trucks swamped them; trucks-poles now capped at 3,000 pictures)"},
     "open-images-va-classes": {"stairs": "Stairs", "pole": "Electrical Pole", "ashcan": "Dustbin", "bench": "Bench", "fire_hydrant": "Fire hydrant",
                                "plant_pot": "Plant Pot",
                                "_dropped": "wheelchair, scooter (could be a kick scooter), skateboard, door, parking_meter; ped_signal dropped because the Open Images class is every 'Traffic light', including the ones for cars"},

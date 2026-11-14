@@ -40,6 +40,8 @@ WANTED = {
     'door': ['Door', 'Gate'],
     'ped_signal': ['Traffic light'],
     'truck': ['Truck'],
+    'bus': ['Bus'],
+    'motorcycle': ['Motorcycle'],
     'plant_pot': ['Flowerpot', 'Houseplant'],
     'parking_meter': ['Parking meter'],
 }

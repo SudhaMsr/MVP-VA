@@ -48,10 +48,12 @@ SOURCES = globals().get('SOURCES', {
     'guidedogrobot/guidetwsi': 'guidetwsi',
     'sudharanimsr/pedestrian-lights-yolo640': 'pedestrian-lights-yolo640',
     'sudharanimsr/open-images-trucks-poles': 'open-images-trucks-poles',
+    'sudharanimsr/open-images-bus-motorcycle': 'open-images-bus-motorcycle',
 })
 MAX_PER_SOURCE = globals().get('MAX_PER_SOURCE', {'vip-mobility360-640px': 15000, 'potholes-yolo640': 4000,
                                                    'barcelona-streets-kerbs-drops-yolo640': 8000, 'vistas-va-yolo640': 10000,
-                                                   'pedestrian-lights-yolo640': 8000})
+                                                   'pedestrian-lights-yolo640': 8000,
+                                                   'open-images-trucks-poles': 3000, 'open-images-bus-motorcycle': 4000})
 MAX_EVAL = globals().get('MAX_EVAL', 600)  # val and test pictures per source and split (VIP alone has 45k): keeps each epoch's val short
 IMG = ('.jpg', '.jpeg', '.png', '.webp')
 # rod2 classes with no boxes in the Phase 2 data (audit 13 Nov): rod2 never learned them, so it must not pseudo-label them
