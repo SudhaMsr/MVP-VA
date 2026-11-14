@@ -13,6 +13,7 @@
 #     test are never trained on; test is the held-out check for the new classes.
 #  3. Caps: MAX_PER_SOURCE train pictures per source and MAX_EVAL val/test pictures, class-balanced (see balanced()).
 #  4. De-duplication: 256-bit average hash of each picture; an exact repeat of a picture already kept is dropped.
+#  4b. Zoomed crops for small objects (ZOOM_CLASSES), then boxes under MIN_SIDE px at 416 are dropped (not Phase 2).
 #  5. Optional pseudo-labels (PSEUDO=True, GPU): rod2 adds boxes for the old classes it actually learned, at score
 #     >= PSEUDO_CONF, on new-source pictures only, never for a class that source labels itself, and not where a box already
 #     overlaps (IoU > 0.5). Pseudo lines are counted separately in the report.
@@ -200,6 +201,64 @@ for it, h in zip(kept, hashes):
     final.append(it)
 report['duplicates_dropped'] = dict(dups)
 
+# zoomed crops for small objects (14 Nov diagnosis: Vistas pedestrian lights, dropped kerbs and lamp heads were 1.5-4 px tall
+# at the 416 px training size, too small to learn). Slicing-aided fine-tuning (Akyon et al. 2022, SAHI): train on crops so
+# the same objects appear ZOOM times bigger. Train split only; a crop is a new picture with the boxes it fully contains.
+ZOOM = globals().get('ZOOM', 3)
+ZOOM_CLASSES = globals().get('ZOOM_CLASSES', ['ped_signal', 'dropped_kerb', 'pothole', 'Manhole', 'Electrical Pole', 'kerb', 'Bollard'])
+ZOOM_BELOW = globals().get('ZOOM_BELOW', 24)          # only zoom boxes whose short side at 416 px is below this
+MAX_ZOOM = globals().get('MAX_ZOOM', 3000)            # crops per class
+MIN_SIDE = globals().get('MIN_SIDE', 6)               # after zooming, boxes shorter than this at 416 px are dropped (not identity)
+zc = {CLASSES.index(c) for c in ZOOM_CLASSES}
+with ThreadPoolExecutor(THREADS) as ex: sizes = list(ex.map(lambda i: (lambda im: im.size)(Image.open(i['img'])) if i['src'] != 'phase2-rod2-training-data' else None, final))
+cand = collections.defaultdict(list)
+for it, wh in zip(final, sizes):
+    it['wh'] = wh
+    if wh is None or it['split'] != 'train': continue
+    W, H = wh; s = 416 / max(W, H)
+    for j, l in enumerate(it['lines']):
+        c, x, y, w, h = l.split()[:5]; c = int(c)
+        if c in zc and min(float(w) * W, float(h) * H) * s < ZOOM_BELOW: cand[c].append((it, j))
+os.makedirs(f'{OUT}/zoom', exist_ok=True)
+def crop(job):
+    (it, j), k = job
+    try:
+        im = Image.open(it['img']).convert('RGB'); W, H = im.size
+        _, x, y, w, h = map(float, it['lines'][j].split()[:5])
+        cw, ch = W / ZOOM, H / ZOOM; r = random.Random(k)
+        x0 = min(max(x * W - cw / 2 + r.uniform(-.25, .25) * cw, 0), W - cw); y0 = min(max(y * H - ch / 2 + r.uniform(-.25, .25) * ch, 0), H - ch)
+        rows = []
+        for l in it['lines']:
+            c, bx, by, bw, bh = l.split()[:5]; bx, by, bw, bh = float(bx) * W, float(by) * H, float(bw) * W, float(bh) * H
+            a0, b0, a1, b1 = max(bx - bw / 2, x0), max(by - bh / 2, y0), min(bx + bw / 2, x0 + cw), min(by + bh / 2, y0 + ch)
+            if a1 <= a0 or b1 <= b0 or (a1 - a0) * (b1 - b0) < .6 * bw * bh: continue
+            rows.append(f'{c} {((a0 + a1) / 2 - x0) / cw:.6f} {((b0 + b1) / 2 - y0) / ch:.6f} {(a1 - a0) / cw:.6f} {(b1 - b0) / ch:.6f}')
+        out = f'{OUT}/zoom/z{k}.jpg'
+        im.crop((int(x0), int(y0), int(x0 + cw), int(y0 + ch))).resize((640, int(640 * ch / cw))).save(out, quality=88)
+        return {'src': it['src'], 'img': out, 'lines': rows, 'split': 'train', 'wh': (640, int(640 * ch / cw)), 'zoom': True}
+    except Exception:
+        return None
+jobs = []
+for c, lst in cand.items():
+    random.shuffle(lst); jobs += lst[:MAX_ZOOM]
+with ThreadPoolExecutor(THREADS) as ex: crops = [z for z in ex.map(crop, [(jb, k) for k, jb in enumerate(jobs)]) if z and z['lines']]
+final += crops
+report['zoom_crops'] = dict(collections.Counter(CLASSES[c] for c, lst in cand.items() for _ in lst[:MAX_ZOOM]))
+# minimum size: drop boxes too small to learn (not Phase 2, so rod2's classes stay exactly as trained)
+small = collections.Counter(); kept_items = []
+for it in final:
+    if it.get('wh') and it['src'] != 'phase2-rod2-training-data':
+        W, H = it['wh']; s = 416 / max(W, H); keep = []
+        for l in it['lines']:
+            c, x, y, w, h = l.split()[:5]
+            if min(float(w) * W, float(h) * H) * s < MIN_SIDE: small[CLASSES[int(c)]] += 1
+            else: keep.append(l)
+        it['lines'] = keep
+        if not keep: continue
+    kept_items.append(it)
+final = kept_items
+report['too_small_dropped'] = dict(small.most_common())
+
 # optional pseudo-labels for the old classes rod2 learned
 pseudo = collections.Counter()
 if PSEUDO:
@@ -228,6 +287,7 @@ if PSEUDO:
             for c, b in zip(r.boxes.cls.tolist(), r.boxes.xywhn.tolist()):
                 c = int(c)
                 if c not in learned or c in own.get(it['src'], set()) or any(iou(b, h) > 0.5 for h in have): continue
+                if CLASSES[c] in ('Red light', 'Green light') and CLASSES.index('ped_signal') in own.get(it['src'], set()): continue
                 it['lines'].append(f'{c} ' + ' '.join(f'{v:.6f}' for v in b)); have.append(b); pseudo[CLASSES[c]] += 1
         if k % 6400 == 0: print(f'pseudo-labelled {min(k + 64, len(todo))}/{len(todo)}', flush=True)
 report['pseudo_boxes'] = dict(pseudo)

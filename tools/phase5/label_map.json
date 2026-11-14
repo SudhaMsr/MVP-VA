@@ -20,8 +20,8 @@
   },
   "sources": {
     "phase2-rod2-training-data": {"identity": true},
-    "vistas-va-yolo640": {"kerb": "kerb", "dropped_kerb": "dropped_kerb", "pothole": "pothole", "manhole": "Manhole", "bin": "Dustbin",
-                          "bench": "Bench", "street_light": "Electrical Pole", "bike_rack": "Bicycle Rack", "ped_signal": "ped_signal"},
+    "vistas-va-yolo640": {"_dropped": "street_light (14 Nov: these are lamp heads, median 1.5 px at 416, not poles)", "kerb": "kerb", "dropped_kerb": "dropped_kerb", "pothole": "pothole", "manhole": "Manhole", "bin": "Dustbin",
+                          "bench": "Bench", "bike_rack": "Bicycle Rack", "ped_signal": "ped_signal"},
     "kerbs-yolo640": {"kerb": "kerb", "dropped_kerb": "dropped_kerb"},
     "potholes-yolo640": {"pothole": "pothole"},
     "e-scooters-bollards-yolo640": {"e_scooter": "e_scooter", "bollard": "Bollard"},
