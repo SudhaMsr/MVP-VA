@@ -49,3 +49,10 @@ model (probably plus ground geometry), as its own PR after the rod3 gates, the s
 
 Keep Vistas, Cityscapes and non-commercial sets as private Kaggle datasets. Decide licences before any shipped model uses them.
 Credit CC BY sources. Downloads need the user's OK. Never say "safe" in app speech.
+
+## Getting the Vistas surface classes in the same run
+
+`tools/datasets/vistas_kaggle.py` (PR #47) takes `WANT_SEG` as well as `WANT`. One Vistas link then gives, in one pass, the poles and
+vehicles for the box model (`labels/`) and polygons for road, sidewalk, terrain, curb, curb cut, plain and zebra crossing, manhole,
+pedestrian area and bike lane (`labels_seg/`). The exact lists are in the script header. Vistas class names that do not match the
+dataset config are printed as NOT FOUND, so check with `LIST_ONLY = True` first. Not run yet: it needs the user's fresh signed link.
