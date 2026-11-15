@@ -8,7 +8,10 @@
 # creep is what produced rounds 3 to 5 of the detection model.
 # Run in a Kaggle notebook, GPU T4, Internet on (to fetch yolo11n-seg.pt), with "vistas-roads-yolo640" attached:
 #   MAP_COMMIT='<commit>'; import urllib.request as u; exec(u.urlopen(f"https://raw.githubusercontent.com/SudhaMsr/MVP-VA/{MAP_COMMIT}/tools/phase5/train_seg.py").read())
-# Optional globals before the exec line: KEEP, EPOCHS, BATCH, IMGSZ, BASE_WEIGHTS, MAX_TRAIN, RUN_DIR, PREP_ONLY.
+# Optional globals before the exec line: KEEP, EPOCHS, BATCH (default 16: seg at 640 px is heavy), IMGSZ, BASE_WEIGHTS, MAX_TRAIN,
+# RUN_DIR, PREP_ONLY, UPLOAD_AS (a private Kaggle dataset name, e.g. 'ncseg-surface-pilot-v1').
+# Smoke test first (about 15 min): EPOCHS=1; MAX_TRAIN=300. Then a committed run (Save & Run All) for the real one.
+# Images are symlinked and labels are written into /kaggle/working, so the read-only /kaggle/input never needs a labels.cache.
 # Writes RUN_DIR (default /kaggle/working/seg): best.pt, ncseg_best_416.onnx, ncseg_best_640.onnx, report_seg.json.
 import os, glob, json, shutil, subprocess, sys
 
@@ -76,7 +79,7 @@ if __name__ == '__main__' or 'MAP_COMMIT' in globals():
         except ImportError:
             subprocess.run([sys.executable, '-m', 'pip', '-q', 'install', 'ultralytics'], check=True)
         from ultralytics import YOLO
-        IMGSZ, BATCH, EPOCHS = globals().get('IMGSZ', 640), globals().get('BATCH', 32), globals().get('EPOCHS', 40)
+        IMGSZ, BATCH, EPOCHS = globals().get('IMGSZ', 640), globals().get('BATCH', 16), globals().get('EPOCHS', 40)
         model = YOLO(globals().get('BASE_WEIGHTS', 'yolo11n-seg.pt'))
         model.train(data=f'{DATA}/data.yaml', task='segment', imgsz=IMGSZ, epochs=EPOCHS, batch=BATCH, project=OUT, name='run',
                     patience=10, exist_ok=True, workers=4, plots=False)
@@ -91,5 +94,20 @@ if __name__ == '__main__' or 'MAP_COMMIT' in globals():
             onnx = YOLO(best).export(format='onnx', imgsz=size, opset=12, simplify=True)
             shutil.copy(onnx, f'{OUT}/ncseg_best_{size}.onnx')
         json.dump(report, open(f'{OUT}/report_seg.json', 'w'), indent=1)
+        # keep the output small: only the weights, exports, results.csv, args.yaml and the report
+        for f in ('results.csv', 'args.yaml'):
+            if os.path.exists(f'{OUT}/run/{f}'): shutil.copy(f'{OUT}/run/{f}', f'{OUT}/{f}')
+        shutil.rmtree(f'{OUT}/run', ignore_errors=True)
+        open(f'{OUT}/SOURCE.txt', 'w').write(
+            'Surface segmentation PILOT weights, trained on Mapillary Vistas v2.0 (CC BY-NC-SA 4.0 + Mapillary Research Use Licence).\n'
+            'NON-COMMERCIAL and CONFIDENTIAL: the weights inherit these terms. They can NEVER ship in the app or any product.\n'
+            'Credit: Mapillary. Experiment only (does segmentation beat boxes for kerbs?). Keep this dataset private.\n')
+        if globals().get('UPLOAD_AS'):
+            try:
+                import kagglehub
+                kagglehub.dataset_upload(f"sudharanimsr/{globals()['UPLOAD_AS']}", OUT)
+                print('uploaded private:', globals()['UPLOAD_AS'])
+            except Exception as e:
+                print('upload failed (save the output as a private dataset by hand):', type(e).__name__, e)
         print('mask mAP50 on Vistas val', report['val_mask_map50'], report['val_mask_ap50_per_class'])
         print('done: weights are NON-COMMERCIAL (Vistas). Never copy into docs/models/.')
