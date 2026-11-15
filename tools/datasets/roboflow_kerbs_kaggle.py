@@ -3,7 +3,7 @@
 # it is never written in the notebook or committed. One line in a cell (Internet on):
 #   import urllib.request as u; exec(u.urlopen("https://raw.githubusercontent.com/SudhaMsr/MVP-VA/<commit>/tools/datasets/roboflow_kerbs_kaggle.py").read())
 # Polygons (segmentation sets) and keypoint boxes become plain YOLO boxes; "road" is dropped. Output: /kaggle/working/kerbs640.
-import os, glob, shutil, subprocess, sys
+import os, glob, shutil, subprocess, sys, zlib
 from PIL import Image
 
 # (workspace, project, version, {source class name (lower case): our class}, note)
@@ -84,7 +84,7 @@ def main():
                 lines = [l for l in lines if l]
                 od = os.path.join(OUT, split)
                 os.makedirs(os.path.join(od, 'images'), exist_ok=True); os.makedirs(os.path.join(od, 'labels'), exist_ok=True)
-                name = f'{tag}__{stem}'
+                name = f'{tag}__{stem[:60]}__{zlib.crc32(stem.encode()):08x}'  # long web file names broke the 255-byte limit
                 im = Image.open(img).convert('RGB'); im.thumbnail((SIDE, SIDE))
                 im.save(os.path.join(od, 'images', name + '.jpg'), 'JPEG', quality=90)
                 open(os.path.join(od, 'labels', name + '.txt'), 'w').write('\n'.join(lines) + ('\n' if lines else ''))
