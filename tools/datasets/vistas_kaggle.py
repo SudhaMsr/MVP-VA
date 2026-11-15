@@ -7,6 +7,12 @@
 # classes in WANT. Skips the large instance/panoptic PNGs. Reads the zip with range requests; resumes on re-run.
 # Poles and vehicles (round 5): WANT = [('pole', ['Pole', 'Utility Pole']), ('car', ['Car']), ('bus', ['Bus']), ('truck', ['Truck']),
 #   ('motorcycle', ['Motorcycle']), ('person', ['Person'])]; OUT_DIR = '/kaggle/working/vistas-roads640' (set both before the exec line).
+# Surfaces (one run, one link, for the later surface model; see tools/datasets/SURFACE_DATA.md): also set, before the exec line,
+#   WANT_SEG = [('road', ['Road']), ('sidewalk', ['Sidewalk']), ('terrain', ['Terrain']), ('curb', ['Curb']), ('curb_cut', ['Curb Cut']),
+#     ('crosswalk_plain', ['Crosswalk - Plain']), ('crosswalk_zebra', ['Lane Marking - Crosswalk', 'Crosswalk - Zebra']),
+#     ('manhole', ['Manhole']), ('pedestrian_area', ['Pedestrian Area']), ('bike_lane', ['Bike Lane'])]
+# WANT_SEG writes YOLO polygon (segmentation) labels to <split>/labels_seg/ in the same pass; the box labels in labels/ are unchanged.
+# Names missing from the dataset config are printed as NOT FOUND; check them in LIST_ONLY mode before the long run.
 # Set LIMIT_S = 60 for a speed test, LIST_ONLY = True to print what is inside first.
 import os, io, json, time, zlib, struct, threading, subprocess, sys, collections
 from concurrent.futures import ThreadPoolExecutor
@@ -27,6 +33,7 @@ WANT = globals().get('WANT') or [('kerb', ['Curb']), ('dropped_kerb', ['Curb Cut
         ('bin', ['Trash Can']), ('bench', ['Bench']), ('street_light', ['Street Light']), ('bike_rack', ['Bike Rack']),
         ('ped_signal', ['Traffic Light - Pedestrians', 'Traffic Light - Pedestrians (Front)', 'Traffic Light - Pedestrians (Side)'])]
 
+WANT_SEG = globals().get('WANT_SEG') or []
 t0 = time.time()
 infos = [i for i in RemoteZip(URL, timeout=300, support_suffix_range=False).infolist() if not i.filename.endswith('/')]
 print(f'{len(infos)} files, {sum(i.file_size for i in infos) / 1e9:.1f} GB, listed in {time.time() - t0:.0f}s', flush=True)
@@ -72,6 +79,13 @@ for k, (va, names) in enumerate(WANT):
     for nm in names:
         if nm.lower() in readable: cls_of[readable[nm.lower()]] = k
 print('class map:', {v: WANT[k][0] for v, k in cls_of.items()}, flush=True)
+cls_seg = {}
+for k, (va, names) in enumerate(WANT_SEG):
+    for nm in names:
+        if nm.lower() in readable: cls_seg[readable[nm.lower()]] = k
+if WANT_SEG:
+    print('segmentation map:', {v: WANT_SEG[k][0] for v, k in cls_seg.items()}, flush=True)
+    print('SEG NOT FOUND in config:', [va for k, (va, _) in enumerate(WANT_SEG) if k not in cls_seg.values()], flush=True)
 missing = [va for k, (va, _) in enumerate(WANT) if k not in cls_of.values()]
 if missing: print('NOT FOUND in config (check names):', missing, flush=True)
 
@@ -105,14 +119,21 @@ def do_block(blk):
         n, m = struct.unpack('<HH', data[r + 26:r + 30])
         raw = data[r + 30 + n + m: r + 30 + n + m + i.compress_size]
         body = zlib.decompressobj(-15).decompress(raw) if i.compress_type == 8 else raw
-        p = target(i); os.makedirs(os.path.dirname(p), exist_ok=True)
+        p = target(i); os.makedirs(os.path.dirname(p), exist_ok=True); seg_out = None
         try:
             if p.endswith('.jpg'):
                 im = Image.open(io.BytesIO(body)).convert('RGB'); im.thumbnail((SIDE, SIDE))
                 buf = io.BytesIO(); im.save(buf, 'JPEG', quality=QUALITY); out = buf.getvalue()
             else:
-                j = json.loads(body); W, H = j['width'], j['height']; rows = []
+                j = json.loads(body); W, H = j['width'], j['height']; rows = []; seg_rows = []
                 for o in j.get('objects', []):
+                    ks = cls_seg.get(o.get('label'))
+                    if ks is not None and o.get('polygon') and len(o['polygon']) >= 3:
+                        xs = [pt[0] for pt in o['polygon']]; ys = [pt[1] for pt in o['polygon']]
+                        if (max(xs) - min(xs)) * (max(ys) - min(ys)) / (W * H) >= 0.0005:
+                            pts = ' '.join(f'{min(1, max(0, pt[0] / W)):.5f} {min(1, max(0, pt[1] / H)):.5f}' for pt in o['polygon'])
+                            seg_rows.append(f'{ks} {pts}')
+                            with lock: boxes['seg:' + WANT_SEG[ks][0]] += 1
                     k = cls_of.get(o.get('label'))
                     if k is None or not o.get('polygon'): continue
                     xs = [pt[0] for pt in o['polygon']]; ys = [pt[1] for pt in o['polygon']]
@@ -121,9 +142,14 @@ def do_block(blk):
                     rows.append(f'{k} {(x1 + x2) / 2 / W:.6f} {(y1 + y2) / 2 / H:.6f} {(x2 - x1) / W:.6f} {(y2 - y1) / H:.6f}')
                     with lock: boxes[WANT[k][0]] += 1
                 out = ('\n'.join(rows) + '\n' if rows else '').encode()
+                if WANT_SEG:
+                    seg_out = ('\n'.join(seg_rows) + '\n' if seg_rows else '').encode()
         except Exception:
             with lock: st['err'] += 1
             continue
+        if seg_out is not None:
+            sp = p.replace(os.sep + 'labels' + os.sep, os.sep + 'labels_seg' + os.sep); os.makedirs(os.path.dirname(sp), exist_ok=True)
+            open(sp, 'wb').write(seg_out)
         open(p + '.part', 'wb').write(out); os.replace(p + '.part', p)
         with lock: st['files'] += 1; st['kept'] += len(out)
     with lock:
@@ -133,6 +159,10 @@ def do_block(blk):
 with ThreadPoolExecutor(THREADS) as ex: list(ex.map(do_block, blocks))
 open(os.path.join(OUT, 'data.yaml'), 'w').write(
     f"path: {OUT}\ntrain: train/images\nval: val/images\nnames:\n" + ''.join(f'  {k}: {va}\n' for k, (va, _) in enumerate(WANT)))
+if WANT_SEG:
+    open(os.path.join(OUT, 'data_seg.yaml'), 'w').write(
+        f"path: {OUT}\ntrain: train/images\nval: val/images\n# labels_seg/ holds the polygons; copy to labels/ in a separate folder to train segmentation\nnames:\n"
+        + ''.join(f'  {k}: {va}\n' for k, (va, _) in enumerate(WANT_SEG)))
 open(os.path.join(OUT, 'SOURCE.txt'), 'w').write(
     'Mapillary Vistas v2.0, CC BY-NC-SA 4.0 + Mapillary Research Use Licence. Non-commercial. CONFIDENTIAL: keep private.\n'
     'Images resized to 640 px (long side). YOLO boxes from v2.0 polygons for: ' + ', '.join(va for va, _ in WANT) + '.\n'
