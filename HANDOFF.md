@@ -533,3 +533,9 @@ uncommitted, on a local `fix/ios-safari` folder; its files were copied unchanged
     errors. Android sends WebM Opus as before. Script: `iphone.py` in the 12 Nov session scratchpad. 333 tests pass.
 - Not validated: the iPhone-specific app.js wiring in Safari; any real iPhone; the LINEAR16 recording path in `CloudListener.listen()`
   (no automated test: it needs a real microphone); whether Safari's own speech recogniser fallback works.
+
+## Phase 5 rod3 round 4 (15 Nov)
+- Version 4 of "VA P5 06 rod3 training 40 classes" (5h 46m, commit 1f6c428, PR #46): **G1 PASS**. Bus 17.2 to 24.5, Motorcycle 2.6 to 3.1, Truck 10.8 to 23.5, Person 39.8 to 44.2, Bike 13.6 to 19.4. Nothing dropped.
+- Still weak: Electrical Pole 0 on SANPO (33% mAP50 held-out), dropped_kerb about 5% held-out, kerb 6% on SANPO.
+- Cause of poles: `tools/datasets/vistas_kaggle.py` never extracted poles (only Street Light, dropped as lamp heads), so the only pole pictures were Open Images close-ups. Fix for round 5 (this PR): set `WANT` and `OUT_DIR` (see the comment at the top of the script) to also extract Pole + Utility Pole, Car, Bus, Truck, Motorcycle, Person into a private dataset `vistas-roads-yolo640`. Needs a fresh signed Vistas link, pasted by the owner into the notebook cell. Not yet run.
+- Nothing is in the app: rod3_416.onnx is not downloaded and PR #39 is not merged.

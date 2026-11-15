@@ -32,6 +32,8 @@
       "_note": "tools/fetch_openimages.py --classes truck,pole: more Truck boxes (rod3 lost Truck AP on 37 val boxes) and poles (Phase 2 has no pole boxes, so rod2 never learned Electrical Pole)"},
     "open-images-bus-motorcycle": {"bus": "Bus", "motorcycle": "Motorcycle",
       "_note": "tools/fetch_openimages.py --classes bus,motorcycle (round 3 G1 fail: Bus 17.2 to 12.0, Motorcycle 2.6 to 1.1 after ~4,000 Open Images trucks swamped them; trucks-poles now capped at 3,000 pictures)"},
+    "vistas-roads-yolo640": {"pole": "Electrical Pole", "car": "Car", "bus": "Bus", "truck": "Truck", "motorcycle": "Motorcycle", "person": "Person",
+      "_note": "tools/datasets/vistas_kaggle.py with WANT = Pole + Utility Pole, Car, Bus, Truck, Motorcycle, Person (round 4: poles 0 on SANPO; the first Vistas pass kept only Street Light, dropped as lamp heads, so the only pole pictures were Open Images close-ups). Private, non-commercial licence."},
     "open-images-va-classes": {"stairs": "Stairs", "pole": "Electrical Pole", "ashcan": "Dustbin", "bench": "Bench", "fire_hydrant": "Fire hydrant",
                                "plant_pot": "Plant Pot",
                                "_dropped": "wheelchair, scooter (could be a kick scooter), skateboard, door, parking_meter; ped_signal dropped because the Open Images class is every 'Traffic light', including the ones for cars"},

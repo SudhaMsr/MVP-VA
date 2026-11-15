@@ -5,6 +5,8 @@
 #   import urllib.request as u; exec(u.urlopen('https://raw.githubusercontent.com/SudhaMsr/MVP-VA/<commit>/tools/datasets/vistas_kaggle.py').read())
 # Keeps: every training/validation image resized to 640 px on the long side, and YOLO boxes (from the v2.0 polygons) for the
 # classes in WANT. Skips the large instance/panoptic PNGs. Reads the zip with range requests; resumes on re-run.
+# Poles and vehicles (round 5): WANT = [('pole', ['Pole', 'Utility Pole']), ('car', ['Car']), ('bus', ['Bus']), ('truck', ['Truck']),
+#   ('motorcycle', ['Motorcycle']), ('person', ['Person'])]; OUT_DIR = '/kaggle/working/vistas-roads640' (set both before the exec line).
 # Set LIMIT_S = 60 for a speed test, LIST_ONLY = True to print what is inside first.
 import os, io, json, time, zlib, struct, threading, subprocess, sys, collections
 from concurrent.futures import ThreadPoolExecutor
@@ -17,11 +19,11 @@ from remotezip import RemoteZip
 from PIL import Image
 
 URL = globals()['VISTAS_URL']
-OUT = '/kaggle/working/vistas640'
+OUT = globals().get('OUT_DIR', '/kaggle/working/vistas640')
 SIDE, QUALITY, THREADS, GAP, BLOCK = 640, 88, 12, 1 << 20, 48 << 20
 LIMIT_S = globals().get('LIMIT_S', 11.3 * 3600)
 # Vision Assist names -> Vistas v2.0 readable names (matched case-insensitively against config_v2.0.json)
-WANT = [('kerb', ['Curb']), ('dropped_kerb', ['Curb Cut']), ('pothole', ['Pothole']), ('manhole', ['Manhole']),
+WANT = globals().get('WANT') or [('kerb', ['Curb']), ('dropped_kerb', ['Curb Cut']), ('pothole', ['Pothole']), ('manhole', ['Manhole']),
         ('bin', ['Trash Can']), ('bench', ['Bench']), ('street_light', ['Street Light']), ('bike_rack', ['Bike Rack']),
         ('ped_signal', ['Traffic Light - Pedestrians', 'Traffic Light - Pedestrians (Front)', 'Traffic Light - Pedestrians (Side)'])]
 
