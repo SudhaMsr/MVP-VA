@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Model speed test - Vision Assist</title>
+<style>
+  body { background:#000; color:#fff; font-family:system-ui,sans-serif; font-size:1.2rem; line-height:1.5; padding:16px; max-width:640px; margin:0 auto; }
+  h1 { font-size:1.8rem; } button, input { font-size:1.2rem; min-height:64px; width:100%; margin:8px 0; }
+  button { background:#ffd400; color:#000; border:0; border-radius:12px; font-weight:700; }
+  pre { white-space:pre-wrap; border:2px solid #ffd400; border-radius:12px; padding:10px; }
+</style>
+</head>
+<body>
+<h1>Model speed test</h1>
+<p>Pick a .onnx file from your phone. Nothing is uploaded; the file stays on the device.
+This page only times the model on random input. It does not use the camera.</p>
+<input id="f" type="file" accept=".onnx">
+<button id="go">Run 20 timings</button>
+<pre id="out" role="status" aria-live="polite">Waiting for a file.</pre>
+<script>window.ORT_BASE = new URL('vendor/ort/', location.href).href;</script>
+<script src="vendor/ort/ort.min.js"></script>
+<script>
+const out = document.getElementById('out');
+const say = t => { out.textContent = t; };
+document.getElementById('go').onclick = async () => {
+  const file = document.getElementById('f').files[0];
+  if (!file) { say('Choose a .onnx file first.'); return; }
+  try {
+    ort.env.wasm.wasmPaths = window.ORT_BASE;
+    ort.env.wasm.simd = true;
+    ort.env.wasm.numThreads = 1;
+    say('Loading ' + file.name + ' (' + (file.size/1048576).toFixed(1) + ' MB)...');
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const t0 = performance.now();
+    const s = await ort.InferenceSession.create(buf, { executionProviders: ['wasm'], graphOptimizationLevel: 'all' });
+    const loadMs = performance.now() - t0;
+    const name = s.inputNames[0];
+    const m = /(\d{3})\.onnx$/.exec(file.name); const sz = m ? +m[1] : 416;
+    const x = new ort.Tensor('float32', new Float32Array(3*sz*sz).fill(0.5), [1,3,sz,sz]);
+    await s.run({ [name]: x }); // warm-up
+    const ts = [];
+    for (let i = 0; i < 20; i++) { say('Run ' + (i+1) + ' of 20...'); const a = performance.now(); await s.run({ [name]: x }); ts.push(performance.now() - a); }
+    ts.sort((a,b)=>a-b);
+    say([file.name, 'input ' + sz + ' px', 'load ' + loadMs.toFixed(0) + ' ms',
+      'median ' + ts[10].toFixed(0) + ' ms', 'p95 ' + ts[18].toFixed(0) + ' ms', 'fastest ' + ts[0].toFixed(0) + ' ms',
+      'slowest ' + ts[19].toFixed(0) + ' ms', '', navigator.userAgent].join('\n'));
+  } catch (e) { say('Error: ' + e.message); }
+};
+</script>
+</body>
+</html>
