@@ -116,7 +116,11 @@ for slug, key in SOURCES.items():
     smap = LM['sources'].get(key, {})
     if '_todo' in smap: report['skipped_sources'][key] = smap['_todo']; print('skip', key, '(map not filled)', flush=True); continue
     identity = smap.get('identity', False)
-    root = kagglehub.dataset_download(slug); n0 = len(items)
+    try:
+        root = kagglehub.dataset_download(slug)
+    except Exception as e:  # a registered source that is not uploaded yet (e.g. vistas-roads-yolo640) must not stop the build
+        report['skipped_sources'][key] = f'not available: {type(e).__name__}'; print('skip', key, '(dataset not available)', flush=True); continue
+    n0 = len(items)
     skip = smap.get('_skip_folders', [])
     def make_lut(d, names):
         """class id -> Phase 5 id. From the source's names when it has a data.yaml, else from '_ids' / '_ids_by_folder'."""
