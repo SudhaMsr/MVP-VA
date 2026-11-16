@@ -533,3 +533,18 @@ uncommitted, on a local `fix/ios-safari` folder; its files were copied unchanged
     errors. Android sends WebM Opus as before. Script: `iphone.py` in the 12 Nov session scratchpad. 333 tests pass.
 - Not validated: the iPhone-specific app.js wiring in Safari; any real iPhone; the LINEAR16 recording path in `CloudListener.listen()`
   (no automated test: it needs a real microphone); whether Safari's own speech recogniser fallback works.
+
+## Surface segmentation pilot (15 Nov, not started)
+- Why: rounds 3 to 5 of the 40-class box model each broke a different class, and thin things (kerbs, dropped kerbs) are unlearnable as
+  tiny boxes but fine as mask regions. This pilot asks whether surfaces beat boxes. It is an ARCHITECTURE EXPERIMENT, not a release.
+- Data: Vistas polygons in the private Kaggle dataset `vistas-roads-yolo640` (`labels_seg/`, `data_seg.yaml`; 10 surface classes, we use 4:
+  road, sidewalk, curb, curb_cut). Vistas is non-commercial and confidential, so the weights (`ncseg_*`) can NEVER ship.
+  `tests/ncseg_guard.test.js` fails if any `ncseg_` file is in `docs/models/` or named in `docs/js/`.
+- Code: `tools/phase5/train_seg.py` (yolo11n-seg, 640 px, exports ONNX at 416 and 640 to time on the Poco). Does not use `build_trainset.py`,
+  which flattens polygons to boxes. Data prep is tested locally (remap, guard); the training part is not run yet.
+- Scoring, still to do: per-class mIoU on the 584 SANPO walker frames needs masks (we only hold their boxes: `sanpo_to_yolo.py`), then the
+  walk metrics from `tools/score_walk.mjs` (contacts, wrong turns). SANPO is never trained on in this pilot, so the benchmark stays clean.
+- SANPO as training data (only if the pilot wins): dataset page says CC BY 4.0 "for any purpose"; the synthetic Parallel Domain part has no
+  separate statement, so ask sanpo_dataset@google.com (the paper's contact) before using it. Hold out whole sessions, never frames.
+  The full download is ~6 TB (gs://gresearch/sanpo_dataset/v0); use selective rsync, not a Kaggle notebook.
+- Unverified: the Mobilio/Harvard error figures (8.0% vs 12.2%) trace to one secondary source. Do not use them in the deck yet.
