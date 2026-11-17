@@ -548,3 +548,20 @@ uncommitted, on a local `fix/ios-safari` folder; its files were copied unchanged
   separate statement, so ask sanpo_dataset@google.com (the paper's contact) before using it. Hold out whole sessions, never frames.
   The full download is ~6 TB (gs://gresearch/sanpo_dataset/v0); use selective rsync, not a Kaggle notebook.
 - Unverified: the Mobilio/Harvard error figures (8.0% vs 12.2%) trace to one secondary source. Do not use them in the deck yet.
+
+## Phase 5 rod4 and rod4b (15-17 Nov): 42 classes, surfaces added
+- rod4 = rod3's 40 classes plus sidewalk and zebra_crossing (42 classes, 416 px, two-stage fine-tune). Trained in notebook
+  notebookbe40188e4c Version 2 (6 h 23 m on T4). It passed gate G1 on every old class except Bus (17.2 -> 14.5 AP50, limit 1).
+- rod4b = rod4 plus 8 epochs with every training picture that has a Bus repeated 2 more times (`tools/phase5/finetune_rod4.py`).
+  Version 3 (2 h 2 m). Gate G1 PASS. Bus 17.2 -> 16.4. Overall mixed val AP50 47.9% (rod4 48.3%). SANPO (walker's eye, never
+  trained on) mean AP50 10.3% (rod4 10.8%). Retraining the same recipe does not raise the percentages; real gains need better
+  labels for the weak classes, or segmentation for surfaces (box scores: sidewalk about 30%, zebra about 10%, dropped_kerb about 5%).
+- Finding: rod4's SANPO score was silently skipped, because baseline_eval.py looks for a folder called `sanpo_yolo` and the
+  dataset has images/ and labels/ at its top. finetune_rod4.py passes the path directly (baseline_eval.py itself is not patched yet).
+- Kaggle (all PRIVATE): `sudharanimsr/rod4-v2-weights` (rod4 best.pt and ONNX), `sudharanimsr/rod4b-weights` (rod4b best.pt,
+  rod4b_416.onnx, gate and score JSONs). A commit run cannot attach new datasets; attach them first in an interactive session.
+- GPU quota is 30 h a week; about 1 h was left after rod4b. CPU sessions use none.
+- Not done: nothing from rod4/rod4b is in the app. Next: app side on a branch (42 names, a test-only link, hedged short cues for
+  weak classes, never "safe" or "clear"), once rod4b_416.onnx is supplied from the dataset page.
+- Licences: Vistas is CC BY-NC-SA plus Mapillary Research (non-commercial, fine for a free research MVP, not for selling);
+  SANPO CC BY 4.0 (test only); Outdoor Navigation CC BY 4.0.

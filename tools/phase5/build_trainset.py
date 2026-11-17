@@ -48,10 +48,12 @@ SOURCES = globals().get('SOURCES', {
     'guidedogrobot/guidetwsi': 'guidetwsi',
     'sudharanimsr/pedestrian-lights-yolo640': 'pedestrian-lights-yolo640',
     'sudharanimsr/open-images-trucks-poles': 'open-images-trucks-poles',
+    'sudharanimsr/vistas-surfaces-labels': 'vistas-surfaces-labels',  # rod4: labels only; its pictures come from vistas-roads-yolo640 ('_images_also')
+    'sudharanimsr/surfaces-raw-public': 'outdoor-navigation',
 })
 MAX_PER_SOURCE = globals().get('MAX_PER_SOURCE', {'vip-mobility360-640px': 15000, 'potholes-yolo640': 4000,
                                                    'barcelona-streets-kerbs-drops-yolo640': 8000, 'vistas-va-yolo640': 10000,
-                                                   'pedestrian-lights-yolo640': 8000})
+                                                   'pedestrian-lights-yolo640': 8000, 'vistas-surfaces-labels': 8000})
 MAX_EVAL = globals().get('MAX_EVAL', 600)  # val and test pictures per source and split (VIP alone has 45k): keeps each epoch's val short
 IMG = ('.jpg', '.jpeg', '.png', '.webp')
 # rod2 classes with no boxes in the Phase 2 data (audit 13 Nov): rod2 never learned them, so it must not pseudo-label them
@@ -112,6 +114,7 @@ for slug, key in SOURCES.items():
     if '_todo' in smap: report['skipped_sources'][key] = smap['_todo']; print('skip', key, '(map not filled)', flush=True); continue
     identity = smap.get('identity', False)
     root = kagglehub.dataset_download(slug); n0 = len(items)
+    extra_roots = [kagglehub.dataset_download(x) for x in smap.get('_images_also', [])]  # pictures kept in another dataset (labels-only sources)
     skip = smap.get('_skip_folders', [])
     def make_lut(d, names):
         """class id -> Phase 5 id. From the source's names when it has a data.yaml, else from '_ids' / '_ids_by_folder'."""
@@ -161,7 +164,7 @@ for slug, key in SOURCES.items():
         if lut is None: continue
         if index is None:
             index = {}
-            for d2, _, f2 in os.walk(root):
+            for d2, _, f2 in (x for r in [root] + extra_roots for x in os.walk(r)):
                 for f in f2:
                     if f.lower().endswith(IMG): index.setdefault(os.path.splitext(f)[0], os.path.join(d2, f))
         raw = read_many([os.path.join(d, f) for f in txts])

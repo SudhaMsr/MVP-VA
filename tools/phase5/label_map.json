@@ -4,7 +4,8 @@
     "Bike", "Building", "Car", "Person", "Stairs", "Traffic sign", "Electrical Pole", "Road", "Motorcycle", "Dustbin",
     "Dog", "Manhole", "Tree", "Guard rail", "Pedestrian crosswalk", "Truck", "Bus", "Bench", "Traffic Cone", "Fire hydrant",
     "Teraffic Barrel", "Plant Pot", "Electrical Box", "Chair", "Bicycle Rack", "Bollard", "Downstairs", "Upstairs", "Red light", "Green light",
-    "kerb", "kerb_drop", "dropped_kerb", "pothole", "pavement_crack", "e_scooter", "construction_barrier", "tactile_paving", "ped_signal", "a_board"
+    "kerb", "kerb_drop", "dropped_kerb", "pothole", "pavement_crack", "e_scooter", "construction_barrier", "tactile_paving", "ped_signal", "a_board",
+    "sidewalk", "zebra_crossing"
   ],
   "new_class_reasons": {
     "kerb": "71% report poor pavements; RNIB asks for detectable kerbs (In My Way 2025)",
@@ -12,6 +13,8 @@
     "dropped_kerb": "crossings: a barrier for 44%, vital for 89% (RNIB 2025)",
     "pothole": "71% poor pavements (RNIB 2025)",
     "pavement_crack": "71% poor pavements (RNIB 2025)",
+    "sidewalk": "added 16 Nov (rod4): pavement edge and where the pavement is; SANPO (test only) has it labelled; Vistas and Outdoor Navigation train it",
+    "zebra_crossing": "added 16 Nov (rod4): a marked zebra crossing, told apart from plain crossings (class 14); only Vistas separates the two",
     "e_scooter": "81% say bikes or e-scooters left on pavements make journeys harder (RNIB 2025); 78% met one (Guide Dogs 2022)",
     "construction_barrier": "56% temporary or moveable obstacles (RNIB 2025)",
     "tactile_paving": "crossings: blister paving marks UK crossing points",
@@ -37,11 +40,16 @@
                               "_names_from": "no data.yaml; ids 0-7 = Board, Bollard, EScooter, Pothole, Puddle, RoadWork, TrashBag, WheelieBin from the XML <name> of 2,293 sampled train files (every vote unanimous) and the file-name prefixes; RoadWork pictures are barriers and road-works signs; checked by eye 13 Nov",
                               "_dropped": "4 Puddle and 6 TrashBag (not in the MVP scope; data kept for later). About one box per picture: other objects in a VIP picture are usually not labelled"},
     "guidetwsi": {"braille": "tactile_paving", "_ids_by_folder": {"RDome-2k": {"0": "tactile_paving"}}, "_skip_folders": ["SDome-15k"],
-                  "_note": "RBar-22k (real bar paving, class named braille) and RDome-2k (real dome paving) are polygons, turned into boxes; SDome-15k is synthetic and left out of the MVP"}
+                  "_note": "RBar-22k (real bar paving, class named braille) and RDome-2k (real dome paving) are polygons, turned into boxes; SDome-15k is synthetic and left out of the MVP"},
+    "vistas-surfaces-labels": {"sidewalk": "sidewalk", "curb": "kerb", "curb_cut": "dropped_kerb", "crosswalk_plain": "Pedestrian crosswalk", "crosswalk_zebra": "zebra_crossing",
+      "_images_also": ["sudharanimsr/vistas-roads-yolo640"],
+      "_note": "NON-COMMERCIAL (Vistas). Polygons from vistas-roads-yolo640 labels_seg, made by tools/phase5/vistas_surface_labels_kaggle.py, turned into boxes by the builder. road, terrain, manhole, pedestrian_area and bike_lane are left out on purpose (Road is never spoken; manhole already comes from vistas-va-yolo640)."},
+    "outdoor-navigation": {"crosswalk": "Pedestrian crosswalk", "sidewalk": "sidewalk",
+      "_note": "Outdoor Navigation Dataset, Zenodo 14043015, CC BY 4.0 (Mihai Craciunescu, UPB), in sudharanimsr/surfaces-raw-public. road and pedestrian left out. ramp left out until its pictures are looked at (it may be wheelchair ramps, not dropped kerbs)."}
   },
   "test_only": {
     "sanpo-walker-view-test-subset": {"curb": "kerb", "pedestrian": "Person", "stairs": "Stairs", "traffic sign": "Traffic sign", "pole": "Electrical Pole",
-                                      "bike rack": "Bicycle Rack", "tree": "Tree", "guard rail/road barrier": "Guard rail", "crosswalk": "Pedestrian crosswalk",
+                                      "bike rack": "Bicycle Rack", "tree": "Tree", "guard rail/road barrier": "Guard rail", "crosswalk": "Pedestrian crosswalk", "sidewalk": "sidewalk",
                                       "_groups": {"vehicle": ["Car", "Truck", "Bus", "Motorcycle"], "traffic light": ["Red light", "Green light", "ped_signal"]},
                                       "_note": "semantic classes (curb, guard rail) have no instance ids: one box per connected patch above a minimum size"},
     "bristol-mapillary-test-set": {"_note": "no labels: pre-labelled by a separate open-vocabulary detector, then corrected by Claude on a stated sample"}
