@@ -33,7 +33,14 @@ def find(name):
     return next((p for p in glob.glob(f'/kaggle/input/**/{name}', recursive=True) if os.path.isdir(p)), None)
 
 
-TESTSETS = {k: v for k, v in {'sanpo': find('sanpo_yolo'), 'bristol': find('bristol_reviewed')}.items() if v}
+def find_sanpo():
+    # The Kaggle dataset 'sanpo-test-boxes-phase5-*' has images/ and labels/ at its top; older runs used a folder 'sanpo_yolo'.
+    hit = find('sanpo_yolo')
+    if hit: return hit
+    return next((p for p in glob.glob('/kaggle/input/**/sanpo-test-boxes-phase5*', recursive=True) if os.path.isdir(f'{p}/images')), None)
+
+
+TESTSETS = {k: v for k, v in {'sanpo': find_sanpo(), 'bristol': find('bristol_reviewed')}.items() if v}
 TESTSETS = globals().get('ONLY_TESTSETS') or {**TESTSETS, **globals().get('EXTRA_TESTSETS', {})}  # e.g. {'phase2_val': '/kaggle/working/g1'}
 
 
