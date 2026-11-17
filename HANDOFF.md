@@ -552,8 +552,10 @@ uncommitted, on a local `fix/ios-safari` folder; its files were copied unchanged
 ## rod4b in the app (17 Nov, branch feat/rod4-app-cues, test link only)
 - `?slow=rod4` swaps the slow lane's model rod2 -> rod4b (`pickSecondary`, `MODELS.rod4`). Default users are unchanged. If
   `docs/models/rod4_416.onnx` is missing the app logs `slow-model-error|rod4` and falls back to rod2.
-- **The model file is NOT in the repo yet.** Download `rod4b_416.onnx` (12 MB) from the private Kaggle dataset
-  sudharanimsr/rod4b-weights, save it as `docs/models/rod4_416.onnx`, run `python3 tools/stamp.py` (adds it to the cache list), commit.
+- **The model file is in the repo (added 17 Nov):** `docs/models/rod4_416.onnx` is `rod4b_416.onnx` from the private Kaggle dataset
+  sudharanimsr/rod4b-weights (12.7 MB, sha256 03398c23...9eff; output [1, 46, 3549] = 4 box values + 42 classes at 416 px). Checked in
+  onnxruntime on the server; a real in-browser run was not possible there (no route to the onnxruntime-web CDN), so check the
+  session log for `slow-model-ready|rod4` on the Poco.
 - Cues (`docs/js/rod4cues.js`, config `ROD4`): kerb, kerb_drop, pothole, construction_barrier, a_board, e_scooter. Hedge wording, no
   distance, in the path and low in the picture, minScore 0.50-0.55 in two slow runs in a row, once per encounter, priority 2, kind
   'weak' (so quiet mode is silent), inside the normal talk budget. Stairs and vehicles still come first. Log-only (`watch-detect`):
