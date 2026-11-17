@@ -1,6 +1,6 @@
 // Vision Assist - app wiring: camera, detection loop, speech, voice commands, error handling.
 // Rule for this file: every failure is spoken. No silent states.
-import { CONFIG, MODELS, pickModel, canonical, SECONDARY, TERTIARY, WATCH_CLASSES, HAZARD, GOOGLE_KEY, FEATURES, IGNORE_FAST, hazardOnByDefault } from './config.js';
+import { CONFIG, MODELS, pickModel, pickSecondary, canonical, SECONDARY, TERTIARY, WATCH_CLASSES, ROD4, HAZARD, GOOGLE_KEY, FEATURES, IGNORE_FAST, hazardOnByDefault } from './config.js';
 import { filterAllowed, mergeLanes, confirmSlow } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
@@ -34,6 +34,7 @@ import { CloudVoice, WARM_LINES } from './cloudtts.js';
 import { routeOutput, OUTPUT_MODES, OUTPUT_NAMES, outputText, NO_VIBRATE_TEXT } from './output.js';
 import { MotionGate, MOTION_DENIED_TEXT, unlockAudio, WakeNotice, isIOS } from './platform.js';
 import { hazardCandidates } from './hazardalerts.js';
+import { rod4Confirm, rod4Candidates } from './rod4cues.js';
 import { floorDistance, pitchFromBeta, parseHeight, cameraHeightM, PitchCalibrator } from './floordist.js';
 
 const params = new URLSearchParams(location.search);
@@ -117,6 +118,7 @@ function floorFor(tr, frameH) {
 }
 let fpsTick = { t: 0, frames: 0 };
 const batteryNow = () => (battery && battery.battery ? { level: battery.battery.level, charging: !!battery.battery.charging } : { level: null, charging: false });
+let SLOW = pickSecondary(params.get('slow')); // ?slow=rod4: rod4b in the slow lane (test link); rod2 otherwise or if rod4 will not load
 const USE_SLOW = params.get('lane') !== 'off' && MODEL_KEY !== SECONDARY.model;
 let stream = null;
 let recognition = null;
@@ -387,15 +389,18 @@ function loadLanes() {
   if (!USE_SLOW || lanesLoading) return lanesLoading;
   lanesLoading = (async () => {
     if (!slowDetector) {
-      try {
-        const sm = MODELS[SECONDARY.model];
-        const sd = new Detector(window.ort, SECONDARY.size, sm.names);
-        await sd.load(sm.url(SECONDARY.size), [EP]);
-        slowDetector = sd;
-        logEvent('slow-model-ready', String(Math.round(performance.now())));
-      } catch (e) {
-        logEvent('slow-model-error', e && e.message);
-        if (state.running) say('Stairs and manhole detection could not load. Other detection is working.', 'status');
+      for (const spec of SLOW === SECONDARY ? [SECONDARY] : [SLOW, SECONDARY]) {
+        try {
+          const sm = MODELS[spec.model];
+          const sd = new Detector(window.ort, spec.size, sm.names);
+          await sd.load(sm.url(spec.size), [EP]);
+          slowDetector = sd; SLOW = spec;
+          logEvent('slow-model-ready', `${spec.model}|${Math.round(performance.now())}`);
+          break;
+        } catch (e) {
+          logEvent('slow-model-error', `${spec.model}|${e && e.message}`);
+          if (spec === SECONDARY && state.running) say('Stairs and manhole detection could not load. Other detection is working.', 'status');
+        }
       }
     }
     if (USE_DEPTH && !depthLane) {
@@ -426,7 +431,7 @@ function prefetchAssets() {
   const go = () => {
     try {
       const urls = [MODEL.url(SIZE)];
-      if (USE_SLOW) urls.push(MODELS[SECONDARY.model].url(SECONDARY.size));
+      if (USE_SLOW) urls.push(MODELS[SLOW.model].url(SLOW.size));
       if (HAZARD_ON_BY_DEFAULT && params.get('hazard') !== 'off') urls.push(HAZARD.file); // only once a class may speak
       urls.forEach((u) => warmModel(u).catch(() => {}));
     } catch (_) { /* best effort only */ }
@@ -455,14 +460,15 @@ async function loop() {
     if (!state.running) return; // stopped while this frame was in flight
     frameCount += 1; perf.frame();
     // In slow-phone mode the extra lanes run half as often (the hazard lane not at all); the main lane never slows.
-    if (slowDetector && performance.now() - slow.ranAt >= slowMode.every(SECONDARY.everyMs)) {
+    if (slowDetector && performance.now() - slow.ranAt >= slowMode.every(SLOW.everyMs)) {
       slow.ranAt = performance.now();
       try {
-        const r = await slowDetector.detect(el.video, SECONDARY.conf, CONFIG.nmsIou);
+        const r = await slowDetector.detect(el.video, SLOW.conf, CONFIG.nmsIou);
         perf.lane('rod2', performance.now() - slow.ranAt);
-        logWatchClasses(r.dets, WATCH_CLASSES.rod2);
-        const c = confirmSlow(filterAllowed(r.dets, SECONDARY.classes), slow.prevNames, SECONDARY.confirm || {});
+        logWatchClasses(r.dets, WATCH_CLASSES[SLOW.model] || WATCH_CLASSES.rod2);
+        const c = confirmSlow(filterAllowed(r.dets, SLOW.classes), slow.prevNames, SLOW.confirm || {});
         slow.dets = c.dets; slow.prevNames = c.names;
+        if (SLOW.model === 'rod4') { const rc = rod4Confirm(r.dets, slow.rodPrev, ROD4.speak); slow.rod = rc.dets; slow.rodPrev = rc.names; }
         slow.t = performance.now();
       } catch (e) { logEvent('slow-frame-error', e && e.message); }
       if (!state.running) return;
@@ -497,12 +503,15 @@ async function loop() {
       if (!state.running) return;
     }
     const t = performance.now();
-    const dets = mergeLanes(mergeLanes(fast, slow, t, SECONDARY.maxAgeMs), coco, t, TERTIARY.maxAgeMs);
+    const dets = mergeLanes(mergeLanes(fast, slow, t, SLOW.maxAgeMs), coco, t, TERTIARY.maxAgeMs);
     const tracks = tracker.update(dets, t, width, height);
     state.scene = { tracks, w: width, h: height, t };
     const hzFresh = hazard.confirmed && hazard.t != null && t - hazard.t <= HAZARD.maxAgeMs;
     const forEngine = DIST_FLOOR ? tracks.map((tr) => (VEHICLES.has(tr.name) ? tr : { ...tr, dist: floorFor(tr, height) ?? tr.dist })) : tracks;
-    const alert = engine.next(forEngine, width, height, t, hzFresh ? hazardCandidates(hazard.confirmed, width, height, HAZARD.speakClasses, { corridor: CONFIG.corridor }) : []);
+    const rodFresh = SLOW.model === 'rod4' && slow.rod && slow.t != null && t - slow.t <= SLOW.maxAgeMs;
+    const extra = (hzFresh ? hazardCandidates(hazard.confirmed, width, height, HAZARD.speakClasses, { corridor: CONFIG.corridor }) : [])
+      .concat(rodFresh ? rod4Candidates(slow.rod, width, height, ROD4.speak, { corridor: CONFIG.corridor }) : []);
+    const alert = engine.next(forEngine, width, height, t, extra);
     if (alert && (alert.urgent || performance.now() > state.talkUntil)) { // routine alerts wait while the walker is speaking
       const route = routeOutput(alert.urgent ? 'urgent' : 'normal', out); // vibration only: buzz instead, but vehicles are still spoken
       if (alert.urgent) cues.play('urgent');
@@ -724,7 +733,7 @@ async function start({ fromTap = false } = {}) {
   state.errors = 0;
   state.lastFrameOk = performance.now();
   tracker.tracks = [];
-  slow.dets = []; slow.t = null; slow.ranAt = 0; slow.prevNames = null; frameCount = 0;
+  slow.dets = []; slow.t = null; slow.ranAt = 0; slow.prevNames = null; slow.rod = []; slow.rodPrev = null; frameCount = 0;
   hazard.confirmed = []; hazard.prevNames = null; hazard.t = null;
   perf.reset(performance.now()); slowMode.reset(); fpsTick = { t: 0, frames: 0 }; walk.start(Date.now(), batteryNow().level);
   engine.reset();

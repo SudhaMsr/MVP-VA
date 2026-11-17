@@ -549,6 +549,20 @@ uncommitted, on a local `fix/ios-safari` folder; its files were copied unchanged
   The full download is ~6 TB (gs://gresearch/sanpo_dataset/v0); use selective rsync, not a Kaggle notebook.
 - Unverified: the Mobilio/Harvard error figures (8.0% vs 12.2%) trace to one secondary source. Do not use them in the deck yet.
 
+## rod4b in the app (17 Nov, branch feat/rod4-app-cues, test link only)
+- `?slow=rod4` swaps the slow lane's model rod2 -> rod4b (`pickSecondary`, `MODELS.rod4`). Default users are unchanged. If
+  `docs/models/rod4_416.onnx` is missing the app logs `slow-model-error|rod4` and falls back to rod2.
+- **The model file is in the repo (added 17 Nov):** `docs/models/rod4_416.onnx` is `rod4b_416.onnx` from the private Kaggle dataset
+  sudharanimsr/rod4b-weights (12.7 MB, sha256 03398c23...9eff; output [1, 46, 3549] = 4 box values + 42 classes at 416 px). Checked in
+  onnxruntime on the server; a real in-browser run was not possible there (no route to the onnxruntime-web CDN), so check the
+  session log for `slow-model-ready|rod4` on the Poco.
+- Cues (`docs/js/rod4cues.js`, config `ROD4`): kerb, kerb_drop, pothole, construction_barrier, a_board, e_scooter. Hedge wording, no
+  distance, in the path and low in the picture, minScore 0.50-0.55 in two slow runs in a row, once per encounter, priority 2, kind
+  'weak' (so quiet mode is silent), inside the normal talk budget. Stairs and vehicles still come first. Log-only (`watch-detect`):
+  dropped_kerb, pavement_crack, tactile_paving, ped_signal, sidewalk, zebra_crossing.
+- Not yet measured on a phone: speed of rod4b in the slow lane (same size as rod2, so should be similar), false-alarm rate on a walk.
+  Check the session log for `watch-detect` before widening what speaks. The limits line (LIMITS_TEXT) stays true and unchanged.
+
 ## Surface segmentation pilot result (16 Nov) - NON-COMMERCIAL, experiment only, nothing in the app
 - Pilot: yolo11n-seg, Vistas road/sidewalk/curb/curb_cut, 25 epochs, notebook3c111aed2e Version 1 (private dataset `ncseg-surface-pilot-v1`, files ncseg_best.pt, ncseg_best_416.onnx, ncseg_best_640.onnx).
 - Vistas val (2000 pictures) mask mAP50: all 0.47, road 0.95, sidewalk 0.41, curb 0.40, curb_cut 0.12 (recall 13%).
