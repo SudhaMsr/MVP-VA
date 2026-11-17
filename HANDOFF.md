@@ -549,6 +549,20 @@ uncommitted, on a local `fix/ios-safari` folder; its files were copied unchanged
   The full download is ~6 TB (gs://gresearch/sanpo_dataset/v0); use selective rsync, not a Kaggle notebook.
 - Unverified: the Mobilio/Harvard error figures (8.0% vs 12.2%) trace to one secondary source. Do not use them in the deck yet.
 
+## Surface segmentation pilot result (16 Nov) - NON-COMMERCIAL, experiment only, nothing in the app
+- Pilot: yolo11n-seg, Vistas road/sidewalk/curb/curb_cut, 25 epochs, notebook3c111aed2e Version 1 (private dataset `ncseg-surface-pilot-v1`, files ncseg_best.pt, ncseg_best_416.onnx, ncseg_best_640.onnx).
+- Vistas val (2000 pictures) mask mAP50: all 0.47, road 0.95, sidewalk 0.41, curb 0.40, curb_cut 0.12 (recall 13%).
+- SANPO walker frames (584, never trained on), `tools/phase5/score_seg_sanpo.py`, conf 0.25, 640 px, pixel IoU vs human masks:
+  | Class | IoU strict | Precision | Recall | IoU 3px tolerance | Frames with GT / found |
+  |---|---|---|---|---|---|
+  | road | 0.124 | 0.126 | 0.873 | 0.127 | 336 / 306 |
+  | sidewalk | 0.507 | 0.597 | 0.771 | 0.519 | 347 / 264 |
+  | curb | 0.205 | 0.378 | 0.309 | 0.239 | 267 / 100 (37%) |
+  curb_cut has no SANPO class, so it is not scored here.
+- Reading: sidewalk transfers well. Kerb is far better than the box models (rod3 kerb on SANPO: AP50 0.061, near recall 9%; different metric, so a rough comparison only) but still misses most. Road over-predicts badly on SANPO (precision 0.13, recall 0.87): not yet checked whether SANPO labels much of that surface as "other walkable surface" / "paved trail" / "inaccessible surface" rather than road.
+- Phone speed test page: docs/seg-timing.html (merged in PR #49); not yet run on a phone.
+- Weights can never ship (Vistas non-commercial). Next only if wanted: check the road mismatch, then decide on a licence-clean training source (SANPO CC BY 4.0, synthetic part unconfirmed).
+
 ## Phase 5 rod4 and rod4b (15-17 Nov): 42 classes, surfaces added
 - rod4 = rod3's 40 classes plus sidewalk and zebra_crossing (42 classes, 416 px, two-stage fine-tune). Trained in notebook
   notebookbe40188e4c Version 2 (6 h 23 m on T4). It passed gate G1 on every old class except Bus (17.2 -> 14.5 AP50, limit 1).
