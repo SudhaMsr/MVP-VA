@@ -548,3 +548,15 @@ uncommitted, on a local `fix/ios-safari` folder; its files were copied unchanged
   separate statement, so ask sanpo_dataset@google.com (the paper's contact) before using it. Hold out whole sessions, never frames.
   The full download is ~6 TB (gs://gresearch/sanpo_dataset/v0); use selective rsync, not a Kaggle notebook.
 - Unverified: the Mobilio/Harvard error figures (8.0% vs 12.2%) trace to one secondary source. Do not use them in the deck yet.
+
+## rod4b in the app (17 Nov, branch feat/rod4-app-cues, test link only)
+- `?slow=rod4` swaps the slow lane's model rod2 -> rod4b (`pickSecondary`, `MODELS.rod4`). Default users are unchanged. If
+  `docs/models/rod4_416.onnx` is missing the app logs `slow-model-error|rod4` and falls back to rod2.
+- **The model file is NOT in the repo yet.** Download `rod4b_416.onnx` (12 MB) from the private Kaggle dataset
+  sudharanimsr/rod4b-weights, save it as `docs/models/rod4_416.onnx`, run `python3 tools/stamp.py` (adds it to the cache list), commit.
+- Cues (`docs/js/rod4cues.js`, config `ROD4`): kerb, kerb_drop, pothole, construction_barrier, a_board, e_scooter. Hedge wording, no
+  distance, in the path and low in the picture, minScore 0.50-0.55 in two slow runs in a row, once per encounter, priority 2, kind
+  'weak' (so quiet mode is silent), inside the normal talk budget. Stairs and vehicles still come first. Log-only (`watch-detect`):
+  dropped_kerb, pavement_crack, tactile_paving, ped_signal, sidewalk, zebra_crossing.
+- Not yet measured on a phone: speed of rod4b in the slow lane (same size as rod2, so should be similar), false-alarm rate on a walk.
+  Check the session log for `watch-detect` before widening what speaks. The limits line (LIMITS_TEXT) stays true and unchanged.

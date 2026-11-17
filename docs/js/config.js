@@ -13,6 +13,11 @@ export const ROD_NAMES = [
 // Phase 2: rod_best.pt fine-tuned on more images. The first 25 classes are unchanged; five are added at the end.
 export const ROD2_NAMES = [...ROD_NAMES, 'Bollard', 'Downstairs', 'Upstairs', 'Red light', 'Green light'];
 
+// Phase 5: rod4b (test link only, ?slow=rod4): the first 30 classes are rod2's, then the road-surface and hazard classes.
+// Order must match tools/phase5/label_map.json. The file docs/models/rod4_416.onnx is rod4b_416.onnx from the Kaggle dataset.
+export const ROD4_NAMES = [...ROD2_NAMES, 'kerb', 'kerb_drop', 'dropped_kerb', 'pothole', 'pavement_crack', 'e_scooter',
+  'construction_barrier', 'tactile_paving', 'ped_signal', 'a_board', 'sidewalk', 'zebra_crossing'];
+
 // Third lane: the standard COCO model (80 classes). Only the classes below are ever used; the file is optional.
 export const COCO_NAMES = ['person','bicycle','car','motorcycle','airplane','bus','train','truck','boat','traffic light','fire hydrant','stop sign','parking meter','bench','bird','cat','dog','horse','sheep','cow','elephant','bear','zebra','giraffe','backpack','umbrella','handbag','tie','suitcase','frisbee','skis','snowboard','sports ball','kite','baseball bat','baseball glove','skateboard','surfboard','tennis racket','bottle','wine glass','cup','fork','knife','spoon','bowl','banana','apple','sandwich','orange','broccoli','carrot','hot dog','pizza','donut','cake','chair','couch','potted plant','bed','dining table','toilet','tv','laptop','mouse','remote','keyboard','cell phone','microwave','oven','toaster','sink','refrigerator','book','clock','vase','scissors','teddy bear','hair drier','toothbrush'];
 export const CLASSES = WOTR_NAMES; // kept for older imports
@@ -24,6 +29,8 @@ export const MODELS = {
   rod: { names: ROD_NAMES, url: (size) => `models/rod${size}.onnx`, sizes: [] },
   rod2: { names: ROD2_NAMES, url: (size) => `models/rod2_${size}.onnx`, sizes: [416] },
   coco: { names: COCO_NAMES, url: (size) => `models/coco${size}.onnx`, sizes: [320] },
+  // Slow lane only (sizes stays empty so it can never be picked as the main model); see pickSecondary and ROD4.
+  rod4: { names: ROD4_NAMES, url: (size) => `models/rod4_${size}.onnx`, sizes: [] },
 };
 // ?model= and ?size= for supervisors: only a model and size whose file exists; anything else falls back to the default.
 export function pickModel(modelParam, sizeParam, fallbackSize) {
@@ -52,6 +59,28 @@ export const SECONDARY = {
   // (Phone footage, 31 Oct: plain paving scored up to 0.77 as stairs.) Retune once real stairs have been filmed.
   confirm: { stairs: { minScore: 0.80, runs: 2 } },
 };
+// ?slow=rod4 swaps the slow lane's model for rod4b (the same classes, thresholds and timing, plus the ROD4 cues below).
+// Anything else keeps rod2. If the rod4 file is missing the app falls back to rod2 (app.js loadLanes).
+export function pickSecondary(slowParam) { return slowParam === 'rod4' ? { ...SECONDARY, model: 'rod4' } : SECONDARY; }
+
+// rod4b's new classes. None of them reaches the tracker (SECONDARY.classes does not list them). The ones in speak are
+// spoken as a short hedge, never with a distance, and only when seen twice in a row at minScore or more, in the walking path
+// and low in the picture; once per encounter, inside the normal talk budget, and not in quiet mode (rod4cues.js).
+// They are weak: the box scores on UK footage are low (HANDOFF, 15-17 Nov), so each line ends by sending the walker to the cane.
+// The rest are only written to the session log ('watch-detect'): dropped_kerb, pavement_crack, tactile_paving, ped_signal
+// (a "crossing light" could be heard as a signal reading), sidewalk and zebra_crossing (surfaces: boxes find them poorly).
+export const ROD4 = {
+  speak: {
+    construction_barrier: { noun: 'roadworks barrier', minScore: 0.50, tail: 'Check with your cane.' },
+    a_board: { noun: 'A-board', minScore: 0.50, tail: 'Check with your cane.' },
+    e_scooter: { noun: 'e-scooter', minScore: 0.50, tail: 'Check with your cane.' },
+    kerb: { noun: 'kerb', minScore: 0.55, tail: 'Check with your cane.' },
+    kerb_drop: { noun: 'kerb drop', minScore: 0.55, tail: 'Check with your cane.' },
+    pothole: { noun: 'uneven ground', minScore: 0.55, tail: 'Take care.' },
+  },
+  logOnly: ['dropped_kerb', 'pavement_crack', 'tactile_paving', 'ped_signal', 'sidewalk', 'zebra_crossing'],
+};
+
 // The fast model's "blind_road" (tactile paving) fired on ordinary block paving in 51 of 178 phone frames (31 Oct).
 // Wrong information about tactile paving misleads a blind walker, so it is not used until a model passes on UK footage.
 export const IGNORE_FAST = ['blind_road'];
@@ -88,6 +117,8 @@ export function hazardOnByDefault(hazard) { return (hazard.speakClasses || []).l
 // false-alarm rate can be checked on the Poco before CONFIG.speakWatchClasses is ever turned on.
 export const WATCH_CLASSES = {
   rod2: ['bollard', 'upstairs', 'downstairs', 'red_light', 'green_light'],
+  rod4: ['bollard', 'upstairs', 'downstairs', 'red_light', 'green_light', 'kerb', 'kerb_drop', 'dropped_kerb', 'pothole', 'pavement_crack',
+    'e_scooter', 'construction_barrier', 'tactile_paving', 'ped_signal', 'a_board', 'sidewalk', 'zebra_crossing'],
   coco: ['traffic_light', 'stop_sign'],
 };
 

@@ -83,6 +83,7 @@ Open it in Chrome on the phone, tap **Start**, allow camera and microphone.
 - One link is enough: https://sudhamsr.github.io/MVP-VA/ . Supervisor tools (camera view with boxes, recording, saving the session log) are under More options > Supervisor tools. The `?debug` and `?debug&record` links still work and just switch those on at start.
 - `sw.js` is the offline service worker (it also serves the optional speed experiment, `?mt=1`). It is not a page; ignore it.
 - `?model=rod2` runs the 416-pixel stairs model as the main model (slower). The old `?size=416` and `?model=rod` files were removed on 7 Nov; those options now fall back to the normal model.
+- `?slow=rod4` (test link only) runs the 42-class rod4b model in the slow lane instead of rod2, from `docs/models/rod4_416.onnx` (the file `rod4b_416.onnx` from the private Kaggle dataset `rod4b-weights`). If the file is missing the app falls back to rod2. The new classes are logged (`watch-detect`); kerb, kerb drop, pothole, roadworks barrier, A-board and e-scooter are also spoken as a short hedge with no distance ("Possible kerb ahead. Check with your cane."), only when seen in two slow runs in a row, once per encounter, never in quiet mode. Sidewalk, zebra crossing, dropped kerb, tactile paving, pavement cracks and crossing lights are log-only. See `docs/js/rod4cues.js`.
 - `?lane=off` turns the stairs/manhole lane off (for speed tests). `?model=rod` runs the ROD model alone.
 - The line "Speed check" on screen shows frame time on the phone. Send it to the developer.
 
