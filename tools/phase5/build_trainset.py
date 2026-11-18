@@ -18,7 +18,7 @@
 #     >= PSEUDO_CONF, on new-source pictures only, never for a class that source labels itself, and not where a box already
 #     overlaps (IoU > 0.5). Pseudo lines are counted separately in the report.
 # Output: /kaggle/working/p5/{images,labels}/{train,val,test}, data.yaml, report.json (boxes per class, split and source).
-import os, re, glob, json, hashlib, random, subprocess, sys, urllib.request, collections
+import os, re, glob, json, hashlib, zlib, random, subprocess, sys, urllib.request, collections
 from concurrent.futures import ThreadPoolExecutor
 try:
     import yaml
@@ -59,6 +59,9 @@ SOURCES = globals().get('SOURCES', {
 MAX_PER_SOURCE = globals().get('MAX_PER_SOURCE', {'vip-mobility360-640px': 15000, 'potholes-yolo640': 4000,
                                                    'barcelona-streets-kerbs-drops-yolo640': 8000, 'vistas-va-yolo640': 10000,
                                                    'pedestrian-lights-yolo640': 8000, 'vistas-surfaces-labels': 8000})
+# VIP has 150k label files and the mounted storage reads ~15-50 files/s (22 Nov: 45 min with no result), so only a fixed
+# share of its pictures is read; the pick is by file-name hash (same pictures every run) and the cap below then applies.
+READ_FRACTION = globals().get('READ_FRACTION', {'vip-mobility360-640px': 0.2})
 MAX_EVAL = globals().get('MAX_EVAL', 600)  # val and test pictures per source and split (VIP alone has 45k): keeps each epoch's val short
 IMG = ('.jpg', '.jpeg', '.png', '.webp')
 # rod2 classes with no boxes in the Phase 2 data (audit 13 Nov): rod2 never learned them, so it must not pseudo-label them
@@ -147,6 +150,7 @@ for slug, key in SOURCES.items():
         parts = d.replace('\\', '/').split('/')
         if 'images' not in parts or any(k in parts for k in skip): continue
         imgs = [f for f in files if f.lower().endswith(IMG)]
+        if key in READ_FRACTION: imgs = [f for f in imgs if zlib.crc32(os.path.splitext(f)[0].encode()) % 1000 < READ_FRACTION[key] * 1000]
         if not imgs: continue
         ldir = '/labels'.join(d.rsplit('/images', 1)); names = nearest_names(d, root)
         lut = make_lut(d, names) if os.path.isdir(ldir) else None
