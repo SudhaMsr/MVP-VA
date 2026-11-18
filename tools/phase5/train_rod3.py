@@ -22,10 +22,31 @@ except ImportError:
 from ultralytics import YOLO
 
 ROD2 = next(p for p in glob.glob('/kaggle/input/**/rod2_best.pt', recursive=True))
-# 1. training set, with rod2 pseudo-labels for the old classes it learned
-g = {'MAP_COMMIT': COMMIT, 'PSEUDO': globals().get('PSEUDO', True), 'ROD2_PATH': ROD2, 'OUT_DIR': '/kaggle/working/p5'}
-exec(urllib.request.urlopen(BASE + 'build_trainset.py').read(), g)
-shutil.copy('/kaggle/working/p5/report.json', f'{OUT}/report_build.json')
+# 1. training set. Preferred: the packed 416-px set (private dataset "phase5-trainset-416-*", made by pack_trainset.py): untar to
+#    local disk, add rod2 pseudo-labels (pseudo_label.py), repeat Bus pictures. Fallback: rebuild from the 24 mounts (slow, about an hour).
+packs = sorted(glob.glob('/kaggle/input/**/p5_416.tar', recursive=True))
+if packs and not os.path.exists('/kaggle/working/p5/data.yaml'):
+    subprocess.run(['tar', '-xf', packs[-1], '-C', '/kaggle/working'], check=True)
+    print('unpacked', packs[-1], flush=True)
+if os.path.exists('/kaggle/working/p5/pack_meta.json'):
+    if globals().get('PSEUDO', True) and not os.path.exists('/kaggle/working/p5/pseudo_report.json'):
+        exec(urllib.request.urlopen(BASE + 'pseudo_label.py').read(), {'ROD2_PATH': ROD2, 'PACK_ROOT': '/kaggle/working/p5'})
+    BUS_COPIES = globals().get('BUS_COPIES', 2)  # Bus has few boxes (rod4 lost 2.7 AP50 on it); repeat each Bus picture
+    if BUS_COPIES and not glob.glob('/kaggle/working/p5/images/train/*.bus0.jpg'):
+        lab_dir, img_dir = '/kaggle/working/p5/labels/train', '/kaggle/working/p5/images/train'
+        bus = json.load(open('/kaggle/working/p5/pack_meta.json'))['classes'].index('Bus'); n = 0
+        for lab in [f for f in os.listdir(lab_dir) if f.endswith('.txt')]:
+            if not any(ln.split()[:1] == [str(bus)] for ln in open(f'{lab_dir}/{lab}') if ln.strip()): continue
+            stem = lab[:-4]; n += 1
+            for k in range(BUS_COPIES):
+                os.symlink(os.path.realpath(f'{img_dir}/{stem}.jpg'), f'{img_dir}/{stem}.bus{k}.jpg')
+                shutil.copy(f'{lab_dir}/{lab}', f'{lab_dir}/{stem}.bus{k}.txt')
+        print(f'Bus: {n} training pictures repeated {BUS_COPIES} more times', flush=True)
+    shutil.copy('/kaggle/working/p5/report.json', f'{OUT}/report_build.json')
+else:
+    g = {'MAP_COMMIT': COMMIT, 'PSEUDO': globals().get('PSEUDO', True), 'ROD2_PATH': ROD2, 'OUT_DIR': '/kaggle/working/p5'}
+    exec(urllib.request.urlopen(BASE + 'build_trainset.py').read(), g)
+    shutil.copy('/kaggle/working/p5/report.json', f'{OUT}/report_build.json')
 data = '/kaggle/working/p5/data.yaml'
 
 # 2. train: stage 1 frozen backbone (new head learns 40 classes), stage 2 everything at a low learning rate
