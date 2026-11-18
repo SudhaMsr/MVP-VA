@@ -1,4 +1,4 @@
-# Step 5 of the final MVP training plan: build the Phase 5 training set (40 classes, tools/phase5/label_map.json) from the
+# Step 5 of the final MVP training plan: build the Phase 5 training set (43 classes, tools/phase5/label_map.json) from the
 # private Kaggle datasets, without copying images: images are symlinked from /kaggle/input, labels are rewritten.
 # Run in a Kaggle notebook with every source dataset attached (GPU only if PSEUDO is on). One line in a cell:
 #   import urllib.request as u; exec(u.urlopen("https://raw.githubusercontent.com/SudhaMsr/MVP-VA/<commit>/tools/phase5/build_trainset.py").read())
@@ -50,6 +50,11 @@ SOURCES = globals().get('SOURCES', {
     'sudharanimsr/open-images-trucks-poles': 'open-images-trucks-poles',
     'sudharanimsr/vistas-surfaces-labels': 'vistas-surfaces-labels',  # rod4: labels only; its pictures come from vistas-roads-yolo640 ('_images_also')
     'sudharanimsr/surfaces-raw-public': 'outdoor-navigation',
+    'sudharanimsr/walkstreet-resplit-yolo640': 'walkstreet-resplit-yolo640',  # Blind Assist: bollard, bin, downstairs, upstairs
+    'sudharanimsr/mendeley-stairs-yolo512': 'mendeley-stairs-yolo512',
+    'sudharanimsr/roboflow100-road-traffic': 'roboflow100-road-traffic',
+    'sudharanimsr/accessibility-barriers-yolo-labels': 'accessibility-barriers-yolo-labels',  # labels only; pictures from accessibility-barriers-zenodo
+    'sudharanimsr/sanpo-train-head-v1': 'sanpo-train-head-v1',  # train sessions only; evaluation stays on sanpo-walker-view-test-subset
 })
 MAX_PER_SOURCE = globals().get('MAX_PER_SOURCE', {'vip-mobility360-640px': 15000, 'potholes-yolo640': 4000,
                                                    'barcelona-streets-kerbs-drops-yolo640': 8000, 'vistas-va-yolo640': 10000,
@@ -282,7 +287,7 @@ if PSEUDO:
         v += [x for d in m.get('_ids_by_folder', {}).values() for x in d.values()]
         return {CLASSES.index(x) for x in v}
     own = {key: own_classes(LM['sources'][key]) for key in SOURCES.values() if key in LM['sources']}
-    todo = [it for it in final if it['src'] != 'phase2-rod2-training-data']
+    todo = [it for it in final if it['src'] != 'phase2-rod2-training-data' and it['split'] == 'train']  # never val/test: they must stay hand-labelled only
     def iou(a, b):
         ax0, ay0, ax1, ay1 = a[0] - a[2] / 2, a[1] - a[3] / 2, a[0] + a[2] / 2, a[1] + a[3] / 2
         bx0, by0, bx1, by1 = b[0] - b[2] / 2, b[1] - b[3] / 2, b[0] + b[2] / 2, b[1] + b[3] / 2
@@ -305,7 +310,7 @@ counts = collections.defaultdict(collections.Counter); pics = collections.Counte
 for sp in ('train', 'val', 'test'):
     os.makedirs(f'{OUT}/images/{sp}', exist_ok=True); os.makedirs(f'{OUT}/labels/{sp}', exist_ok=True)
 for it in final:
-    stem = re.sub(r'[^A-Za-z0-9_.-]', '_', it['src'].split('-')[0] + '__' + os.path.splitext(os.path.basename(it['img']))[0])
+    stem = re.sub(r'[^A-Za-z0-9_.-]', '_', ('phase2' if it['src'] == 'phase2-rod2-training-data' else it['src']) + '__' + os.path.splitext(os.path.basename(it['img']))[0])
     ext = os.path.splitext(it['img'])[1].lower(); dst = f"{OUT}/images/{it['split']}/{stem}{ext}"
     if not os.path.lexists(dst): os.symlink(it['img'], dst)
     open(f"{OUT}/labels/{it['split']}/{stem}.txt", 'w').write('\n'.join(it['lines']) + ('\n' if it['lines'] else ''))
