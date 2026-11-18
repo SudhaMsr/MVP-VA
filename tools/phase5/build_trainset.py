@@ -208,6 +208,9 @@ for (src, sp), lst in sorted(by_src.items()):
     kept += balanced(lst, cap)
 
 # de-duplicate by picture hash
+# Phase 2 goes first, so a picture it shares with another source is kept as Phase 2's (its own labels, and gate G1's val set stays
+# whole); the other source's copy is the one dropped. (22 Nov dry run: with sources in name order, 887 Phase 2 pictures were dropped.)
+kept.sort(key=lambda it: it['src'] != 'phase2-rod2-training-data')
 with ThreadPoolExecutor(THREADS) as ex: hashes = list(ex.map(lambda i: ahash(i['img']), kept))
 seen, final, dups = set(), [], collections.Counter()
 for it, h in zip(kept, hashes):
