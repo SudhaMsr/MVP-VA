@@ -24,7 +24,7 @@ from ultralytics import YOLO
 ROD2 = next(p for p in glob.glob('/kaggle/input/**/rod2_best.pt', recursive=True))
 # 1. training set. Preferred: the packed 416-px set (private dataset "phase5-trainset-416-*", made by pack_trainset.py): untar to
 #    local disk, add rod2 pseudo-labels (pseudo_label.py), repeat Bus pictures. Fallback: rebuild from the 24 mounts (slow, about an hour).
-packs = sorted(glob.glob('/kaggle/input/**/p5_416.tar', recursive=True))
+packs = sorted(glob.glob('/kaggle/input/**/p5_416.dat', recursive=True))
 if packs and not os.path.exists('/kaggle/working/p5/data.yaml'):
     subprocess.run(['tar', '-xf', packs[-1], '-C', '/kaggle/working'], check=True)
     print('unpacked', packs[-1], flush=True)

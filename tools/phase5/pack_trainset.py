@@ -5,7 +5,7 @@
 # Run in the SAME CPU notebook session, right after build_trainset.py (it needs that cell's names: SOURCES, LM, CLASSES,
 # UNLEARNED, OUT). One line:
 #   PACK_NAME='phase5-trainset-416-v1'; import urllib.request as u; exec(u.urlopen(f"https://raw.githubusercontent.com/SudhaMsr/MVP-VA/{MAP_COMMIT}/tools/phase5/pack_trainset.py").read())
-# Writes /kaggle/working/pack/p5_416.tar (images/{train,val,test}, labels/..., data.yaml, report.json, pack_meta.json) and, if
+# Writes /kaggle/working/pack/p5_416.dat (images/{train,val,test}, labels/..., data.yaml, report.json, pack_meta.json) and, if
 # KAGGLE_UPLOAD is true, uploads it as the PRIVATE dataset sudharanimsr/<PACK_NAME>. pack_meta.json carries what pseudo_label.py
 # needs (which classes each source labels itself, which classes rod2 never learned), so the GPU session needs no rebuild.
 import os, glob, json, shutil, tarfile, collections
@@ -51,7 +51,7 @@ json.dump(meta, open(f'{STAGE}/pack_meta.json', 'w'), indent=1)
 shutil.copy(f'{ROOT}/report.json', f'{STAGE}/report.json')
 open(f'{STAGE}/data.yaml', 'w').write('path: /kaggle/working/p5\ntrain: images/train\nval: images/val\ntest: images/test\nnames:\n' + ''.join(f'  {i}: {c}\n' for i, c in enumerate(CLASSES)))
 os.makedirs(f'{PK}/up', exist_ok=True)
-tar = f'{PK}/up/p5_416.tar'
+tar = f'{PK}/up/p5_416.dat'   # NOT .tar: Kaggle unpacks archives into 200,000 small files (slow to read); a .dat stays one file
 with tarfile.open(tar, 'w') as t: t.add(STAGE, arcname='p5')
 print('tar', round(os.path.getsize(tar) / 1e9, 2), 'GB')
 shutil.rmtree(STAGE)
