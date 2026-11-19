@@ -20,6 +20,7 @@ import kagglehub
 COMMIT = globals().get('MAP_COMMIT', 'main')
 DATASETS = globals().get('COLAB_DATASETS', ['sudharanimsr/phase5-trainset-416-v1', 'sudharanimsr/rod2-phase2-best-pt', 'sudharanimsr/sanpo-test-boxes-phase5-v2'])
 os.makedirs('/kaggle/input', exist_ok=True); os.makedirs('/kaggle/working', exist_ok=True)
+subprocess.run('mount -o remount,rw /kaggle/input', shell=True)   # Colab mounts /kaggle/input read-only; links must be made there
 for ref in DATASETS:
     path = kagglehub.dataset_download(ref); link = f"/kaggle/input/{ref.split('/')[1]}"
     if not os.path.lexists(link): os.symlink(path, link)
