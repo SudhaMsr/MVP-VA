@@ -1,5 +1,5 @@
 # Colab runner for the Phase 5 merged-model training (rod5), for when the Kaggle GPU quota is used up.
-# Colab: Runtime > Change runtime type > T4 GPU. In Colab "Secrets" (key icon) add KAGGLE_USERNAME and KAGGLE_KEY and switch
+# Colab: Runtime > Change runtime type > T4 GPU. In Colab "Secrets" (key icon) add KAGGLE_USERNAME and KAGGLE_KEY (or one secret KAGGLE_API_TOKEN) and switch
 # "Notebook access" on for both (the key is made in Kaggle: Settings > API > Create New Token). Then run in one cell:
 #   MAP_COMMIT='<commit>'; import urllib.request as u; exec(u.urlopen(f"https://raw.githubusercontent.com/SudhaMsr/MVP-VA/{MAP_COMMIT}/tools/phase5/colab_setup.py").read())
 # What it does: mounts Google Drive (checkpoints survive a disconnect: run the same cell again and training resumes), downloads
@@ -8,7 +8,12 @@
 # (My Drive/va_rod5/) and are uploaded to the private Kaggle dataset sudharanimsr/rod5-results at the end.
 import os, glob, subprocess, sys, urllib.request
 from google.colab import drive, userdata
-os.environ['KAGGLE_USERNAME'] = userdata.get('KAGGLE_USERNAME'); os.environ['KAGGLE_KEY'] = userdata.get('KAGGLE_KEY')
+def _secret(k):
+    try: return userdata.get(k)
+    except Exception: return None
+# Kaggle gives either a kaggle.json (username + key) or one API token string: both work, add whichever you have as Colab secrets.
+for k in ('KAGGLE_USERNAME', 'KAGGLE_KEY', 'KAGGLE_API_TOKEN'):
+    if _secret(k): os.environ[k] = _secret(k)
 drive.mount('/content/drive')
 subprocess.run([sys.executable, '-m', 'pip', '-q', 'install', 'kagglehub', 'ultralytics'], check=True)
 import kagglehub
