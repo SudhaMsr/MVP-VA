@@ -49,11 +49,17 @@ else:
     shutil.copy('/kaggle/working/p5/report.json', f'{OUT}/report_build.json')
 data = '/kaggle/working/p5/data.yaml'
 
-# 2. train: stage 1 frozen backbone (new head learns 40 classes), stage 2 everything at a low learning rate
-YOLO(ROD2).train(data=data, imgsz=IMGSZ, epochs=EPOCHS1, batch=BATCH, freeze=10, lr0=0.002, project=OUT, name='s1',
-                 patience=0, exist_ok=True, workers=4, plots=False)
-YOLO(f'{OUT}/s1/weights/best.pt').train(data=data, imgsz=IMGSZ, epochs=EPOCHS2, batch=BATCH, optimizer='AdamW', lr0=0.0005,
-                                        project=OUT, name='s2', patience=10, exist_ok=True, workers=4, plots=False)
+# 2. train: stage 1 frozen backbone (new head learns 43 classes), stage 2 everything at a low learning rate.
+#    Resumable (Colab can disconnect): a stage that finished leaves <OUT>/<name>.done and is skipped; one that was cut off
+#    continues from its last.pt.
+def run_stage(name, start, **kw):
+    if os.path.exists(f'{OUT}/{name}.done'): return
+    last = f'{OUT}/{name}/weights/last.pt'
+    if os.path.exists(last): YOLO(last).train(resume=True)
+    else: YOLO(start).train(data=data, imgsz=IMGSZ, batch=BATCH, project=OUT, name=name, patience=kw.pop('patience', 0), exist_ok=True, workers=4, plots=False, **kw)
+    open(f'{OUT}/{name}.done', 'w').write('ok')
+run_stage('s1', ROD2, epochs=EPOCHS1, freeze=10, lr0=0.002)
+run_stage('s2', f'{OUT}/s1/weights/best.pt', epochs=EPOCHS2, optimizer='AdamW', lr0=0.0005, patience=10)
 best = f'{OUT}/s2/weights/best.pt'; shutil.copy(best, f'{OUT}/best.pt')
 
 # 3. gate G1 on the Phase 2 val pictures only (neither model trained on them), scored by baseline_eval.py so rod2 and rod3
