@@ -1,6 +1,6 @@
 // Vision Assist - app wiring: camera, detection loop, speech, voice commands, error handling.
 // Rule for this file: every failure is spoken. No silent states.
-import { CONFIG, MODELS, pickModel, pickSecondary, canonical, SECONDARY, TERTIARY, WATCH_CLASSES, ROD4, HAZARD, GOOGLE_KEY, FEATURES, IGNORE_FAST, hazardOnByDefault } from './config.js';
+import { CONFIG, MODELS, pickModel, pickSecondary, canonical, SECONDARY, TERTIARY, WATCH_CLASSES, ROD4, HAZARD, GOOGLE_KEY, FEATURES, GEMINI_MODEL, IGNORE_FAST, hazardOnByDefault } from './config.js';
 import { filterAllowed, mergeLanes, confirmSlow } from './lanes.js';
 import { Detector } from './detector.js';
 import { Tracker } from './tracker.js';
@@ -25,6 +25,7 @@ import { looksLikeEcho, isBargeIn } from './barge.js';
 import { Dialogue, parseAnswer } from './dialogue.js';
 import { recogniseText, readingSpeech } from './reader.js';
 import { CloudVision, parseRead, sceneSpeech, frameToBase64 } from './cloudvision.js';
+import { GeminiChat, needsPhoto } from './gemini.js';
 import { searchNearby, nearbySpeech, WalkHeading } from './nearby.js';
 import { CROSSING_TEXT, LIMITS_TEXT, WELCOME_TEXT } from './safetext.js';
 import { firstStartPrivacy, PRIVACY_TEXT, RecordingConsent } from './privacy.js';
@@ -809,6 +810,7 @@ function updateMain() {
 }
 
 const vision = GOOGLE_KEY && params.get('vision') !== 'phone' ? new CloudVision({ key: GOOGLE_KEY, log: (k, v) => logEvent(k, v) }) : null;
+const gemini = GOOGLE_KEY && FEATURES.ask && params.get('ask') !== 'off' ? new GeminiChat({ key: GOOGLE_KEY, model: GEMINI_MODEL, log: (k, v) => logEvent(k, v) }) : null;
 const walkHeading = new WalkHeading();
 function feedHeading(p) {
   try { const c = p.coords; walkHeading.add({ lat: c.latitude, lon: c.longitude, accuracy: c.accuracy, heading: c.heading, speed: c.speed, t: Date.now() }); } catch (_) { /* ignore */ }
@@ -1017,6 +1019,32 @@ async function lookNow() {
   } finally { looking = false; }
 }
 
+// Ask Gemini (20 Nov): something said after tapping Talk that no command matches. One photo goes with it only when the
+// question is about what the camera shows; what the phone already sees and the next turn go with it as words.
+let asking = false, geminiRefusedSaid = false;
+async function askGemini(question) {
+  if (asking) { say('I am still thinking about your last question.', 'status'); return; }
+  asking = true;
+  try {
+    let base64Jpeg = '';
+    const camOk = state.running && stream && el.video.videoWidth;
+    if (camOk && needsPhoto(question)) base64Jpeg = frameToBase64(el.video, document, 768).base64;
+    const bits = [];
+    if (camOk && state.scene && performance.now() - state.scene.t < 5000) bits.push(`The phone's detector says: ${describeScene(state.scene.tracks, state.scene.w, { path: engine.free.advice(true) })}`);
+    if (navigator_.active) bits.push(`Navigating to ${(navigator_.destination && navigator_.destination.name) || 'a place'}. ${navigator_.status('next')}`);
+    say('Thinking.', 'status');
+    const answer = await gemini.ask(question, { base64Jpeg, context: bits.join(' ') });
+    logEvent('ask', `${question} => ${answer}`);
+    say(answer, 'status'); state.lastSpoken = answer;
+  } catch (e) {
+    logEvent('ask-error', e && e.message);
+    if (gemini.refused) {
+      if (!geminiRefusedSaid) { geminiRefusedSaid = true; say('Google AI answers are not switched on for this app yet. Say help to hear what I can do.', 'status'); }
+      else say('I did not understand that. Say help to hear what I can do.', 'status');
+    } else say('I could not reach Google, the signal may be weak. Tap the screen and try again.', 'status');
+  } finally { asking = false; }
+}
+
 // "What is near me", "is there a cafe nearby": shops and places from the map, nearest first, with the side when known.
 async function nearbyNow(query = null) {
   if (!GOOGLE_KEY) { say('I cannot look up places on this version.', 'status'); return; }
@@ -1208,7 +1236,9 @@ function handleTranscript(text) {
   if (dialogue.answer(text)) { cues.play('ok'); return; } // an answer to a question we asked
   const cmd = parseCommand(text);
   if (['navigate', 'saveAddress', 'whereami', 'lost', 'read', 'look', 'nearby'].includes(cmd.type)) setMode('Thinking'); // these wait on the network or a model
-  if (cmd.type) cues.play('ok'); else if (inTalk) cues.play('huh');
+  const toGemini = !cmd.type && inTalk && !!gemini && gemini.usable && !!(cmd.heard && cmd.heard.split(' ').length >= 2);
+  if (toGemini) setMode('Thinking');
+  if (cmd.type || toGemini) cues.play('ok'); else if (inTalk) cues.play('huh');
   switch (cmd.type) {
     case 'describe': describeNow(); break;
     case 'look': lookNow(); break;
@@ -1256,7 +1286,7 @@ function handleTranscript(text) {
     case 'navigate':
       goTo(cmd.arg);
       break;
-    default: break; // unrecognised speech is ignored; ambient talking should not interrupt
+    default: if (toGemini) askGemini(text); break; // after a Talk tap, anything else is a question for Gemini; ambient talking is ignored
   }
 }
 

@@ -197,8 +197,11 @@ export const CONFIG = {
 
 // Google key. A browser-only app on GitHub Pages cannot hide this key, so it is locked down in Google Cloud
 // Console instead: restricted to https://sudhamsr.github.io/* and to the Places (New), Routes and
-// Speech-to-Text APIs only. Empty string = use OpenStreetMap and Chrome's speech recogniser only.
+// Speech-to-Text APIs only (plus Text-to-Speech, Vision and the Generative Language API for Ask Gemini). Empty string = use OpenStreetMap and Chrome's speech recogniser only.
 export const GOOGLE_KEY = 'AIzaSyBkblGHKZibIQUbufndBeCK6TKQpjzuCyY';
 
 // Features that are built but switched off until the core (hazards + navigation) is tested.
-export const FEATURES = { read: true }; // ?read=1 turns reading on for testing
+export const FEATURES = { read: true, ask: true }; // ?read=1 turns reading on for testing; ?ask=off turns Ask Gemini off
+// Ask Gemini (gemini.js): the model for questions no voice command matches. Fast and cheap, so the walker is not kept waiting.
+// Needs the Generative Language API added to the Google key's allowed APIs in Cloud Console.
+export const GEMINI_MODEL = 'gemini-3.5-flash-lite';

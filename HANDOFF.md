@@ -593,3 +593,9 @@ uncommitted, on a local `fix/ios-safari` folder; its files were copied unchanged
   weak classes, never "safe" or "clear"), once rod4b_416.onnx is supplied from the dataset page.
 - Licences: Vistas is CC BY-NC-SA plus Mapillary Research (non-commercial, fine for a free research MVP, not for selling);
   SANPO CC BY 4.0 (test only); Outdoor Navigation CC BY 4.0.
+
+## Added 20 Nov (Ask Gemini)
+- `docs/js/gemini.js`: unmatched speech after a Talk tap goes to Gemini (`GEMINI_MODEL`, same restricted Google key), with a photo only for camera questions. Answers are filtered by `safeAnswer` (no safety promises, no signal colours, no compass words). Tests: `tests/gemini.test.js`.
+- The owner chose Gemini on the existing referrer-restricted key (20 Nov), knowing it is a paid API beyond navigation and speech.
+- To do in Cloud Console: enable the Generative Language API in the project and add it to the key's allowed APIs. Watch quota and billing.
+- Not yet tried on the Poco or with testers: check answer speed on mobile data and whether the photo questions are answered well.
