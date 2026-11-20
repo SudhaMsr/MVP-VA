@@ -161,4 +161,5 @@ export const HELP_TEXT =
   'Say vibration only, speech only, or speech and vibration. Say screen reader mode on, if you use TalkBack. ' +
   'Say slower or faster to change how fast I speak. Say share my location to send where you are to someone. If you are lost, say I am lost. ' +
   'Say less talk or more detail to change how much I say. ' +
+  'After tapping Talk, you can also ask me any other question in your own words, such as what colour is this, and Google will help me answer. ' +
   'Say help to hear this again.';
